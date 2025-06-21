@@ -1,0 +1,51 @@
+# ===================================================================
+# == Configuration for the Video Search Engine Ingestion Pipeline  ==
+# ===================================================================
+
+# --- General settings ---
+general:
+  # Device to use for ML models: "cuda", "cpu", "mps".
+  # If "auto", the script will intelligently select CUDA if available, otherwise CPU.
+  device: "auto"
+  
+  # Hugging Face access token for speaker diarization.
+  hf_token: "REMOVED_HF_TOKEN"
+
+# --- Default filenames for processed outputs ---
+# These are relative to the specific video's output folder.
+filenames:
+  audio: "normalized_audio.mp3"
+  transcript: "transcript_generic.json"
+  shots: "shots.csv"
+  audio_events: "audio_events.json"
+  visual_details: "visual_details.json"
+
+# --- Model identifiers and settings ---
+models:
+  # WhisperX for transcription
+  transcription:
+    name: "base"          # Model size: "tiny", "base", "small", "medium", "large-v2"
+    compute_type: "int8"  # "float16", "int8", etc. depending on GPU support
+
+  # Audio Spectrogram Transformer (AST) for event detection
+  audio_events:
+    name: "MIT/ast-finetuned-audioset-10-10-0.4593"
+
+  # BLIP for image captioning
+  visual_captioning:
+    name: "Salesforce/blip-image-captioning-base"
+
+# --- Parameters for processing steps ---
+parameters:
+  transcription:
+    batch_size: 32
+
+  audio:
+    sample_rate: 16000 # Required sample rate for AST model
+
+  audio_events:
+    top_n: 3             # Number of top audio events to record per shot
+    confidence_threshold: 0.1 # Minimum score for an event to be recorded
+
+  visual_captioning:
+    max_new_tokens: 50
