@@ -8,11 +8,12 @@ import csv
 import cv2
 from PIL import Image
 from typing import Dict, Any, List
+from collections import defaultdict
 from core.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
-# MODIFIED: Added a path for the raw (unaligned) transcript
+# Added path for the final unified output file.
 def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
     """Generates a dictionary of all required output paths using filenames from config."""
     f_names = config['filenames']
@@ -23,6 +24,7 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
         "transcript_aligned": os.path.join(processed_dir, f_names['transcript']),
         "audio_events": os.path.join(processed_dir, f_names['audio_events']),
         "visual_details": os.path.join(processed_dir, f_names['visual_details']),
+        "final_analysis": os.path.join(processed_dir, f_names['final_analysis']),
     }
 
 def extract_audio(video_path: str, audio_path: str):
@@ -36,7 +38,6 @@ def extract_audio(video_path: str, audio_path: str):
         logger.error(f"FFmpeg failed to process the audio.\nFFmpeg stderr:\n{e.stderr}")
         raise
 
-# MODIFIED: This now saves a raw transcript, to be aligned later.
 def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Dict[str, Any]):
     """Transcribes audio and performs speaker diarization, saving the raw output."""
     logger.info("    -> Transcribing and identifying speakers (raw output)...")
@@ -56,13 +57,11 @@ def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Di
         json.dump(result_transcript['segments'], f, indent=2)
     logger.info(f"    -> Raw transcript saved to {raw_transcript_path}")
 
-# MODIFIED: Now creates the rich shots.json file.
 def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, Any]]:
     """Detects shot boundaries and saves them as a rich JSON object."""
     logger.info("    -> Detecting shot boundaries with TransNetV2...")
     from transnetv2_pytorch import TransNetV2
     
-    # We need the video's FPS to calculate timestamps
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     cap.release()
@@ -87,7 +86,6 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
     logger.info(f"    -> Shot boundaries saved to {shots_path}")
     return scenes_data
 
-# NEW: Function to align the transcript segments with the detected shots.
 def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, Any]], aligned_transcript_path: str):
     """Aligns transcript segments to shots and saves the new transcript."""
     logger.info("    -> Aligning transcript to shots...")
@@ -96,9 +94,7 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
 
     aligned_segments = []
     for segment in transcript_segments:
-        if 'start' not in segment or 'end' not in segment:
-            continue # Skip segments without timestamps
-
+        if 'start' not in segment or 'end' not in segment: continue
         segment_midpoint = (segment['start'] + segment['end']) / 2
         assigned_shot_id = None
         for shot in scenes:
@@ -106,12 +102,9 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
                 assigned_shot_id = shot['shot_id']
                 break
         
-        # Create a new segment dictionary with the shot_id
         aligned_segment = {
-            "start": segment.get('start'),
-            "end": segment.get('end'),
-            "text": segment.get('text', ''),
-            "speaker": segment.get('speaker'),
+            "start": segment.get('start'), "end": segment.get('end'),
+            "text": segment.get('text', ''), "speaker": segment.get('speaker'),
             "shot_id": assigned_shot_id
         }
         aligned_segments.append(aligned_segment)
@@ -120,8 +113,6 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
         json.dump(aligned_segments, f, indent=2)
     logger.info(f"    -> Aligned transcript saved to {aligned_transcript_path}")
 
-
-# MODIFIED: Simplified to use shot_id and produce the new data structure.
 def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Detects audio events for each shot."""
     logger.info("    -> Detecting audio events per shot...")
@@ -135,7 +126,6 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
 
     processor = AutoProcessor.from_pretrained(model_cfg['name'])
     model = AutoModelForAudioClassification.from_pretrained(model_cfg['name']).to(device)
-    
     sr = audio_params['sample_rate']
     y, _ = librosa.load(audio_path, sr=sr, mono=True)
     
@@ -152,18 +142,15 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
             
             scores = torch.sigmoid(logits[0]).cpu().numpy()
             top_indices = scores.argsort()[-event_params['top_n']:][::-1]
-            
             detected_events = [{"event": model.config.id2label[j], "score": round(float(scores[j]), 3)} 
                                for j in top_indices if scores[j] > event_params['confidence_threshold']]
             shot_events_info["events"] = detected_events
-        
         all_shot_events.append(shot_events_info)
 
     with open(output_path, 'w') as f:
         json.dump(all_shot_events, f, indent=2)
     logger.info(f"    -> Timestamped audio events saved.")
 
-# MODIFIED: Simplified to use shot_id and produce the new data structure.
 def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Generates captions for each shot."""
     logger.info("    -> Generating visual captions for shots...")
@@ -176,9 +163,7 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
     model = BlipForConditionalGeneration.from_pretrained(model_cfg['name']).to(device)
 
     cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise IOError(f"Cannot open video file: {video_path}")
-
+    if not cap.isOpened(): raise IOError(f"Cannot open video file: {video_path}")
     visual_details = []
     for shot in scenes:
         middle_frame_idx = (shot['start_frame'] + shot['end_frame']) // 2
@@ -197,7 +182,52 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
         json.dump(visual_details, f, indent=2)
     logger.info(f"    -> Visual details saved.")
 
-# --- MAIN ORCHESTRATOR FUNCTION (MODIFIED LOGIC) ---
+# NEW: Function to combine all metadata into a single file.
+def create_final_analysis_file(paths: Dict[str, str]):
+    """Combines all intermediate JSON files into a single, unified analysis file."""
+    logger.info("    -> Creating final unified analysis file...")
+
+    # Load all the data sources
+    with open(paths['shots'], 'r') as f: scenes_data = json.load(f)
+    with open(paths['visual_details'], 'r') as f: visual_data = json.load(f)
+    with open(paths['audio_events'], 'r') as f: audio_data = json.load(f)
+    with open(paths['transcript_aligned'], 'r') as f: transcript_data = json.load(f)
+
+    # Create maps for efficient lookup by shot_id
+    captions_map = {item['shot_id']: item['caption'] for item in visual_data}
+    audio_events_map = {item['shot_id']: item['events'] for item in audio_data}
+    
+    # Group transcript segments by shot_id
+    transcript_map = defaultdict(list)
+    for segment in transcript_data:
+        if segment['shot_id']:
+            transcript_map[segment['shot_id']].append({
+                "start": segment["start"], "end": segment["end"],
+                "text": segment["text"], "speaker": segment["speaker"]
+            })
+
+    # Build the final combined data structure
+    final_data = []
+    for shot in scenes_data:
+        shot_id = shot['shot_id']
+        final_shot_object = {
+            "shot_id": shot_id,
+            "shot_index": shot['shot_index'],
+            "time_start_sec": shot['start_time_sec'],
+            "time_end_sec": shot['end_time_sec'],
+            "frame_start": shot['start_frame'],
+            "frame_end": shot['end_frame'],
+            "visual_caption": captions_map.get(shot_id, ""),
+            "audio_events": audio_events_map.get(shot_id, []),
+            "transcript_segments": transcript_map.get(shot_id, [])
+        }
+        final_data.append(final_shot_object)
+
+    with open(paths['final_analysis'], 'w') as f:
+        json.dump(final_data, f, indent=2)
+    logger.info(f"    -> Final analysis file saved to {paths['final_analysis']}")
+
+# --- MAIN ORCHESTRATOR FUNCTION ---
 def run_extraction(video_path: str, base_output_dir: str):
     """Runs the full data extraction pipeline for a given video."""
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
@@ -209,8 +239,6 @@ def run_extraction(video_path: str, base_output_dir: str):
     os.makedirs(video_specific_dir, exist_ok=True)
     paths = _get_paths(video_specific_dir, CONFIG)
 
-    # --- NEW PIPELINE ORDER ---
-
     # 1. Detect shots first to create the data "skeleton"
     scenes = []
     if not os.path.exists(paths["shots"]):
@@ -220,11 +248,11 @@ def run_extraction(video_path: str, base_output_dir: str):
         with open(paths["shots"], 'r') as f:
             scenes = json.load(f)
 
-    # 2. Extract audio (needed for transcription and audio events)
+    # 2. Extract audio
     if not os.path.exists(paths["audio"]):
         extract_audio(video_path, paths["audio"])
 
-    # 3. Create raw transcript if it doesn't exist
+    # 3. Create raw transcript
     if not os.path.exists(paths["transcript_raw"]):
         transcribe_and_diarize(paths["audio"], paths["transcript_raw"], CONFIG)
 
@@ -239,6 +267,9 @@ def run_extraction(video_path: str, base_output_dir: str):
     # 6. Run per-shot analysis for visual captions
     if not os.path.exists(paths["visual_details"]):
         generate_visual_captions(video_path, scenes, paths["visual_details"], CONFIG)
+    
+    if not os.path.exists(paths["final_analysis"]):
+        create_final_analysis_file(paths)
 
     logger.info(f"--- Extraction Complete for '{video_filename}'! ---")
 
