@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Speaker Identification</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; gap: 20px; padding: 20px; background-color: #f4f4f9; }
+        #video-container { flex: 2; }
+        #controls-container { flex: 1; display: flex; flex-direction: column; gap: 20px; max-height: 90vh; }
+        video { width: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .scrollable-list { overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; background-color: #fff; padding: 10px; }
+        #speaker-map-container { padding: 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .speaker-input-group { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .speaker-input-group label { font-weight: bold; min-width: 100px; }
+        .speaker-input-group input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .segment { padding: 10px; margin-bottom: 8px; border-left: 4px solid #007bff; background: #f9f9f9; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        .segment:hover { background-color: #e9ecef; }
+        .segment p { margin: 0; }
+        .segment .meta { font-size: 0.8em; color: #666; }
+        #save-button { padding: 12px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        #save-button:hover { background-color: #218838; }
+        #status-message { margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <h1 id="video-title">Loading...</h1>
+        <video id="video-player" controls></video>
+    </div>
+
+    <div id="controls-container">
+        <div id="speaker-map-container">
+            <h2>Identify Speakers</h2>
+            <div id="speaker-inputs"></div>
+            <button id="save-button">Save & Continue Pipeline</button>
+            <p id="status-message"></p>
+        </div>
+        <div id="transcript-container" class="scrollable-list">
+            <h2>Transcript Segments</h2>
+            <div id="transcript-list"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const videoPlayer = document.getElementById('video-player');
+            const videoTitle = document.getElementById('video-title');
+            const transcriptList = document.getElementById('transcript-list');
+            const speakerInputs = document.getElementById('speaker-inputs');
+            const saveButton = document.getElementById('save-button');
+            const statusMessage = document.getElementById('status-message');
+
+            // 1. Set video source
+            videoPlayer.src = '/video_file';
+
+            // 2. Fetch transcript data and populate UI
+            const response = await fetch('/api/data');
+            const data = await response.json();
+            
+            videoTitle.textContent = `Video: ${data.video_filename}`;
+            const transcript = data.transcript;
+            
+            const uniqueSpeakers = [...new Set(transcript.map(seg => seg.speaker).filter(Boolean))];
+
+            // 3. Create input fields for each unique speaker
+            uniqueSpeakers.forEach(speakerId => {
+                const group = document.createElement('div');
+                group.className = 'speaker-input-group';
+                group.innerHTML = `
+                    <label for="speaker-${speakerId}">${speakerId}:</label>
+                    <input type="text" id="speaker-${speakerId}" placeholder="Enter real name...">
+                `;
+                speakerInputs.appendChild(group);
+            });
+
+            // 4. Create clickable list of transcript segments
+            transcript.forEach(seg => {
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = 'segment';
+                segmentDiv.innerHTML = `
+                    <p>${seg.text}</p>
+                    <span class="meta"><strong>${seg.speaker || 'UNKNOWN'}</strong> | ${seg.start.toFixed(2)}s - ${seg.end.toFixed(2)}s</span>
+                `;
+                segmentDiv.addEventListener('click', () => {
+                    videoPlayer.currentTime = seg.start;
+                    videoPlayer.play();
+                });
+                transcriptList.appendChild(segmentDiv);
+            });
+
+            // 5. Handle Save button click
+            saveButton.addEventListener('click', async () => {
+                const speakerMap = {};
+                uniqueSpeakers.forEach(speakerId => {
+                    const input = document.getElementById(`speaker-${speakerId}`);
+                    // Only add to map if a name was entered
+                    if (input.value.trim()) {
+                        speakerMap[speakerId] = input.value.trim();
+                    }
+                });
+
+                statusMessage.textContent = 'Saving...';
+                statusMessage.style.color = 'blue';
+
+                try {
+                    const saveResponse = await fetch('/api/save_map', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ speaker_map: speakerMap })
+                    });
+
+                    const result = await saveResponse.json();
+
+                    if (saveResponse.ok) {
+                        statusMessage.textContent = 'Saved! You can close this window now.';
+                        statusMessage.style.color = 'green';
+                        saveButton.disabled = true;
+                    } else {
+                        statusMessage.textContent = `Error: ${result.error}`;
+                        statusMessage.style.color = 'red';
+                    }
+                } catch (error) {
+                    statusMessage.textContent = `Network Error: ${error.message}`;
+                    statusMessage.style.color = 'red';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

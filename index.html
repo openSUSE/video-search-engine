@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Segment Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* Style for the active segment */
+        .segment-active {
+            background-color: #e0f2fe !important; /* light-sky-100 */
+            border-left-color: #0ea5e9 !important; /* sky-500 */
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">Video Segment Viewer</h1>
+            <p class="text-slate-600 mt-2">Load your video and the generated `final_segments.json` file to begin analysis.</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="space-y-8">
+            <!-- Step 1: File Inputs -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-semibold mb-4 text-slate-800">1. Load Your Files</h2>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="video-input" class="block text-sm font-medium text-slate-700 mb-2">Select Video File</label>
+                        <input type="file" id="video-input" accept="video/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 transition-colors duration-200 cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="json-input" class="block text-sm font-medium text-slate-700 mb-2">Select `final_segments.json`</label>
+                        <input type="file" id="json-input" accept=".json" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 transition-colors duration-200 cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Viewer -->
+            <div id="viewer-section" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hidden">
+                 <h2 class="text-xl font-semibold mb-4 text-slate-800">2. Review Segments</h2>
+                <div class="grid lg:grid-cols-3 gap-8">
+                    <!-- Video Player Column -->
+                    <div class="lg:col-span-2">
+                        <video id="video-player" class="w-full rounded-lg bg-black shadow-lg" controls></video>
+                        <div id="playback-status" class="mt-4 text-sm text-slate-600 p-3 bg-slate-100 rounded-lg">
+                            Select a segment from the list to play.
+                        </div>
+                    </div>
+
+                    <!-- Segments List Column -->
+                    <div class="lg:col-span-1">
+                        <h3 class="text-lg font-semibold mb-3 text-slate-800">Segment List</h3>
+                        <div id="segments-list" class="h-[60vh] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                            <!-- Segments will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+             <!-- Initial Message -->
+            <div id="initial-message" class="text-center py-16 px-6 bg-white rounded-xl shadow-sm border border-slate-200">
+                <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2z" />
+                </svg>
+                <h3 class="mt-2 text-lg font-medium text-slate-900">Waiting for files</h3>
+                <p class="mt-1 text-sm text-slate-500">Please select both a video and a JSON file above.</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const videoInput = document.getElementById('video-input');
+        const jsonInput = document.getElementById('json-input');
+        const videoPlayer = document.getElementById('video-player');
+        const segmentsList = document.getElementById('segments-list');
+        const playbackStatus = document.getElementById('playback-status');
+        const viewerSection = document.getElementById('viewer-section');
+        const initialMessage = document.getElementById('initial-message');
+
+        let segmentsData = [];
+        let currentSegment = null;
+        let videoFileUrl = null;
+        let jsonLoaded = false;
+
+        // Function to check if both files are loaded and initialize the viewer
+        function initializeViewer() {
+            if (videoFileUrl && jsonLoaded) {
+                videoPlayer.src = videoFileUrl;
+                renderSegments();
+                viewerSection.classList.remove('hidden');
+                initialMessage.classList.add('hidden');
+            }
+        }
+
+        // Event listener for video file selection
+        videoInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                videoFileUrl = URL.createObjectURL(file);
+                initializeViewer();
+            }
+        });
+
+        // Event listener for JSON file selection
+        jsonInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        segmentsData = JSON.parse(e.target.result);
+                        jsonLoaded = true;
+                        initializeViewer();
+                    } catch (error) {
+                        alert('Error parsing JSON file. Please check the file format.');
+                        console.error("JSON Parse Error:", error);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Function to render the list of segments
+        function renderSegments() {
+            segmentsList.innerHTML = ''; // Clear previous list
+            if (segmentsData.length === 0) {
+                segmentsList.innerHTML = '<p class="text-slate-500 text-sm">No segments found in the JSON file.</p>';
+                return;
+            }
+            segmentsData.forEach((segment, index) => {
+                const segmentElement = document.createElement('div');
+                segmentElement.className = 'segment-item p-4 bg-white hover:bg-slate-100 cursor-pointer rounded-lg border-l-4 border-slate-200 transition-colors duration-200';
+                segmentElement.dataset.index = index;
+
+                const speakers = segment.speakers.join(', ') || 'No speakers';
+                const transcriptSnippet = segment.full_transcript.substring(0, 100) + (segment.full_transcript.length > 100 ? '...' : '');
+
+                segmentElement.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-bold text-sm text-sky-700">${segment.segment_id}</h4>
+                        <p class="text-xs font-mono bg-slate-200 text-slate-600 px-2 py-1 rounded">${formatTime(segment.start_time)} - ${formatTime(segment.end_time)}</p>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-2"><strong>Speakers:</strong> ${speakers}</p>
+                    <p class="text-sm text-slate-700 italic">"${transcriptSnippet}"</p>
+                `;
+
+                segmentElement.addEventListener('click', () => {
+                    playSegment(index);
+                });
+
+                segmentsList.appendChild(segmentElement);
+            });
+        }
+
+        // Function to play a specific segment
+        function playSegment(index) {
+            currentSegment = segmentsData[index];
+            videoPlayer.currentTime = currentSegment.start_time;
+            videoPlayer.play();
+            
+            // Highlight the active segment
+            document.querySelectorAll('.segment-item').forEach(el => el.classList.remove('segment-active'));
+            document.querySelector(`.segment-item[data-index='${index}']`).classList.add('segment-active');
+        }
+
+        // Event listener to stop playback when segment ends
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (currentSegment) {
+                const { start_time, end_time, segment_id } = currentSegment;
+                const currentTime = videoPlayer.currentTime;
+
+                if (currentTime >= end_time || currentTime < start_time) {
+                    videoPlayer.pause();
+                    currentSegment = null; // Reset so it doesn't re-trigger
+                }
+                
+                // Update status display
+                const statusText = currentSegment 
+                    ? `Playing ${segment_id} (${formatTime(start_time)} - ${formatTime(end_time)})`
+                    : 'Playback paused. Select a segment to play.';
+                playbackStatus.textContent = statusText;
+            }
+        });
+        
+        videoPlayer.addEventListener('pause', () => {
+             if (currentSegment) {
+                playbackStatus.textContent = `Paused at ${formatTime(videoPlayer.currentTime)}.`;
+             }
+        });
+
+        // Helper function to format time in MM:SS format
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+    </script>
+</body>
+</html>
