@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from typing import List, Dict, Any, Set
 from collections import defaultdict
+from core.config import CONFIG  # Import the global config object
 
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
@@ -50,6 +51,17 @@ def run_segmentation(video_path: str, analysis_path: str, speaker_map_path: str)
         The path to the final segments JSON file.
     """
     logger.info("--- Starting Step 2: Intelligent Segmentation with Boundary Scoring ---")
+
+    # Define output path early from CONFIG to check for its existence
+    processed_dir = os.path.dirname(analysis_path)
+    output_filename = CONFIG['filenames']['final_segments']
+    output_path = os.path.join(processed_dir, output_filename)
+
+    # --- CHECK IF ALREADY COMPLETED ---
+    if os.path.exists(output_path):
+        logger.info(f"    -> Skipping segmentation. Output already exists at {output_path}")
+        logger.info("--- Segmentation Step Complete (Skipped)! ---")
+        return output_path
     
     # 1. Load all necessary data
     logger.info("1/4: Loading input data...")

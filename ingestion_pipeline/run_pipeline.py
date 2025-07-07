@@ -28,6 +28,12 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
     raw_transcript_path = os.path.join(video_specific_dir, CONFIG['filenames']['raw_transcript'])
     speaker_map_path = os.path.join(video_specific_dir, CONFIG['filenames']['speaker_map'])
 
+    logger.info(f"Raw transcript path: {raw_transcript_path}")
+
+    if os.path.exists(speaker_map_path):
+        logger.info(f"Speaker map already exists at {speaker_map_path}. Skipping UI.")
+        return speaker_map_path
+
     if not os.path.exists(raw_transcript_path):
         logger.error(f"Raw transcript not found at {raw_transcript_path}. Cannot start UI.")
         return None
