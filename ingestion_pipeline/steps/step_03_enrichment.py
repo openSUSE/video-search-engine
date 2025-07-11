@@ -1,3 +1,5 @@
+# ingestion_pipeline/steps/step_03_enrichment.py
+
 import logging
 import json
 import os
@@ -7,19 +9,25 @@ from typing import List, Dict, Any
 logger = logging.getLogger(__name__)
 
 PROMPT_TEMPLATE = """
-Analyze the following video transcript segment and provide a concise analysis in a structured JSON format.
+You are an expert video content analyst. Your task is to analyze a segment of a video using the multi-modal data provided below and generate a concise analysis in a structured JSON format.
 
-**Transcript:**
+**[Segment Context]**
+- Speakers: {speakers}
+- Key Visuals: {visuals}
+- Background Audio Events: {audio_events}
+
+**[Segment Transcript]**
 "{transcript}"
 
-**Instructions:**
-Based on the transcript, generate the following:
-1. "title": A short, descriptive title (5-10 words) that captures the main topic of the segment.
-2. "summary": A concise, neutral summary (2-3 sentences) of the key information or events discussed.
-3. "keywords": A JSON array of 5-7 important keywords or short phrases that represent the core topics.
+**[Instructions]**
+Based on ALL the context provided (transcript, visuals, and audio), generate the following:
+1. "title": A short, descriptive title (5-10 words) that captures the main topic and action of the segment.
+2. "summary": A concise, neutral summary (2-3 sentences) integrating what was said with what was shown and heard.
+3. "keywords": A JSON array of 5-7 important keywords or short phrases representing the core concepts, objects, and actions.
 
 **Output Format (Strictly JSON):**
 """
+
 
 def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
     """Sends a prompt to the Ollama API and returns the parsed JSON response."""
@@ -29,17 +37,15 @@ def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "model": llm_config['model'],
         "prompt": prompt,
         "stream": False,
-        "format": "json"  # Use Ollama's built-in JSON mode
+        "format": "json"
     }
     
     try:
         response = requests.post(api_url, json=payload, timeout=llm_config.get('timeout_sec', 120))
         response.raise_for_status()
-        
         response_data = response.json()
         json_content = json.loads(response_data['response'])
         return json_content
-
     except requests.exceptions.Timeout:
         logger.error("Ollama API request timed out.")
         return None
@@ -52,21 +58,14 @@ def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
 
 def run_enrichment(segments_path: str, config: Dict[str, Any]) -> str:
     """
-    Enriches each segment with an LLM-generated title, summary, and keywords.
-    This function implements "Phase 3: LLM-Powered Enrichment".
-    
-    Args:
-        segments_path: Path to the 'final_segments.json' file from Phase 2.
-        config: The global configuration dictionary.
-    
-    Returns:
-        The path to the final, enriched segments file, or None on failure.
+    Enriches each segment with an LLM-generated title, summary, and keywords
+    using multi-modal context (transcript, visuals, speakers, audio events).
     """
     if not config.get('llm_enrichment', {}).get('enabled', False):
         logger.warning("LLM Enrichment (Step 3) is disabled in config.yaml. Skipping.")
         return segments_path
 
-    logger.info("--- Starting Step 3: LLM-Powered Enrichment ---")
+    logger.info("--- Starting Step 3: Multi-Modal LLM-Powered Enrichment ---")
 
     try:
         with open(segments_path, 'r') as f:
@@ -82,15 +81,30 @@ def run_enrichment(segments_path: str, config: Dict[str, Any]) -> str:
 
     for i, segment in enumerate(segments):
         logger.info(f"  -> Processing segment {i+1}/{total_segments} ({segment['segment_id']})...")
+        
+        # --- ASSEMBLE MULTI-MODAL CONTEXT ---
         transcript = segment.get("full_transcript", "").strip()
-
+        
+        # Handle cases where there is no transcript to avoid sending an empty prompt
         if not transcript:
             logger.warning(f"  -> Segment {segment['segment_id']} has no transcript. Skipping LLM call.")
-            segment.update({'llm_title': "", 'llm_summary': "", 'llm_keywords': []})
+            segment.update({'llm_title': "N/A (No transcript)", 'llm_summary': "", 'llm_keywords': []})
             enriched_segments.append(segment)
             continue
         
-        prompt = PROMPT_TEMPLATE.format(transcript=transcript)
+        speakers_list = segment.get('speakers', [])
+        visuals_list = segment.get('consolidated_visual_captions', [])
+        audio_list = segment.get('consolidated_audio_events', [])
+        
+        # Format the context for clean insertion into the prompt
+        context = {
+            "transcript": transcript,
+            "speakers": ", ".join(speakers_list) if speakers_list else "None",
+            "visuals": "; ".join(visuals_list) if visuals_list else "None",
+            "audio_events": ", ".join(audio_list) if audio_list else "None"
+        }
+
+        prompt = PROMPT_TEMPLATE.format(**context)
         llm_data = _call_ollama_api(prompt, config)
 
         if llm_data:
