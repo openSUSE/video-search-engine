@@ -4,13 +4,14 @@ import logging
 import json
 import os
 import requests
+import shutil
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 
 logger = logging.getLogger(__name__)
 
-# This multi-modal prompt works well for both Ollama and Gemini
-PROMPT_TEMPLATE = """
+# Main prompt for when a transcript is available
+PROMPT_WITH_TRANSCRIPT = """
 You are an expert video content analyst. Your task is to analyze a segment of a video using the multi-modal data provided below and generate a concise analysis in a structured JSON format.
 
 **[Segment Context]**
@@ -30,8 +31,25 @@ Based on ALL the context provided (transcript, visuals, and audio), generate the
 **Output Format (Strictly JSON):**
 """
 
+# A separate, tailored prompt for when NO transcript is available
+PROMPT_NO_TRANSCRIPT = """
+You are an expert video content analyst. Your task is to analyze a segment of a video using ONLY the visual and audio event data provided below. Generate a concise analysis in a structured JSON format. NOTE: There is no spoken transcript for this segment.
+
+**[Segment Context]**
+- Key Visuals: {visuals}
+- Background Audio Events: {audio_events}
+
+**[Instructions]**
+Based on the visual and audio context, generate the following:
+1. "title": A short, descriptive title (5-10 words) for the visual action.
+2. "summary": A concise, neutral summary (2-3 sentences) describing what is shown and heard.
+3. "keywords": A JSON array of 5-7 important keywords or short phrases representing the core objects, sounds, and actions.
+
+**Output Format (Strictly JSON):**
+"""
+
+
 def _call_ollama_api(prompt: str, config: dict) -> dict:
-    """Sends a prompt to the local Ollama API."""
     ollama_config = config['llm_enrichment']['ollama']
     api_url = f"{ollama_config['host']}:{ollama_config['port']}/api/generate"
     payload = {
@@ -47,17 +65,13 @@ def _call_ollama_api(prompt: str, config: dict) -> dict:
         return None
 
 def _call_gemini_api(prompt: str, config: dict) -> dict:
-    """Sends a prompt to the Google Gemini API."""
     gemini_config = config['llm_enrichment']['gemini']
     try:
-        # Configure the SDK using the GOOGLE_API_KEY environment variable
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set.")
         genai.configure(api_key=api_key)
-
         model = genai.GenerativeModel(gemini_config['model'])
-        # Enforce JSON output
         generation_config = genai.GenerationConfig(response_mime_type="application/json")
         response = model.generate_content(prompt, generation_config=generation_config)
         return json.loads(response.text)
@@ -67,73 +81,86 @@ def _call_gemini_api(prompt: str, config: dict) -> dict:
 
 def run_enrichment(segments_path: str, config: dict) -> str:
     """
-    Enriches each segment with an LLM-generated title, summary, and keywords
-    using the provider specified in the config (Ollama or Gemini).
+    Enriches segments with LLM data, saving progress after each segment.
+    On rerun, it skips already enriched segments.
     """
     processed_dir = os.path.dirname(segments_path)
     output_filename = config['filenames']['enriched_segments']
     output_path = os.path.join(processed_dir, output_filename)
 
-    if os.path.exists(output_path):
-        logger.info(f"--- Skipping Step 3: LLM Enrichment. Output already exists at {output_path} ---")
-        return output_path
-
     provider = config.get('llm_enrichment', {}).get('provider', 'ollama')
     logger.info(f"--- Starting Step 3: LLM Enrichment using provider: '{provider}' ---")
 
+    # If the output file doesn't exist, create it by copying the input file.
+    # This initializes our "state" file for enrichment.
+    if not os.path.exists(output_path):
+        logger.info(f"Output file not found. Creating initial version from {segments_path}.")
+        try:
+            shutil.copy(segments_path, output_path)
+        except IOError as e:
+            logger.error(f"Failed to create initial output file: {e}")
+            return None
+
+    # Now, we read from and write to the same output_path.
     try:
-        with open(segments_path, 'r') as f:
+        with open(output_path, 'r') as f:
             segments = json.load(f)
-    except FileNotFoundError:
-        logger.error(f"Segments file not found at {segments_path}. Cannot perform enrichment.")
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
         return None
 
-    enriched_segments = []
     total_segments = len(segments)
-    
     for i, segment in enumerate(segments):
-        logger.info(f"  -> Processing segment {i+1}/{total_segments} ({segment['segment_id']})...")
-        transcript = segment.get("full_transcript", "").strip()
-        
-        if not transcript:
-            logger.warning(f"  -> Segment {segment['segment_id']} has no transcript. Skipping LLM call.")
-            segment.update({'llm_title': "N/A (No transcript)", 'llm_summary': "", 'llm_keywords': []})
-            enriched_segments.append(segment)
+        logger.info(f"  -> Checking segment {i+1}/{total_segments} ({segment['segment_id']})...")
+
+        # Skip if the segment is already enriched (and wasn't an error).
+        if segment.get('title') and segment.get('title') != 'Error':
+            logger.info(f"  -> Segment {segment['segment_id']} already enriched. Skipping.")
             continue
-        
+
+        logger.info(f"  -> Segment {segment['segment_id']} requires enrichment. Processing...")
+        transcript = segment.get("full_transcript", "").strip()
+
         context = {
             "transcript": transcript,
             "speakers": ", ".join(segment.get('speakers', [])) or "None",
             "visuals": "; ".join(segment.get('consolidated_visual_captions', [])) or "None",
             "audio_events": ", ".join(segment.get('consolidated_audio_events', [])) or "None"
         }
-        prompt = PROMPT_TEMPLATE.format(**context)
-        
-        # Call the appropriate API based on the config
+
+        if transcript:
+            prompt = PROMPT_WITH_TRANSCRIPT.format(**context)
+        else:
+            logger.warning(f"  -> Segment {segment['segment_id']} has no transcript. Using visual/audio prompt.")
+            prompt = PROMPT_NO_TRANSCRIPT.format(**context)
+
+        # Call the appropriate API
         llm_data = None
         if provider == 'gemini':
             llm_data = _call_gemini_api(prompt, config)
         elif provider == 'ollama':
             llm_data = _call_ollama_api(prompt, config)
         else:
-            logger.error(f"Invalid LLM provider specified: {provider}. Halting enrichment.")
-            break
-            
+            logger.error(f"Invalid LLM provider: {provider}. Halting.")
+            break # Exit loop on invalid config
+
+        # Update the segment in the list
         if llm_data:
             segment.update(llm_data)
             logger.info(f"  -> Successfully enriched segment {segment['segment_id']}.")
         else:
             logger.error(f"  -> Failed to enrich segment {segment['segment_id']}.")
+            # Mark as an error so it can be retried on the next run
             segment.update({'title': 'Error', 'summary': 'Failed to generate', 'keywords': []})
 
-        enriched_segments.append(segment)
+        # CRITICAL CHANGE: Save the entire list back to the file after every single update.
+        try:
+            with open(output_path, 'w') as f:
+                json.dump(segments, f, indent=4)
+            logger.info(f"  -> Progress saved to {output_path}")
+        except IOError as e:
+            logger.error(f"FATAL: Could not write progress to {output_path}. Halting. Error: {e}")
+            return None # Stop if we can't save
 
-    processed_dir = os.path.dirname(segments_path)
-    output_filename = config['filenames']['enriched_segments']
-    output_path = os.path.join(processed_dir, output_filename)
-    
-    with open(output_path, 'w') as f:
-        json.dump(enriched_segments, f, indent=4)
-        
-    logger.info(f"--- Enrichment Step Complete! Saved to {output_path} ---")
+    logger.info(f"--- Enrichment Step Complete! Final data is in {output_path} ---")
     return output_path

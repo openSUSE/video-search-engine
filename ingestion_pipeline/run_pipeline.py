@@ -9,6 +9,7 @@ from core.logger import setup_logging
 from ingestion_pipeline.steps.step_01_extraction import run_extraction
 from ingestion_pipeline.steps.step_02_segmentation import run_segmentation
 from ingestion_pipeline.steps.step_03_enrichment import run_enrichment
+from ingestion_pipeline.steps.step_04_indexing import run_indexing
 from core.config import CONFIG
 
 setup_logging()
@@ -118,6 +119,12 @@ def main():
         else:
             logger.warning("Enrichment step failed or was skipped.")
             logger.info(f"The last successful output is the un-enriched segments file: {final_segments_path}")
+
+        run_indexing(
+            enriched_segments_path=enriched_segments_path,
+            video_filename=video_filename, # Pass the filename for metadata
+            config=CONFIG
+        )
 
     except Exception as e:
         logger.critical(f"Pipeline failed with a critical error: {e}", exc_info=True)
