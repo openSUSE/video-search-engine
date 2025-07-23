@@ -19,6 +19,18 @@ ui:
   host: "127.0.0.1"
   port: 5050
 
+api_server:
+  host: "127.0.0.1"
+  port: 1234
+
+database:
+  # Connection details for the ChromaDB server
+  host: "localhost"
+  port: 8000
+  
+  # The name of the collection where video data will be stored
+  collection_name: "video_search_engine"
+
 # --- Default filenames for processed outputs ---
 # These are relative to the specific video's output folder.
 filenames:
@@ -33,13 +45,24 @@ filenames:
   final_segments: "final_segments.json" # Output from Step 2
   enriched_segments: "final_enriched_segments.json" # Output from Step 3
 
-# --- LLM Enrichment Settings (Ollama) ---
+# --- LLM Enrichment Settings ---
 llm_enrichment:
-  enabled: true # Set to false to easily skip this step
-  host: "http://localhost"
-  port: 11434
-  model: "gemma:7b" # The model to use (e.g., "gemma:2b", "llama3", etc.)
-  timeout_sec: 120 # How long to wait for the LLM to respond
+  # The provider to use: "ollama" or "gemini"
+  provider: "gemini"
+
+  # Settings for local Ollama
+  ollama:
+    enabled: true 
+    host: "http://localhost"
+    port: 11434
+    model: "gemma:2b"
+    timeout_sec: 120
+
+  # Settings for Google Gemini API
+  gemini:
+    # Model name from Google (gemini-1.5-flash is fast and cost-effective)
+    model: "gemini-1.5-flash"
+    # The API key will be read from the GOOGLE_API_KEY environment variable
 
 # --- Model identifiers and settings ---
 models:
@@ -55,6 +78,11 @@ models:
   # BLIP for image captioning
   visual_captioning:
     name: "Salesforce/blip-image-captioning-base"
+  
+  embedding:
+    # Model for creating text and visual embeddings for search.
+    # This model MUST be used for both indexing (step 4) and querying (API).
+    name: "all-MiniLM-L6-v2"
 
 # --- Parameters for processing steps ---
 parameters:
