@@ -4,6 +4,8 @@ import logging
 import torch
 from typing import Dict, Any
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
 
 def load_config(path: str = "config.yaml") -> Dict[str, Any]:
@@ -11,6 +13,8 @@ def load_config(path: str = "config.yaml") -> Dict[str, Any]:
     Loads the YAML configuration file, resolves special values, 
     and prioritizes environment variables for secrets.
     """
+    if load_dotenv():
+        logger.info("Loaded environment variables from .env file.")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Configuration file not found at: {path}")
     

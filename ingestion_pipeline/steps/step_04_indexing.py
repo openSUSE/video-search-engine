@@ -18,6 +18,7 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
     # Join lists into comma-separated strings for filtering
     speakers_str = ",".join(segment.get('speakers', []))
     keywords_str = ",".join(segment.get('keywords', []))
+    actions_str = ",".join(segment.get('consolidated_actions', []))
     
     return {
         # Core searchable metadata
@@ -25,6 +26,7 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
         "summary": str(segment.get('summary', '')),
         "speakers": speakers_str,
         "keywords": keywords_str,
+        "actions": actions_str,
         
         # Essential data for displaying results
         "start_time": float(segment.get('start_time', 0.0)),
@@ -71,7 +73,14 @@ def run_indexing(enriched_segments_path: str, video_filename: str, config: Dict[
 
     # Create all embeddings at once for GPU efficiency
     all_transcripts = [seg.get('full_transcript', '') or seg.get('summary', '') for seg in segments] # Fallback to summary if no transcript
-    all_visual_contexts = [seg.get('summary', '') or ", ".join(seg.get('consolidated_visual_captions', [])) for seg in segments] # Fallback to captions
+
+    all_visual_contexts = []
+    for seg in segments:
+        visual_parts = [seg.get('summary', '')]
+        visual_parts.extend(seg.get('consolidated_visual_captions', []))
+        visual_parts.extend(seg.get('consolidated_actions', []))
+        # Join non-empty parts with a period for semantic separation
+        all_visual_contexts.append(". ".join(filter(None, visual_parts)))
 
     text_embeddings = embedding_model.encode(all_transcripts, show_progress_bar=True)
     visual_embeddings = embedding_model.encode(all_visual_contexts, show_progress_bar=True)

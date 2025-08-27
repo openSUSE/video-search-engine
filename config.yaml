@@ -41,9 +41,10 @@ filenames:
   shots: "shots.json"
   audio_events: "audio_events.json"
   visual_details: "visual_details.json"
+  actions: "actions.json"
   final_analysis: "final_analysis.json"
-  final_segments: "final_segments.json" # Output from Step 2
-  enriched_segments: "final_enriched_segments.json" # Output from Step 3
+  final_segments: "final_segments.json"
+  enriched_segments: "final_enriched_segments.json"
 
 # --- LLM Enrichment Settings ---
 llm_enrichment:
@@ -84,6 +85,9 @@ models:
     # This model MUST be used for both indexing (step 4) and querying (API).
     name: "all-MiniLM-L6-v2"
 
+  action_recognition:
+    name: "MCG-NJU/videomae-base-finetuned-kinetics"
+
 # --- Parameters for processing steps ---
 parameters:
   transcription:
@@ -98,3 +102,7 @@ parameters:
 
   visual_captioning:
     max_new_tokens: 50
+
+  action_recognition:
+    num_frames: 16
+    top_n: 3

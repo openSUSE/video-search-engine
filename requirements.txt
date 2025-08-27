@@ -28,6 +28,7 @@ cycler==0.12.1
 decorator==5.2.1
 distro==1.9.0
 docopt==0.6.2
+dotenv==0.9.9
 durationpy==0.10
 einops==0.8.1
 fastapi==0.116.1
@@ -170,6 +171,7 @@ tenacity==9.1.2
 tensorboardX==2.6.4
 threadpoolctl==3.6.0
 timm==1.0.19
+tmdbv3api==1.9.0
 tokenizers==0.21.2
 toml==0.10.2
 torch==2.7.1

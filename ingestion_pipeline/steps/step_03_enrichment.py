@@ -14,16 +14,21 @@ logger = logging.getLogger(__name__)
 PROMPT_WITH_TRANSCRIPT = """
 You are an expert video content analyst. Your task is to analyze a segment of a video using the multi-modal data provided below and generate a concise analysis in a structured JSON format.
 
+**[Overall Video Context]**
+- Title: {video_title}
+- Synopsis: {video_synopsis}
+
 **[Segment Context]**
 - Speakers: {speakers}
 - Key Visuals: {visuals}
+- Key Actions: {actions} 
 - Background Audio Events: {audio_events}
 
 **[Segment Transcript]**
 "{transcript}"
 
 **[Instructions]**
-Based on ALL the context provided (transcript, visuals, and audio), generate the following:
+Based on ALL the context provided (overall video context, transcript, visuals, and audio), generate the following:
 1. "title": A short, descriptive title (5-10 words) that captures the main topic and action of the segment.
 2. "summary": A concise, neutral summary (2-3 sentences) integrating what was said with what was shown and heard.
 3. "keywords": A JSON array of 5-7 important keywords or short phrases representing the core concepts, objects, and actions.
@@ -31,12 +36,16 @@ Based on ALL the context provided (transcript, visuals, and audio), generate the
 **Output Format (Strictly JSON):**
 """
 
-# A separate, tailored prompt for when NO transcript is available
 PROMPT_NO_TRANSCRIPT = """
 You are an expert video content analyst. Your task is to analyze a segment of a video using ONLY the visual and audio event data provided below. Generate a concise analysis in a structured JSON format. NOTE: There is no spoken transcript for this segment.
 
+**[Overall Video Context]**
+- Title: {video_title}
+- Synopsis: {video_synopsis}
+
 **[Segment Context]**
 - Key Visuals: {visuals}
+- Key Actions: {actions}
 - Background Audio Events: {audio_events}
 
 **[Instructions]**
@@ -67,9 +76,9 @@ def _call_ollama_api(prompt: str, config: dict) -> dict:
 def _call_gemini_api(prompt: str, config: dict) -> dict:
     gemini_config = config['llm_enrichment']['gemini']
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set.")
+            raise ValueError("GEMINI_API_KEY environment variable not set.")
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(gemini_config['model'])
         generation_config = genai.GenerationConfig(response_mime_type="application/json")
@@ -109,6 +118,21 @@ def run_enrichment(segments_path: str, config: dict) -> str:
         logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
         return None
 
+    video_metadata_path = os.path.join(processed_dir, 'video_metadata.json')
+    video_metadata = {}
+    if os.path.exists(video_metadata_path):
+        try:
+            with open(video_metadata_path, 'r') as f:
+                video_metadata = json.load(f)
+            logger.info(f"Loaded video metadata from {video_metadata_path}")
+        except json.JSONDecodeError:
+            logger.warning(f"Could not parse {video_metadata_path}. Proceeding without it.")
+    else:
+        logger.warning(f"{video_metadata_path} not found. Proceeding without video context.")
+    
+    video_title = video_metadata.get('title', 'N/A')
+    video_synopsis = video_metadata.get('synopsis', 'N/A')
+
     total_segments = len(segments)
     for i, segment in enumerate(segments):
         logger.info(f"  -> Checking segment {i+1}/{total_segments} ({segment['segment_id']})...")
@@ -122,9 +146,12 @@ def run_enrichment(segments_path: str, config: dict) -> str:
         transcript = segment.get("full_transcript", "").strip()
 
         context = {
+            "video_title": video_title,
+            "video_synopsis": video_synopsis,
             "transcript": transcript,
             "speakers": ", ".join(segment.get('speakers', [])) or "None",
             "visuals": "; ".join(segment.get('consolidated_visual_captions', [])) or "None",
+            "actions": ", ".join(segment.get('consolidated_actions', [])) or "None",
             "audio_events": ", ".join(segment.get('consolidated_audio_events', [])) or "None"
         }
 

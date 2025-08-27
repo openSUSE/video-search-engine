@@ -80,13 +80,17 @@ def main():
         default=CONFIG['general']['default_output_dir'], 
         help="Base directory to save processed subdirectories."
     )
+    # CHANGE: Add arguments for title and year to pass to the extraction step
+    parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")
+    parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
+    
     args = parser.parse_args()
 
     logger.info(f"Starting ingestion pipeline for video: {args.video}")
     
     try:
         # Step 1: Data Extraction
-        run_extraction(args.video, args.output_dir)
+        run_extraction(args.video, args.output_dir, args.title, args.year)
 
         # Step 1.5: Manual Speaker Identification
         speaker_map_path = wait_for_speaker_identification(args.video, args.output_dir)
@@ -110,21 +114,23 @@ def main():
             logger.warning("Segmentation step did not produce an output file. Halting pipeline.")
             return
 
-        # Step 3: LLM-Powered Enrichment (NEW STEP)
+        # Step 3: LLM-Powered Enrichment
         enriched_segments_path = run_enrichment(final_segments_path, CONFIG)
         
-        if enriched_segments_path and os.path.exists(enriched_segments_path):
-            logger.info("🚀 Ingestion pipeline completed successfully!")
-            logger.info(f"Final enriched segments are available at: {enriched_segments_path}")
-        else:
-            logger.warning("Enrichment step failed or was skipped.")
-            logger.info(f"The last successful output is the un-enriched segments file: {final_segments_path}")
+        if not enriched_segments_path:
+            logger.warning("Enrichment step failed or was skipped. Halting pipeline.")
+            return
 
+        # Step 4: Indexing
         run_indexing(
             enriched_segments_path=enriched_segments_path,
             video_filename=video_filename, # Pass the filename for metadata
             config=CONFIG
         )
+        
+        logger.info("🚀 Ingestion pipeline completed successfully!")
+        logger.info(f"Final enriched segments are available at: {enriched_segments_path}")
+
 
     except Exception as e:
         logger.critical(f"Pipeline failed with a critical error: {e}", exc_info=True)

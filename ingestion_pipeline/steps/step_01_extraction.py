@@ -9,7 +9,10 @@ import cv2
 from PIL import Image
 from typing import Dict, Any, List
 from collections import defaultdict
+import numpy as np
 from core.config import CONFIG
+
+from ingestion_pipeline.utils.metadata_fetcher import fetch_movie_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
         "transcript_aligned": os.path.join(processed_dir, f_names['transcript']),
         "audio_events": os.path.join(processed_dir, f_names['audio_events']),
         "visual_details": os.path.join(processed_dir, f_names['visual_details']),
+        "actions": os.path.join(processed_dir, f_names['actions']),
         "final_analysis": os.path.join(processed_dir, f_names['final_analysis']),
     }
 
@@ -182,6 +186,76 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
         json.dump(visual_details, f, indent=2)
     logger.info(f"    -> Visual details saved.")
 
+def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
+    """
+    Detects actions and activities for each shot using a video classification model.
+    """
+    logger.info("    -> Detecting actions/activities per shot...")
+    device = config['general']['device']
+    model_cfg = config['models']['action_recognition']
+    params_cfg = config['parameters']['action_recognition']
+    num_frames_to_sample = params_cfg['num_frames']
+
+    from transformers import VideoMAEImageProcessor, VideoMAEForVideoClassification
+
+    processor = VideoMAEImageProcessor.from_pretrained(model_cfg['name'])
+    model = VideoMAEForVideoClassification.from_pretrained(model_cfg['name']).to(device)
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video file: {video_path}")
+
+    all_shot_actions = []
+    for shot in scenes:
+        start_frame, end_frame = shot['start_frame'], shot['end_frame']
+        
+        # Ensure the shot is long enough to sample from
+        if end_frame - start_frame < num_frames_to_sample:
+            all_shot_actions.append({"shot_id": shot["shot_id"], "actions": []})
+            continue
+
+        # Generate evenly spaced frame indices to sample from the shot
+        frame_indices = np.linspace(start_frame, end_frame, num_frames_to_sample, dtype=int)
+        
+        shot_frames = []
+        for frame_idx in frame_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if ret:
+                # Convert frame from BGR (OpenCV) to RGB (transformers)
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                shot_frames.append(rgb_frame)
+
+        shot_actions_info = {"shot_id": shot["shot_id"], "actions": []}
+        if shot_frames:
+            # Process the collected frames and perform inference
+            inputs = processor(shot_frames, return_tensors="pt").to(device)
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs.logits
+            
+            # Get top N predictions
+            scores = torch.softmax(logits, dim=-1)[0]
+            top_predictions = torch.topk(scores, k=params_cfg['top_n'])
+            
+            detected_actions = []
+            for i in range(params_cfg['top_n']):
+                score = top_predictions.values[i].item()
+                label_id = top_predictions.indices[i].item()
+                action = model.config.id2label[label_id]
+                detected_actions.append({"action": action, "score": round(score, 3)})
+            
+            shot_actions_info["actions"] = detected_actions
+        
+        all_shot_actions.append(shot_actions_info)
+
+    cap.release()
+    
+    with open(output_path, 'w') as f:
+        json.dump(all_shot_actions, f, indent=2)
+    logger.info(f"    -> Detected actions saved to {output_path}")
+
+
 # NEW: Function to combine all metadata into a single file.
 def create_final_analysis_file(paths: Dict[str, str]):
     """Combines all intermediate JSON files into a single, unified analysis file."""
@@ -192,10 +266,12 @@ def create_final_analysis_file(paths: Dict[str, str]):
     with open(paths['visual_details'], 'r') as f: visual_data = json.load(f)
     with open(paths['audio_events'], 'r') as f: audio_data = json.load(f)
     with open(paths['transcript_aligned'], 'r') as f: transcript_data = json.load(f)
+    with open(paths['actions'], 'r') as f: actions_data = json.load(f)
 
     # Create maps for efficient lookup by shot_id
     captions_map = {item['shot_id']: item['caption'] for item in visual_data}
     audio_events_map = {item['shot_id']: item['events'] for item in audio_data}
+    actions_map = {item['shot_id']: item['actions'] for item in actions_data} 
     
     # Group transcript segments by shot_id
     transcript_map = defaultdict(list)
@@ -218,6 +294,7 @@ def create_final_analysis_file(paths: Dict[str, str]):
             "frame_start": shot['start_frame'],
             "frame_end": shot['end_frame'],
             "visual_caption": captions_map.get(shot_id, ""),
+            "detected_actions": actions_map.get(shot_id, []),
             "audio_events": audio_events_map.get(shot_id, []),
             "transcript_segments": transcript_map.get(shot_id, [])
         }
@@ -228,7 +305,7 @@ def create_final_analysis_file(paths: Dict[str, str]):
     logger.info(f"    -> Final analysis file saved to {paths['final_analysis']}")
 
 # --- MAIN ORCHESTRATOR FUNCTION ---
-def run_extraction(video_path: str, base_output_dir: str):
+def run_extraction(video_path: str, base_output_dir: str, video_title: str = None, video_year: int = None):
     """Runs the full data extraction pipeline for a given video."""
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
     video_specific_dir = os.path.join(base_output_dir, video_filename)
@@ -238,6 +315,35 @@ def run_extraction(video_path: str, base_output_dir: str):
     
     os.makedirs(video_specific_dir, exist_ok=True)
     paths = _get_paths(video_specific_dir, CONFIG)
+
+    logger.info(f"Attempting to fetch metadata for '{video_title}'...")
+    fetched_metadata = fetch_movie_metadata(video_title, video_year)
+
+    video_metadata = {
+        "title": video_title or video_filename,
+        "logline": "No logline provided.",
+        "genre": "N/A",
+        "setting": "N/A",
+        "main_characters": []
+    }
+
+    if video_title:
+        logger.info(f"Attempting to fetch metadata for '{video_title}'...")
+        fetched_metadata = fetch_movie_metadata(video_title, video_year)
+        
+        if fetched_metadata:
+            logger.info("Successfully fetched metadata from TMDb.")
+            # Update the default metadata with the fetched data
+            video_metadata.update(fetched_metadata)
+        else:
+            logger.warning(f"Could not fetch metadata for '{video_title}'. Proceeding with title only.")
+    else:
+        logger.info("No --title provided. Skipping automatic metadata fetching.")
+    
+    metadata_path = os.path.join(video_specific_dir, 'video_metadata.json')
+    with open(metadata_path, 'w') as f:
+        json.dump(video_metadata, f, indent=2)
+    logger.info(f"    -> Video metadata saved to {metadata_path}")
 
     # 1. Detect shots first to create the data "skeleton"
     scenes = []
@@ -267,6 +373,9 @@ def run_extraction(video_path: str, base_output_dir: str):
     # 6. Run per-shot analysis for visual captions
     if not os.path.exists(paths["visual_details"]):
         generate_visual_captions(video_path, scenes, paths["visual_details"], CONFIG)
+
+    if not os.path.exists(paths["actions"]):
+        detect_actions_per_shot(video_path, scenes, paths["actions"], CONFIG)
     
     if not os.path.exists(paths["final_analysis"]):
         create_final_analysis_file(paths)
@@ -279,6 +388,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run the data extraction pipeline using settings from config.yaml.")
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument("--output_dir", default="data/processed", help="Base directory to save processed subdirectories.")
+    
+    parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")
+    parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
+
     args = parser.parse_args()
     
-    run_extraction(args.video, args.output_dir)
+    run_extraction(args.video, args.output_dir, args.title, args.year)

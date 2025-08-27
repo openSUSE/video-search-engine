@@ -22,9 +22,10 @@ BOUNDARY_SCORE_THRESHOLD = 0.45
 # Weights for the different "change signals". These MUST sum to 1.0.
 # Tune these to prioritize different types of changes.
 WEIGHTS = {
-    "text": 0.40,      # Importance of the script/topic changing
-    "visual": 0.25,    # Importance of the visuals changing (based on captions)
-    "speaker": 0.20,   # Importance of the people speaking changing
+    "text": 0.35,      # Importance of the script/topic changing
+    "visual": 0.20,    # Importance of the visuals changing (based on captions)
+    "action": 0.15,    # Importance of the main activity changing
+    "speaker": 0.15,   # Importance of the people speaking changing
     "audio_env": 0.10, # Importance of background sounds (music, applause) changing
     "silence": 0.05    # Importance of a long pause in dialogue
 }
@@ -113,7 +114,8 @@ def _prepare_rich_shots(analysis_data: List[Dict[str, Any]], speaker_map: Dict[s
             "dialogue_text": dialogue_text,
             "visual_caption": shot['visual_caption'],
             "speakers": sorted(list(shot_speakers)),
-            "audio_events": [event['event'] for event in shot.get('audio_events', [])]
+            "audio_events": [event['event'] for event in shot.get('audio_events', [])],
+            "actions": [action['action'] for action in shot.get('detected_actions', [])]
         })
     return rich_shots
 
@@ -167,8 +169,18 @@ def _perform_boundary_scoring(rich_shots: List[Dict[str, Any]]) -> List[Dict[str
         union_len = len(s1.union(s2))
         jaccard_sim = intersection_len / union_len if union_len > 0 else 1
         audio_env_change = 1 - jaccard_sim
+
+        # --- 5. Action Change Score ---
+        # How much the core activity has changed.
+        s1_action = set(prev_shot['actions'])
+        s2_action = set(current_shot['actions'])
+        intersection_len_action = len(s1_action.intersection(s2_action))
+        union_len_action = len(s1_action.union(s2_action))
+        jaccard_sim_action = intersection_len_action / union_len_action if union_len_action > 0 else 1
+        action_change = 1 - jaccard_sim_action
+
         
-        # --- 5. Silence Gap Score ---
+        # --- 6. Silence Gap Score ---
         # A hard signal: 1 if there's a long pause between shots, 0 otherwise.
         time_gap = current_shot['start_time'] - prev_shot['end_time']
         silence_gap = 1 if time_gap > SILENCE_GAP_THRESHOLD_SEC else 0
@@ -179,6 +191,7 @@ def _perform_boundary_scoring(rich_shots: List[Dict[str, Any]]) -> List[Dict[str
             (visual_change * WEIGHTS["visual"]) +
             (speaker_change * WEIGHTS["speaker"]) +
             (audio_env_change * WEIGHTS["audio_env"]) +
+            (action_change * WEIGHTS["action"]) +
             (silence_gap * WEIGHTS["silence"])
         )
 
@@ -214,12 +227,14 @@ def _merge_shots_into_segment(shots_to_merge: List[Dict[str, Any]]) -> Dict[str,
     all_speakers = set()
     all_visual_captions = []
     all_audio_events = set()
+    all_actions = set()
     
     for shot in shots_to_merge:
         all_speakers.update(shot['speakers'])
         if shot['visual_caption'] not in all_visual_captions:
              all_visual_captions.append(shot['visual_caption'])
         all_audio_events.update(shot['audio_events'])
+        all_actions.update(shot['actions']) 
 
     return {
         "segment_id": None, # Will be added later
@@ -231,6 +246,7 @@ def _merge_shots_into_segment(shots_to_merge: List[Dict[str, Any]]) -> Dict[str,
         "full_transcript": full_transcript,
         "consolidated_visual_captions": all_visual_captions,
         "consolidated_audio_events": sorted(list(all_audio_events)),
+        "consolidated_actions": sorted(list(all_actions)), 
         "shot_count": len(shots_to_merge),
         "shot_ids": [shot['shot_id'] for shot in shots_to_merge]
     }
