@@ -67,18 +67,18 @@ def save_speaker_map():
     speaker_map_filename = CONFIG['filenames']['speaker_map']
     output_path = os.path.join(OUTPUT_DIR, video_filename_no_ext, speaker_map_filename)
     
+    # Ask the server to shut down in the background — UI is done.
     try:
-        # Ensure the directory exists before writing
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        with open(output_path, 'w') as f:
-            json.dump(speaker_map, f, indent=2)
-            
-        logger.info(f"Speaker map saved successfully to {output_path}")
-        return jsonify({"message": "Speaker map saved successfully."})
-    except Exception as e:
-        logger.error(f"Failed to save speaker map: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        import threading, requests
+        def _shutdown():
+            try:
+                requests.post(f"http://{CONFIG['ui']['host']}:{CONFIG['ui']['port']}/api/shutdown", timeout=2)
+            except Exception:
+                pass
+        threading.Thread(target=_shutdown, daemon=True).start()
+    except Exception:
+        pass
+    return jsonify({"message": "Speaker map saved successfully. Shutting down UI..."})
 
 def shutdown_server():
     """Function to shut down the Werkzeug server."""
@@ -122,4 +122,4 @@ if __name__ == '__main__':
     logger.info(f"Please open http://{host}:{port} in your browser.")
 
     # Run the app with host and port from config/args
-    app.run(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=False, use_reloader=False)

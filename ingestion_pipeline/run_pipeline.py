@@ -11,6 +11,7 @@ from ingestion_pipeline.steps.step_02_segmentation import run_segmentation
 from ingestion_pipeline.steps.step_03_enrichment import run_enrichment
 from ingestion_pipeline.steps.step_04_indexing import run_indexing
 from core.config import CONFIG
+import requests
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -62,7 +63,25 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
                 return None
             time.sleep(2)
 
-        logger.info("Speaker map file found! Resuming pipeline...")
+        logger.info("Speaker map file found! Requesting UI shutdown...")
+        try:
+            ui_url = f"http://{CONFIG['ui']['host']}:{CONFIG['ui']['port']}"
+            requests.post(f"{ui_url}/api/shutdown", timeout=3)
+        except Exception as e:
+            logger.warning(f"Could not reach UI shutdown endpoint: {e}")
+
+        # Give the server a moment to exit gracefully
+        try:
+            server_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            logger.warning("UI did not shut down gracefully; terminating process...")
+            server_process.terminate()
+            try:
+                server_process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                logger.warning("UI still running; killing process...")
+                server_process.kill()
+        logger.info("Speaker identification UI stopped. Resuming pipeline...")
         return speaker_map_path
 
     except Exception as e:

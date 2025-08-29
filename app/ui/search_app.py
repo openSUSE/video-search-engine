@@ -5,9 +5,11 @@ import requests
 import os
 import sys
 
+VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
+
 # Add the project root to the Python path to allow importing from 'core'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-from core.config import load_config
+from core.config import CONFIG # MODIFIED: Import the CONFIG object directly
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -17,12 +19,12 @@ st.set_page_config(
 
 # --- LOAD CONFIGURATION ---
 try:
-    CONFIG = load_config("config.yaml")
+    # MODIFIED: The CONFIG object is already loaded, so we just use it.
     API_CONFIG = CONFIG['api_server']
     API_URL = f"http://{API_CONFIG['host']}:{API_CONFIG['port']}/search"
-    VIDEO_DATA_DIR = "data/videos"
+    # The VIDEO_DATA_DIR is defined above using an environment variable
 except Exception as e:
-    st.error(f"Error loading configuration. Please ensure 'config.yaml' is present and correct. Details: {e}")
+    st.error(f"Error accessing configuration. Details: {e}")
     st.stop()
 
 # --- SESSION STATE INITIALIZATION ---

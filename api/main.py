@@ -10,12 +10,10 @@ from typing import List, Dict, Any
 # Assuming your config loader is in the core directory
 # You might need to adjust the Python path for this to work depending on how you run it.
 # One way is to run `uvicorn` from the project root.
-from core.config import load_config
+from core.config import CONFIG # MODIFIED: Import the CONFIG object directly
 
 # --- API SETUP ---
-# Load configuration from your YAML file
-CONFIG = load_config("config.yaml")
-
+# MODIFIED: The CONFIG object is already loaded, so we just use it.
 logger = logging.getLogger(__name__)
 
 # Create the FastAPI app instance
