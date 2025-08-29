@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: video-se
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: api
+        image: <REG>/video-se-api:<TAG>
+        imagePullPolicy: IfNotPresent
+        ports: [{ containerPort: 1234 }]
+        envFrom:
+          - configMapRef: { name: video-se-config }
+          - secretRef:    { name: video-se-secrets }
+        volumeMounts:
+          - { name: model-cache, mountPath: /models }
+        readinessProbe:
+          httpGet: { path: /healthz, port: 1234 }
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet: { path: /healthz, port: 1234 }
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 2
+        resources:
+          requests: { cpu: "250m", memory: "512Mi" }
+          limits:   { memory: "2Gi" }
+        securityContext:
+          readOnlyRootFilesystem: true
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim: { claimName: model-cache-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: video-se
+spec:
+  selector: { app: api }
+  ports:
+    - name: http
+      port: 1234
+      targetPort: 1234

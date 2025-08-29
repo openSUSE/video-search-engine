@@ -1,0 +1,10 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+data/
+models/
+.cache/

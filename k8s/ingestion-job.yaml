@@ -1,0 +1,45 @@
+# ingestion-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingest-videoplayback
+  namespace: video-se
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: { app: ingestion }
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: ingestion
+        image: <REG>/video-se-ingestion:<TAG>
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef: { name: video-se-config }   # ML_DEVICE, OUTPUT_DIR, SPEAKER_UI_MODE=external, etc.
+          - secretRef:    { name: video-se-secrets }  # GEMINI_API_KEY, HF_TOKEN, TMDB_API_KEY
+        volumeMounts:
+          - { name: videos,      mountPath: /data/videos }
+          - { name: processed,   mountPath: /data/processed }
+          - { name: model-cache, mountPath: /models }
+        command: ["python","-m","ingestion_pipeline.run_pipeline"]
+        args:
+          - "--video"
+          - "/data/videos/videoplayback.mp4"
+          # Optional metadata for nicer enrichment:
+          # - "--title"; "My Movie"
+          # - "--year";  "2019"
+        resources:
+          requests: { cpu: "1000m", memory: "4Gi" }
+          limits:   { memory: "8Gi" }
+      volumes:
+        - name: videos
+          persistentVolumeClaim: { claimName: videos-pvc }
+        - name: processed
+          persistentVolumeClaim: { claimName: processed-pvc }
+        - name: model-cache
+          persistentVolumeClaim: { claimName: model-cache-pvc }

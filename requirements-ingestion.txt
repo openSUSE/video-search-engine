@@ -1,0 +1,16 @@
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+git+https://github.com/m-bain/whisperx.git
+transnetv2-pytorch
+opencv-python-headless
+pillow
+librosa
+transformers
+sentence-transformers
+timm. 
+colorlog
+pandas
+scikit-learn
+ffmpeg-python
+python-dotenv
+tmdbv3api
+google-generativeai

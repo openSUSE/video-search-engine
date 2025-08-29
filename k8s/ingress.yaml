@@ -1,0 +1,28 @@
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: video-se
+  namespace: video-se
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+  - host: api.video.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: { service: { name: api, port: { number: 1234 } } }
+  - host: search.video.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: { service: { name: ui-search, port: { number: 80 } } }
+  - host: speaker.video.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: { service: { name: ui-speaker, port: { number: 80 } } }

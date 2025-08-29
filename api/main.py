@@ -145,3 +145,8 @@ def search(query: SearchQuery):
 @app.get("/")
 def read_root():
     return {"message": "Video Search Engine API is running. Go to /docs for the API interface."}
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+

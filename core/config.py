@@ -1,100 +1,121 @@
 # core/config.py
-
-import os
-import logging
-import torch
+import os, logging, torch, yaml
 from typing import Dict, Any
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+
+def _yaml(path: str) -> Dict[str, Any]:
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
 def load_config() -> Dict[str, Any]:
-    """
-    Loads configuration by prioritizing environment variables, making it
-    suitable for containerized deployments. Falls back to sane defaults
-    for local development.
-    """
-    # load_dotenv() is useful for local development, allowing you to use a .env file
-    # In Kubernetes, environment variables will be set directly.
-    if load_dotenv():
-        logger.info("Loaded environment variables from .env file for local development.")
+    load_dotenv()  # helpful locally
 
-    config = {}
+    cfg = _yaml(os.getenv("CONFIG_PATH", "config.yaml"))
 
-    # --- General settings ---
-    device = "cpu"  # Default to CPU for cluster environments
-    if os.getenv("ML_DEVICE", "auto").lower() == 'auto':
-        if torch.cuda.is_available():
-            device = 'cuda'
-    elif os.getenv("ML_DEVICE", "cpu").lower() == 'cuda':
-        if torch.cuda.is_available():
-            device = 'cuda'
-        else:
-            logger.warning("CUDA device requested via ML_DEVICE env var, but not available. Falling back to CPU.")
-    
-    config['general'] = {
-        "device": device,
-        "hf_token": os.getenv("HF_TOKEN"), # Loaded from a K8s Secret
-        "default_output_dir": os.getenv("OUTPUT_DIR", "data/processed") # Path inside the container
-    }
-    logger.info(f"Using device: {config['general']['device']}")
+    # ensure required sections exist
+    for k in [
+        "general",
+        "ui",
+        "api_server",
+        "database",
+        "filenames",
+        "models",
+        "parameters",
+        "llm_enrichment",
+    ]:
+        cfg.setdefault(k, {})
 
-    # --- Server and Database connection details ---
-    # These will be set by Kubernetes services and ConfigMaps
-    config['ui'] = {
-        "host": os.getenv("UI_HOST", "127.0.0.1"),
-        "port": int(os.getenv("UI_PORT", 5050))
-    }
-    config['api_server'] = {
-        "host": os.getenv("API_HOST", "127.0.0.1"),
-        "port": int(os.getenv("API_PORT", 1234))
-    }
-    config['database'] = {
-        "host": os.getenv("CHROMA_HOST", "localhost"),
-        "port": int(os.getenv("CHROMA_PORT", 8000)),
-        "collection_name": os.getenv("CHROMA_COLLECTION", "video_search_engine")
-    }
+    # ------- device selection -------
+    ml_dev = os.getenv("ML_DEVICE", cfg["general"].get("device", "auto")).lower()
+    device = "cpu"
+    if ml_dev == "cuda" or (ml_dev == "auto" and torch.cuda.is_available()):
+        device = "cuda"
+    cfg["general"]["device"] = device
+    cfg["general"]["hf_token"] = os.getenv("HF_TOKEN", cfg["general"].get("hf_token"))
+    cfg["general"]["default_output_dir"] = os.getenv(
+        "OUTPUT_DIR", cfg["general"].get("default_output_dir", "data/processed")
+    )
 
-    # --- LLM Enrichment Settings ---
-    # The provider is configured via env var. Secrets (API keys) are also env vars.
-    config['llm_enrichment'] = {
-        "provider": os.getenv("LLM_PROVIDER", "gemini"),
-        "ollama": {
-            "host": os.getenv("OLLAMA_HOST", "http://localhost"),
-            "port": int(os.getenv("OLLAMA_PORT", 11434)),
-            "model": os.getenv("OLLAMA_MODEL", "gemma:2b")
-        },
-        "gemini": {
-            "model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-            # The Gemini API key itself is read directly from the GEMINI_API_KEY
-            # environment variable by the google-generativeai library.
-        }
-    }
-    
-    # --- Filenames (can remain static, but could also be configured) ---
-    config['filenames'] = {
-        "audio": "normalized_audio.mp3",
-        "raw_transcript": "transcript_raw.json",
-        "speaker_map": "speaker_map.json",
-        "transcript": "transcript_generic.json",
-        "shots": "shots.json",
-        "audio_events": "audio_events.json",
-        "visual_details": "visual_details.json",
-        "actions": "actions.json",
-        "final_analysis": "final_analysis.json",
-        "final_segments": "final_segments.json",
-        "enriched_segments": "final_enriched_segments.json"
-    }
+    # ------- networking -------
+    cfg["ui"]["host"] = os.getenv("UI_HOST", cfg["ui"].get("host", "0.0.0.0"))
+    cfg["ui"]["port"] = int(os.getenv("UI_PORT", cfg["ui"].get("port", 5050)))
+    cfg["api_server"]["host"] = os.getenv(
+        "API_HOST", cfg["api_server"].get("host", "0.0.0.0")
+    )
+    cfg["api_server"]["port"] = int(
+        os.getenv("API_PORT", cfg["api_server"].get("port", 1234))
+    )
 
-    # --- Models (can be configured via env vars) ---
-    config['models'] = {
-        "embedding": {
-            "name": os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-        }
-        # ... add others as needed ...
+    # ------- database -------
+    cfg["database"]["host"] = os.getenv(
+        "CHROMA_HOST", cfg["database"].get("host", "localhost")
+    )
+    cfg["database"]["port"] = int(
+        os.getenv("CHROMA_PORT", cfg["database"].get("port", 8000))
+    )
+    cfg["database"]["collection_name"] = os.getenv(
+        "CHROMA_COLLECTION",
+        cfg["database"].get("collection_name", "video_search_engine"),
+    )
+
+    # ------- LLM provider overrides -------
+    prov = os.getenv("LLM_PROVIDER", cfg["llm_enrichment"].get("provider", "gemini"))
+    cfg["llm_enrichment"]["provider"] = prov
+    cfg["llm_enrichment"].setdefault("ollama", {})
+    cfg["llm_enrichment"]["ollama"]["host"] = os.getenv(
+        "OLLAMA_HOST", cfg["llm_enrichment"]["ollama"].get("host", "http://localhost")
+    )
+    cfg["llm_enrichment"]["ollama"]["port"] = int(
+        os.getenv("OLLAMA_PORT", cfg["llm_enrichment"]["ollama"].get("port", 11434))
+    )
+    cfg["llm_enrichment"]["ollama"]["model"] = os.getenv(
+        "OLLAMA_MODEL", cfg["llm_enrichment"]["ollama"].get("model", "gemma:2b")
+    )
+    cfg["llm_enrichment"].setdefault("gemini", {})
+    cfg["llm_enrichment"]["gemini"]["model"] = os.getenv(
+        "GEMINI_MODEL", cfg["llm_enrichment"]["gemini"].get("model", "gemini-1.5-flash")
+    )
+
+    # optional: model cache dirs (faster restarts in k8s)
+    # Optional model cache dirs:
+    # Prefer explicit envs. Otherwise pick a writable default.
+    def _ensure_dir(p: str) -> str:
+        try:
+            os.makedirs(p, exist_ok=True)
+            return p
+        except Exception:
+            return None
+
+    # If user set any of these, respect them.
+    hf_home = os.getenv("HF_HOME")
+    tf_cache = os.getenv("TRANSFORMERS_CACHE")
+    st_home = os.getenv("SENTENCE_TRANSFORMERS_HOME")
+    torch_home = os.getenv("TORCH_HOME")
+
+    # Choose a sane, writable default root
+    default_root = os.getenv("MODEL_CACHE_DIR") or os.path.join(os.getcwd(), ".models")
+    if not _ensure_dir(default_root):
+        # fallback to user's home cache
+        default_root = os.path.expanduser("~/.cache")
+        _ensure_dir(default_root)
+
+    defaults = {
+        "HF_HOME": hf_home or os.path.join(default_root, "hf"),
+        "TRANSFORMERS_CACHE": tf_cache or os.path.join(default_root, "hf"),
+        "SENTENCE_TRANSFORMERS_HOME": st_home or os.path.join(default_root, "hf"),
+        "TORCH_HOME": torch_home or os.path.join(default_root, "torch"),
     }
+    for k, v in defaults.items():
+        os.environ.setdefault(k, v)
 
-    return config
+    logger.info(f"Using device: {cfg['general']['device']}")
+    return cfg
 
-# Load config once on module import to be used globally
+
 CONFIG = load_config()

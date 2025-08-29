@@ -1,0 +1,40 @@
+# pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: videos-pvc
+  namespace: video-se
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources: { requests: { storage: 20Gi } }
+  # storageClassName: longhorn   # <- uncomment/set if you have RWX class
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: processed-pvc
+  namespace: video-se
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources: { requests: { storage: 50Gi } }
+  # storageClassName: longhorn
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache-pvc
+  namespace: video-se
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources: { requests: { storage: 20Gi } }
+  # storageClassName: longhorn
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-pvc
+  namespace: video-se
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 10Gi } }
+  # storageClassName: longhorn  # or leave empty to use cluster default

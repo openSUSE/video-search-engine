@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chroma
+  namespace: video-se
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: chroma }
+  template:
+    metadata:
+      labels: { app: chroma }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: chroma
+        image: chromadb/chroma:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: IS_PERSISTENT
+          value: "TRUE"
+        # optional: pin port explicitly
+        - name: CHROMA_SERVER_HTTP_PORT
+          value: "8000"
+        volumeMounts:
+        - name: data
+          mountPath: /chroma
+        readinessProbe:
+          tcpSocket: { port: 8000 }
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket: { port: 8000 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            memory: "1Gi"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: chroma-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chroma
+  namespace: video-se
+spec:
+  selector: { app: chroma }
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000

@@ -32,6 +32,13 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
 
     logger.info(f"Raw transcript path: {raw_transcript_path}")
 
+    if os.getenv("SPEAKER_UI_MODE", "external").lower() == "external":
+        logger.warning("External speaker UI mode: waiting for speaker_map.json to appear...")
+        while not os.path.exists(speaker_map_path):
+            time.sleep(2)
+        logger.info("Speaker map found; continuing.")
+        return speaker_map_path
+
     if os.path.exists(speaker_map_path):
         logger.info(f"Speaker map already exists at {speaker_map_path}. Skipping UI.")
         return speaker_map_path

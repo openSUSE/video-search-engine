@@ -1,0 +1,58 @@
+# ui-search.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui-search
+  namespace: video-se
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: ui-search } }
+  template:
+    metadata: { labels: { app: ui-search } }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: ui
+        image: <REG>/video-se-ui-search:<TAG>
+        imagePullPolicy: IfNotPresent
+        args: ["streamlit","run","app/ui/search_app.py","--server.address","0.0.0.0","--server.port","8501"]
+        ports: [{ containerPort: 8501 }]
+        envFrom:
+          - configMapRef: { name: video-se-config }   # gives API_HOST, API_PORT, VIDEO_DATA_PATH, etc.
+        volumeMounts:
+          - { name: videos,    mountPath: /data/videos,    readOnly: true }
+          - { name: processed, mountPath: /data/processed }
+        readinessProbe:
+          httpGet: { path: "/", port: 8501 }
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          tcpSocket: { port: 8501 }   # Streamlit is fine with a TCP probe
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        resources:
+          requests: { cpu: "100m", memory: "128Mi" }
+          limits:   { memory: "512Mi" }
+        securityContext:
+          readOnlyRootFilesystem: true
+      volumes:
+        - name: videos
+          persistentVolumeClaim: { claimName: videos-pvc }
+        - name: processed
+          persistentVolumeClaim: { claimName: processed-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-search
+  namespace: video-se
+spec:
+  selector: { app: ui-search }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8501

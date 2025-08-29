@@ -1,0 +1,39 @@
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: video-se-config
+  namespace: video-se
+data:
+  # Device selection (auto uses CUDA if available)
+  ML_DEVICE: "auto"
+
+  # LLM provider & models
+  LLM_PROVIDER: "gemini"
+  GEMINI_MODEL: "gemini-1.5-flash"
+  OLLAMA_HOST: "http://ollama"          # only if you deploy it later
+  OLLAMA_PORT: "11434"
+  OLLAMA_MODEL: "gemma:2b"
+
+  # Networking between services (K8s service DNS names)
+  API_HOST: "api"
+  API_PORT: "1234"
+  CHROMA_HOST: "chroma"
+  CHROMA_PORT: "8000"
+
+  # UI binding (pods should bind to all interfaces)
+  UI_HOST: "0.0.0.0"
+  UI_PORT: "5050"
+
+  # Filesystem layout (PVC mount points)
+  OUTPUT_DIR: "/data/processed"
+  VIDEO_DATA_PATH: "/data/videos"
+
+  # Speaker-ID step decoupled in K8s
+  SPEAKER_UI_MODE: "external"
+
+  # Model caches (mount a small PVC here for warm starts)
+  HF_HOME: "/models/hf"
+  TRANSFORMERS_CACHE: "/models/hf"
+  SENTENCE_TRANSFORMERS_HOME: "/models/hf"
+  TORCH_HOME: "/models/torch"

@@ -316,9 +316,6 @@ def run_extraction(video_path: str, base_output_dir: str, video_title: str = Non
     os.makedirs(video_specific_dir, exist_ok=True)
     paths = _get_paths(video_specific_dir, CONFIG)
 
-    logger.info(f"Attempting to fetch metadata for '{video_title}'...")
-    fetched_metadata = fetch_movie_metadata(video_title, video_year)
-
     video_metadata = {
         "title": video_title or video_filename,
         "logline": "No logline provided.",

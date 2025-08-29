@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+chromadb
+sentence-transformers
+pydantic<2.10
