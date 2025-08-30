@@ -52,6 +52,7 @@ with st.sidebar:
         
         # Update the video path in the session state when a new video is selected
         st.session_state.video_path = os.path.join(VIDEO_DATA_DIR, selected_video_file)
+        st.session_state.video_filename_clean = os.path.splitext(selected_video_file)[0]
 
     except FileNotFoundError:
         st.error(f"Video directory not found at '{VIDEO_DATA_DIR}'. Please create it and add videos.")
@@ -71,12 +72,17 @@ with col1:
         else:
             with st.spinner("Searching for relevant moments..."):
                 try:
-                    payload = {"query": query, "top_k": 5}
+                    # MODIFIED: Add the clean video filename to the payload
+                    payload = {
+                        "query": query, 
+                        "top_k": 5,
+                        "video_filename": st.session_state.video_filename_clean
+                    }
                     response = requests.post(API_URL, json=payload)
                     
                     if response.status_code == 200:
                         results = response.json().get('results', [])
-                        st.session_state.search_results = results # Store results in session state
+                        st.session_state.search_results = results
                     else:
                         st.error(f"Failed to get results from API. Status code: {response.status_code}")
                         st.error(f"Response: {response.text}")

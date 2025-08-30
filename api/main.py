@@ -2,11 +2,10 @@
 
 import logging
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import chromadb
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Any
-
+from typing import List, Dict, Any, Optional
 # Assuming your config loader is in the core directory
 # You might need to adjust the Python path for this to work depending on how you run it.
 # One way is to run `uvicorn` from the project root.
@@ -46,6 +45,7 @@ except Exception as e:
 class SearchQuery(BaseModel):
     query: str
     top_k: int = 5
+    video_filename: Optional[str] = None
 
 class SearchResult(BaseModel):
     id: str
@@ -61,7 +61,7 @@ class SearchResponse(BaseModel):
     results: List[SearchResult]
 
 # --- HYBRID SEARCH AND RE-RANKING LOGIC ---
-def perform_hybrid_search(query: str, top_k: int) -> List[Dict[str, Any]]:
+def perform_hybrid_search(query: str, top_k: int, video_filename: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Performs a hybrid search by querying text and visual embeddings separately,
     then re-ranks the results using Reciprocal Rank Fusion (RRF).
@@ -71,16 +71,23 @@ def perform_hybrid_search(query: str, top_k: int) -> List[Dict[str, Any]]:
 
     # 2. Query both text and visual types in ChromaDB
     # We fetch more results than needed (e.g., 3*top_k) to give the re-ranker more to work with.
+    where_clause_text = {"type": "text"}
+    where_clause_visual = {"type": "visual"}
+
+    if video_filename:
+        where_clause_text = {"$and": [{"type": "text"}, {"video_filename": video_filename}]}
+        where_clause_visual = {"$and": [{"type": "visual"}, {"video_filename": video_filename}]}
+
     text_results = collection.query(
         query_embeddings=[query_vector],
         n_results=top_k * 3,
-        where={"type": "text"}
+        where=where_clause_text
     )
     
     visual_results = collection.query(
         query_embeddings=[query_vector],
         n_results=top_k * 3,
-        where={"type": "visual"}
+        where=where_clause_visual
     )
 
     # 3. Re-rank using Reciprocal Rank Fusion (RRF)
@@ -134,9 +141,9 @@ def search(query: SearchQuery):
     """
     Accepts a search query and returns a ranked list of relevant video segments.
     """
-    logger.info(f"Received search query: '{query.query}' with top_k={query.top_k}")
+    logger.info(f"Received search query: '{query.query}' for video: {query.video_filename}")
     try:
-        results = perform_hybrid_search(query.query, query.top_k)
+        results = perform_hybrid_search(query.query, query.top_k, query.video_filename)
         return {"results": results}
     except Exception as e:
         logger.error(f"An error occurred during search: {e}", exc_info=True)
