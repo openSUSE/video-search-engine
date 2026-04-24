@@ -16,8 +16,24 @@ def _yaml(path: str) -> Dict[str, Any]:
     return {}
 
 
+def _clean_string(value: Any) -> str | None:
+    if value is None:
+        return None
+
+    value = str(value).strip()
+    return value or None
+
+
+def _string_setting(env_name: str, config_value: Any, default: str) -> str:
+    return _clean_string(os.getenv(env_name)) or _clean_string(config_value) or default
+
+
+def _int_setting(env_name: str, config_value: Any, default: int) -> int:
+    return int(_string_setting(env_name, config_value, str(default)))
+
+
 def _select_device(requested_device: str) -> str:
-    requested = (requested_device or "auto").lower()
+    requested = (requested_device or "auto").strip().lower()
     if requested in {"cpu", "cuda", "mps"} and requested != "auto":
         return requested
 
@@ -43,7 +59,7 @@ def _select_device(requested_device: str) -> str:
 def load_config() -> Dict[str, Any]:
     load_dotenv()  # helpful locally
 
-    cfg = _yaml(os.getenv("CONFIG_PATH", "config.yaml"))
+    cfg = _yaml(_clean_string(os.getenv("CONFIG_PATH")) or "config.yaml")
 
     # ensure required sections exist
     for k in [
@@ -59,61 +75,83 @@ def load_config() -> Dict[str, Any]:
         cfg.setdefault(k, {})
 
     # ------- device selection -------
-    ml_dev = os.getenv("ML_DEVICE", cfg["general"].get("device", "auto"))
+    ml_dev = _string_setting("ML_DEVICE", cfg["general"].get("device"), "auto")
     cfg["general"]["device"] = _select_device(ml_dev)
 
-    if cfg["general"].get("hf_token") and not os.getenv("HF_TOKEN"):
+    hf_token = _clean_string(os.getenv("HF_TOKEN"))
+    if cfg["general"].get("hf_token") and not hf_token:
         logger.warning("Ignoring general.hf_token from config file; set HF_TOKEN in the environment.")
-    cfg["general"]["hf_token"] = os.getenv("HF_TOKEN")
+    cfg["general"]["hf_token"] = hf_token
 
-    cfg["general"]["default_output_dir"] = os.getenv(
-        "OUTPUT_DIR", cfg["general"].get("default_output_dir", "data/processed")
+    cfg["general"]["default_output_dir"] = _string_setting(
+        "OUTPUT_DIR",
+        cfg["general"].get("default_output_dir"),
+        "data/processed",
     )
 
     # ------- networking -------
-    cfg["ui"]["host"] = os.getenv("UI_HOST", cfg["ui"].get("host", "0.0.0.0"))
-    cfg["ui"]["port"] = int(os.getenv("UI_PORT", cfg["ui"].get("port", 5050)))
-    cfg["api_server"]["host"] = os.getenv(
-        "API_HOST", cfg["api_server"].get("host", "0.0.0.0")
+    cfg["ui"]["host"] = _string_setting("UI_HOST", cfg["ui"].get("host"), "0.0.0.0")
+    cfg["ui"]["port"] = _int_setting("UI_PORT", cfg["ui"].get("port"), 5050)
+    cfg["api_server"]["host"] = _string_setting(
+        "API_HOST",
+        cfg["api_server"].get("host"),
+        "0.0.0.0",
     )
-    cfg["api_server"]["port"] = int(
-        os.getenv("API_PORT", cfg["api_server"].get("port", 1234))
+    cfg["api_server"]["port"] = _int_setting(
+        "API_PORT",
+        cfg["api_server"].get("port"),
+        1234,
     )
 
     # ------- database -------
-    cfg["database"]["host"] = os.getenv(
-        "CHROMA_HOST", cfg["database"].get("host", "localhost")
+    cfg["database"]["host"] = _string_setting(
+        "CHROMA_HOST",
+        cfg["database"].get("host"),
+        "localhost",
     )
-    cfg["database"]["port"] = int(
-        os.getenv("CHROMA_PORT", cfg["database"].get("port", 8000))
+    cfg["database"]["port"] = _int_setting(
+        "CHROMA_PORT",
+        cfg["database"].get("port"),
+        8000,
     )
-    cfg["database"]["collection_name"] = os.getenv(
+    cfg["database"]["collection_name"] = _string_setting(
         "CHROMA_COLLECTION",
-        cfg["database"].get("collection_name", "video_search_engine"),
+        cfg["database"].get("collection_name"),
+        "video_search_engine",
     )
 
     # ------- LLM provider overrides -------
-    prov = os.getenv("LLM_PROVIDER", cfg["llm_enrichment"].get("provider", "gemini"))
+    prov = _string_setting(
+        "LLM_PROVIDER",
+        cfg["llm_enrichment"].get("provider"),
+        "gemini",
+    )
     cfg["llm_enrichment"]["provider"] = prov
     cfg["llm_enrichment"].setdefault("ollama", {})
-    cfg["llm_enrichment"]["ollama"]["host"] = os.getenv(
-        "OLLAMA_HOST", cfg["llm_enrichment"]["ollama"].get("host", "http://localhost")
+    cfg["llm_enrichment"]["ollama"]["host"] = _string_setting(
+        "OLLAMA_HOST",
+        cfg["llm_enrichment"]["ollama"].get("host"),
+        "http://localhost",
     )
-    cfg["llm_enrichment"]["ollama"]["port"] = int(
-        os.getenv("OLLAMA_PORT", cfg["llm_enrichment"]["ollama"].get("port", 11434))
+    cfg["llm_enrichment"]["ollama"]["port"] = _int_setting(
+        "OLLAMA_PORT",
+        cfg["llm_enrichment"]["ollama"].get("port"),
+        11434,
     )
-    cfg["llm_enrichment"]["ollama"]["model"] = os.getenv(
-        "OLLAMA_MODEL", cfg["llm_enrichment"]["ollama"].get("model", "gemma:2b")
+    cfg["llm_enrichment"]["ollama"]["model"] = _string_setting(
+        "OLLAMA_MODEL",
+        cfg["llm_enrichment"]["ollama"].get("model"),
+        "gemma:2b",
     )
     cfg["llm_enrichment"].setdefault("gemini", {})
-    cfg["llm_enrichment"]["gemini"]["model"] = os.getenv(
-        "GEMINI_MODEL", cfg["llm_enrichment"]["gemini"].get("model", "gemini-1.5-flash")
+    cfg["llm_enrichment"]["gemini"]["model"] = _string_setting(
+        "GEMINI_MODEL",
+        cfg["llm_enrichment"]["gemini"].get("model"),
+        "gemini-1.5-flash",
     )
 
-    # optional: model cache dirs (faster restarts in k8s)
-    # Optional model cache dirs:
-    # Prefer explicit envs. Otherwise pick a writable default.
-    def _ensure_dir(p: str) -> str:
+    # Prefer explicit cache envs. Otherwise pick a writable default.
+    def _ensure_dir(p: str) -> str | None:
         try:
             os.makedirs(p, exist_ok=True)
             return p
@@ -121,13 +159,16 @@ def load_config() -> Dict[str, Any]:
             return None
 
     # If user set any of these, respect them.
-    hf_home = os.getenv("HF_HOME")
-    tf_cache = os.getenv("TRANSFORMERS_CACHE")
-    st_home = os.getenv("SENTENCE_TRANSFORMERS_HOME")
-    torch_home = os.getenv("TORCH_HOME")
+    hf_home = _clean_string(os.getenv("HF_HOME"))
+    tf_cache = _clean_string(os.getenv("TRANSFORMERS_CACHE"))
+    st_home = _clean_string(os.getenv("SENTENCE_TRANSFORMERS_HOME"))
+    torch_home = _clean_string(os.getenv("TORCH_HOME"))
 
     # Choose a sane, writable default root
-    default_root = os.getenv("MODEL_CACHE_DIR") or os.path.join(os.getcwd(), ".models")
+    default_root = _clean_string(os.getenv("MODEL_CACHE_DIR")) or os.path.join(
+        os.getcwd(),
+        ".models",
+    )
     if not _ensure_dir(default_root):
         # fallback to user's home cache
         default_root = os.path.expanduser("~/.cache")
@@ -140,7 +181,10 @@ def load_config() -> Dict[str, Any]:
         "TORCH_HOME": torch_home or os.path.join(default_root, "torch"),
     }
     for k, v in defaults.items():
-        os.environ.setdefault(k, v)
+        if not _clean_string(os.getenv(k)):
+            os.environ[k] = v
+        else:
+            os.environ[k] = os.environ[k].strip()
 
     logger.info(f"Using device: {cfg['general']['device']}")
     return cfg
