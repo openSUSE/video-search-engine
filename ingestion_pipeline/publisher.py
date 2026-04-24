@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 
 from core.logger import setup_logging
 from ingestion_pipeline.jobs import (
-    DEFAULT_QUEUE,
     IngestionJob,
     publish_ingestion_job,
+    resolve_ingestion_queue,
     resolve_rabbitmq_url,
 )
 
@@ -26,13 +26,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--queue",
-        default=os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE),
+        default=os.getenv("INGESTION_QUEUE"),
         help="RabbitMQ queue name.",
     )
     args = parser.parse_args()
 
     try:
         rabbitmq_url = resolve_rabbitmq_url(args.rabbitmq_url)
+        queue_name = resolve_ingestion_queue(args.queue)
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -43,7 +44,7 @@ def main() -> None:
         title=args.title,
         year=args.year,
     )
-    publish_ingestion_job(job, rabbitmq_url=rabbitmq_url, queue_name=args.queue)
+    publish_ingestion_job(job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 
 
 if __name__ == "__main__":

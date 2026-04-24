@@ -2,10 +2,12 @@ import json
 
 import pytest
 
+import ingestion_pipeline.jobs as jobs
 from ingestion_pipeline.jobs import (
     IngestionJob,
     decode_job_message,
     encode_job_message,
+    resolve_ingestion_queue,
     resolve_rabbitmq_url,
 )
 
@@ -121,3 +123,50 @@ def test_resolve_rabbitmq_url_rejects_missing_value(monkeypatch):
 
     with pytest.raises(ValueError, match="RabbitMQ URL"):
         resolve_rabbitmq_url()
+
+
+def test_resolve_ingestion_queue_prefers_explicit_argument(monkeypatch):
+    monkeypatch.setenv("INGESTION_QUEUE", "env.queue")
+
+    assert resolve_ingestion_queue("  explicit.queue  ") == "explicit.queue"
+
+
+def test_resolve_ingestion_queue_uses_environment(monkeypatch):
+    monkeypatch.setenv("INGESTION_QUEUE", "  env.queue  ")
+
+    assert resolve_ingestion_queue() == "env.queue"
+
+
+def test_resolve_ingestion_queue_defaults_when_unset(monkeypatch):
+    monkeypatch.delenv("INGESTION_QUEUE", raising=False)
+
+    assert resolve_ingestion_queue() == "video.ingestion"
+
+
+@pytest.mark.parametrize("queue_name", ["", "   ", "\t"])
+def test_resolve_ingestion_queue_rejects_blank_values(monkeypatch, queue_name):
+    monkeypatch.delenv("INGESTION_QUEUE", raising=False)
+
+    with pytest.raises(ValueError, match="queue"):
+        resolve_ingestion_queue(queue_name)
+
+
+def test_resolve_ingestion_queue_rejects_blank_environment(monkeypatch):
+    monkeypatch.setenv("INGESTION_QUEUE", "  ")
+
+    with pytest.raises(ValueError, match="queue"):
+        resolve_ingestion_queue()
+
+
+def test_publish_job_rejects_blank_queue_before_opening_channel(monkeypatch):
+    def fail_open_channel(rabbitmq_url, queue_name):
+        raise AssertionError("blank queue should be rejected before opening a channel")
+
+    monkeypatch.setattr(jobs, "_open_channel", fail_open_channel)
+
+    with pytest.raises(ValueError, match="queue"):
+        jobs.publish_ingestion_job(
+            IngestionJob(video_path="/data/videos/demo.mp4"),
+            rabbitmq_url="amqp://broker",
+            queue_name=" ",
+        )

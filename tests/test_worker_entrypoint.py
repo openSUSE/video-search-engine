@@ -38,3 +38,17 @@ def test_worker_main_exits_before_logging_without_rabbitmq_url(monkeypatch):
 
     with pytest.raises(SystemExit, match="RabbitMQ URL"):
         worker.main()
+
+
+def test_worker_main_exits_before_logging_with_blank_queue(monkeypatch):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://broker")
+    monkeypatch.setenv("INGESTION_QUEUE", "   ")
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with a blank queue")
+
+    monkeypatch.setattr(worker, "load_dotenv", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(worker, "setup_logging", fail_setup_logging)
+
+    with pytest.raises(SystemExit, match="queue"):
+        worker.main()

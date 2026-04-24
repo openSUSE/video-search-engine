@@ -1,12 +1,10 @@
-import os
-
 from dotenv import load_dotenv
 
 from core.logger import setup_logging
 from ingestion_pipeline.jobs import (
-    DEFAULT_QUEUE,
     IngestionJob,
     consume_ingestion_jobs,
+    resolve_ingestion_queue,
     resolve_rabbitmq_url,
 )
 
@@ -23,10 +21,10 @@ def main() -> None:
     load_dotenv(".env")
     try:
         rabbitmq_url = resolve_rabbitmq_url()
+        queue_name = resolve_ingestion_queue()
     except ValueError as exc:
         raise SystemExit(str(exc))
     setup_logging()
-    queue_name = os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE)
     consume_ingestion_jobs(handle_job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 
 

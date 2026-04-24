@@ -32,6 +32,13 @@ def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
     return resolved_url
 
 
+def resolve_ingestion_queue(queue_name: Optional[str] = None) -> str:
+    resolved_queue = (
+        os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE) if queue_name is None else queue_name
+    )
+    return _normalize_required_string(resolved_queue, "ingestion queue")
+
+
 @dataclass(frozen=True)
 class IngestionJob:
     video_path: str
@@ -101,6 +108,8 @@ def _open_channel(rabbitmq_url: str, queue_name: str):
 
 
 def publish_ingestion_job(job: IngestionJob, rabbitmq_url: str, queue_name: str = DEFAULT_QUEUE) -> None:
+    queue_name = resolve_ingestion_queue(queue_name)
+
     import pika
 
     connection, channel = _open_channel(rabbitmq_url, queue_name)
@@ -124,6 +133,7 @@ def consume_ingestion_jobs(
     rabbitmq_url: str,
     queue_name: str = DEFAULT_QUEUE,
 ) -> None:
+    queue_name = resolve_ingestion_queue(queue_name)
     connection, channel = _open_channel(rabbitmq_url, queue_name)
     channel.basic_qos(prefetch_count=1)
 
