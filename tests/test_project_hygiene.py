@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -42,5 +43,26 @@ def test_chroma_runtime_images_are_pinned():
 
     assert compose_image.startswith("chromadb/chroma:${CHROMA_IMAGE_TAG:-")
     assert k8s_image.startswith("chromadb/chroma:")
+    assert ":latest" not in compose_image
+    assert ":latest" not in k8s_image
+
+
+def test_rabbitmq_runtime_images_are_pinned():
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+    k8s_rabbitmq = list(yaml.safe_load_all(Path("k8s/rabbitmq.yaml").read_text()))[0]
+
+    compose_image = compose["services"]["rabbitmq"]["image"]
+    k8s_image = k8s_rabbitmq["spec"]["template"]["spec"]["containers"][0]["image"]
+
+    compose_tag_match = re.search(r"\$\{RABBITMQ_IMAGE_TAG:-(.+)\}", compose_image)
+    assert compose_tag_match is not None
+
+    compose_default_tag = compose_tag_match.group(1)
+    k8s_tag = k8s_image.removeprefix("rabbitmq:")
+
+    assert compose_image.startswith("rabbitmq:${RABBITMQ_IMAGE_TAG:-")
+    assert re.match(r"^\d+\.\d+\.\d+-management$", compose_default_tag)
+    assert re.match(r"^\d+\.\d+\.\d+-management$", k8s_tag)
+    assert compose_default_tag == k8s_tag
     assert ":latest" not in compose_image
     assert ":latest" not in k8s_image

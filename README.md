@@ -147,7 +147,7 @@ Important variables:
 - `API_HOST`, `API_PORT`, `UI_HOST`, `UI_PORT`
 - `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`, `CHROMA_IMAGE_TAG`
 - `RABBITMQ_URL`, `INGESTION_QUEUE`
-- `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` for local Compose or the bundled Kubernetes RabbitMQ
+- `RABBITMQ_IMAGE_TAG`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` for local Compose or the bundled Kubernetes RabbitMQ
 - `LLM_PROVIDER`, `GEMINI_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT`, `OLLAMA_MODEL`
 
 Use `config.example.yaml` and `.env.example` as references. Do not put secrets in tracked YAML.
@@ -185,7 +185,7 @@ kubectl -n video-se create secret generic video-se-secrets \
 kubectl apply -k k8s/
 ```
 
-Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Chroma is pinned to `chromadb/chroma:1.5.6`; update it intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
+Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Chroma is pinned to `chromadb/chroma:1.5.6` and bundled RabbitMQ is pinned to `rabbitmq:4.1.4-management`; update them intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
 
 ## Operations
 

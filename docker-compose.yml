@@ -16,7 +16,7 @@ services:
       start_period: 10s
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: "rabbitmq:${RABBITMQ_IMAGE_TAG:-4.1.4-management}"
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
