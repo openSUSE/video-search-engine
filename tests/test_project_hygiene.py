@@ -116,6 +116,12 @@ def test_speaker_streamlit_ui_uses_support_path_boundary():
     assert "speaker_map.json" not in literal_strings
 
 
+def test_speaker_flask_ui_defers_config_import():
+    imported_modules = _top_level_import_modules("app/main.py")
+
+    assert "core.config" not in imported_modules
+
+
 def test_kubernetes_configmap_exposes_runtime_collection_name():
     configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
 

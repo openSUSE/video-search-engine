@@ -3,7 +3,6 @@ import json
 import os
 import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from core.config import CONFIG # Import the global config object
 
 # Basic configuration for Flask logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +18,16 @@ app = Flask(__name__, template_folder='ui', static_folder='ui/static')
 VIDEO_PATH = None
 TRANSCRIPT_PATH = None
 OUTPUT_DIR = None
+CONFIG = None
+
+
+def get_config():
+    global CONFIG
+    if CONFIG is None:
+        from core.config import CONFIG as loaded_config
+
+        CONFIG = loaded_config
+    return CONFIG
 
 @app.route('/')
 def index():
@@ -67,7 +76,8 @@ def save_speaker_map():
     video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
     
     # Use the filename from the central CONFIG file
-    speaker_map_filename = CONFIG['filenames']['speaker_map']
+    config = get_config()
+    speaker_map_filename = config['filenames']['speaker_map']
     output_path = os.path.join(OUTPUT_DIR, video_filename_no_ext, speaker_map_filename)
 
     try:
@@ -87,9 +97,10 @@ def save_speaker_map():
 def _request_shutdown_async():
     try:
         import threading, requests
+        config = get_config()
         def _shutdown():
             try:
-                requests.post(f"http://{CONFIG['ui']['host']}:{CONFIG['ui']['port']}/api/shutdown", timeout=2)
+                requests.post(f"http://{config['ui']['host']}:{config['ui']['port']}/api/shutdown", timeout=2)
             except Exception:
                 pass
         threading.Thread(target=_shutdown, daemon=True).start()
@@ -112,6 +123,7 @@ def shutdown():
     return "Server is shutting down."
 
 if __name__ == '__main__':
+    config = get_config()
     parser = argparse.ArgumentParser(description="Run Speaker ID UI Server.")
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument("--transcript", required=True, help="Path to the raw transcript JSON file.")
@@ -121,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--port", 
         type=int, 
-        default=CONFIG['ui']['port'], 
+        default=config['ui']['port'],
         help="Port to run the server on."
     )
     args = parser.parse_args()
@@ -131,7 +143,7 @@ if __name__ == '__main__':
     OUTPUT_DIR = os.path.abspath(args.output_dir)
 
     # Get host and port from CONFIG
-    host = CONFIG['ui']['host']
+    host = config['ui']['host']
     port = args.port # Use the port from command-line args
 
     logger.info(f"Starting server for video: {VIDEO_PATH}")
