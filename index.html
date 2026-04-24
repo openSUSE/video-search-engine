@@ -130,7 +130,11 @@
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        segmentsData = JSON.parse(e.target.result);
+                        const parsedSegments = JSON.parse(e.target.result);
+                        if (!Array.isArray(parsedSegments)) {
+                            throw new Error('Expected a JSON array of segments.');
+                        }
+                        segmentsData = parsedSegments;
                         jsonLoaded = true;
                         initializeViewer();
                     } catch (error) {
@@ -142,11 +146,34 @@
             }
         });
 
+        function createTextElement(tagName, className, text) {
+            const element = document.createElement(tagName);
+            element.className = className;
+            element.textContent = text;
+            return element;
+        }
+
+        function getSegmentSpeakers(segment) {
+            if (!Array.isArray(segment.speakers)) {
+                return 'No speakers';
+            }
+
+            const speakers = segment.speakers.filter(Boolean).join(', ');
+            return speakers || 'No speakers';
+        }
+
+        function getTranscriptSnippet(segment) {
+            const transcript = typeof segment.full_transcript === 'string' ? segment.full_transcript : '';
+            return transcript.substring(0, 100) + (transcript.length > 100 ? '...' : '');
+        }
+
         // Function to render the list of segments
         function renderSegments() {
-            segmentsList.innerHTML = ''; // Clear previous list
+            segmentsList.replaceChildren();
             if (segmentsData.length === 0) {
-                segmentsList.innerHTML = '<p class="text-slate-500 text-sm">No segments found in the JSON file.</p>';
+                segmentsList.appendChild(
+                    createTextElement('p', 'text-slate-500 text-sm', 'No segments found in the JSON file.')
+                );
                 return;
             }
             segmentsData.forEach((segment, index) => {
@@ -154,17 +181,34 @@
                 segmentElement.className = 'segment-item p-4 bg-white hover:bg-slate-100 cursor-pointer rounded-lg border-l-4 border-slate-200 transition-colors duration-200';
                 segmentElement.dataset.index = index;
 
-                const speakers = segment.speakers.join(', ') || 'No speakers';
-                const transcriptSnippet = segment.full_transcript.substring(0, 100) + (segment.full_transcript.length > 100 ? '...' : '');
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-center mb-2';
 
-                segmentElement.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-bold text-sm text-sky-700">${segment.segment_id}</h4>
-                        <p class="text-xs font-mono bg-slate-200 text-slate-600 px-2 py-1 rounded">${formatTime(segment.start_time)} - ${formatTime(segment.end_time)}</p>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-2"><strong>Speakers:</strong> ${speakers}</p>
-                    <p class="text-sm text-slate-700 italic">"${transcriptSnippet}"</p>
-                `;
+                const title = createTextElement(
+                    'h4',
+                    'font-bold text-sm text-sky-700',
+                    String(segment.segment_id ?? `Segment ${index + 1}`)
+                );
+                const timeRange = createTextElement(
+                    'p',
+                    'text-xs font-mono bg-slate-200 text-slate-600 px-2 py-1 rounded',
+                    `${formatTime(segment.start_time)} - ${formatTime(segment.end_time)}`
+                );
+                header.append(title, timeRange);
+
+                const speakerLine = document.createElement('p');
+                speakerLine.className = 'text-xs text-slate-500 mb-2';
+                const speakerLabel = document.createElement('strong');
+                speakerLabel.textContent = 'Speakers:';
+                speakerLine.append(speakerLabel, ` ${getSegmentSpeakers(segment)}`);
+
+                const transcriptSnippet = createTextElement(
+                    'p',
+                    'text-sm text-slate-700 italic',
+                    `"${getTranscriptSnippet(segment)}"`
+                );
+
+                segmentElement.append(header, speakerLine, transcriptSnippet);
 
                 segmentElement.addEventListener('click', () => {
                     playSegment(index);
@@ -177,7 +221,7 @@
         // Function to play a specific segment
         function playSegment(index) {
             currentSegment = segmentsData[index];
-            videoPlayer.currentTime = currentSegment.start_time;
+            videoPlayer.currentTime = getTimeInSeconds(currentSegment.start_time);
             videoPlayer.play();
             
             // Highlight the active segment
@@ -189,16 +233,18 @@
         videoPlayer.addEventListener('timeupdate', () => {
             if (currentSegment) {
                 const { start_time, end_time, segment_id } = currentSegment;
+                const startTime = getTimeInSeconds(start_time);
+                const endTime = getTimeInSeconds(end_time);
                 const currentTime = videoPlayer.currentTime;
 
-                if (currentTime >= end_time || currentTime < start_time) {
+                if (currentTime >= endTime || currentTime < startTime) {
                     videoPlayer.pause();
                     currentSegment = null; // Reset so it doesn't re-trigger
                 }
                 
                 // Update status display
                 const statusText = currentSegment 
-                    ? `Playing ${segment_id} (${formatTime(start_time)} - ${formatTime(end_time)})`
+                    ? `Playing ${segment_id} (${formatTime(startTime)} - ${formatTime(endTime)})`
                     : 'Playback paused. Select a segment to play.';
                 playbackStatus.textContent = statusText;
             }
@@ -210,8 +256,14 @@
              }
         });
 
+        function getTimeInSeconds(value) {
+            const seconds = Number(value);
+            return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+        }
+
         // Helper function to format time in MM:SS format
-        function formatTime(seconds) {
+        function formatTime(value) {
+            const seconds = getTimeInSeconds(value);
             const minutes = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
