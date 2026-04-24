@@ -1,8 +1,15 @@
 .git
+.codexpotter/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.coverage
+htmlcov/
+tests/
 venv/
 .venv/
 .env
