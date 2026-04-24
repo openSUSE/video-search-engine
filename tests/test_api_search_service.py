@@ -25,13 +25,13 @@ class FakeCollection:
         )
         doc_type = where["$and"][0]["type"]
         if doc_type == "text":
-            return {"ids": [["segment-a_text", "segment-b_text"]]}
-        return {"ids": [["segment-b_visual", "segment-c_visual"]]}
+            return {"ids": [["demo.mp4::segment-a_text", "demo.mp4::segment-b_text"]]}
+        return {"ids": [["demo.mp4::segment-b_visual", "demo.mp4::segment-c_visual"]]}
 
     def get(self, *, ids, include):
         self.get_call = {"ids": ids, "include": include}
         return {
-            "ids": ["segment-b_text", "segment-a_text"],
+            "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
             "metadatas": [
                 {"title": "B", "summary": "shared text and visual match"},
                 {"title": "A", "summary": "text-only match"},
@@ -47,7 +47,10 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
     results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
 
     assert model.queries == ["find highlights"]
-    assert [result["id"] for result in results] == ["segment-b", "segment-a"]
+    assert [result["id"] for result in results] == [
+        "demo.mp4::segment-b",
+        "demo.mp4::segment-a",
+    ]
     assert results[0]["title"] == "B"
     assert results[1]["summary"] == "text-only match"
 
@@ -64,6 +67,6 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
         },
     ]
     assert collection.get_call == {
-        "ids": ["segment-b_text", "segment-a_text"],
+        "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
         "include": ["metadatas"],
     }

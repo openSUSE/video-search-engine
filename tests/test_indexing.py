@@ -81,10 +81,10 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
         },
     ]
     assert collection.upsert_call["ids"] == [
-        "segment-1_text",
-        "segment-1_visual",
-        "segment-2_text",
-        "segment-2_visual",
+        "demo-video::segment-1_text",
+        "demo-video::segment-1_visual",
+        "demo-video::segment-2_text",
+        "demo-video::segment-2_visual",
     ]
     assert collection.upsert_call["embeddings"] == [
         [0, 0],

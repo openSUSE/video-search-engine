@@ -37,6 +37,10 @@ def _encoded_vectors_to_lists(encoded_vectors: Any) -> List[List[float]]:
     return [_vector_to_list(vector) for vector in encoded_vectors]
 
 
+def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
+    return f"{video_filename}::{segment_id}{suffix}"
+
+
 def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Dict[str, Any]:
     """
     Prepares a clean metadata dictionary for ChromaDB.
@@ -145,7 +149,7 @@ def run_indexing(
 
         # --- Create the TEXT entry ---
         # We create a unique ID for the text embedding of this segment.
-        ids_to_add.append(f"{segment_id}_text")
+        ids_to_add.append(_document_id(video_filename, segment_id, "_text"))
         embeddings_to_add.append(text_embeddings[i])
         # Add a type identifier to the metadata for filtering
         text_metadata = common_metadata.copy()
@@ -154,7 +158,7 @@ def run_indexing(
 
         # --- Create the VISUAL entry ---
         # We create a unique ID for the visual embedding of this segment.
-        ids_to_add.append(f"{segment_id}_visual")
+        ids_to_add.append(_document_id(video_filename, segment_id, "_visual"))
         embeddings_to_add.append(visual_embeddings[i])
         # Add a type identifier to the metadata for filtering
         visual_metadata = common_metadata.copy()
