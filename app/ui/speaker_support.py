@@ -52,6 +52,21 @@ def speaker_artifact_paths(
     )
 
 
+def speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
+    if not isinstance(transcript_segments, list):
+        return []
+
+    speaker_ids = set()
+    for segment in transcript_segments:
+        if not isinstance(segment, Mapping):
+            continue
+        speaker_id = segment.get("speaker")
+        if isinstance(speaker_id, str) and speaker_id.strip():
+            speaker_ids.add(speaker_id.strip())
+
+    return sorted(speaker_ids)
+
+
 def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
     if not isinstance(raw_speaker_map, dict):
         return None
@@ -68,7 +83,7 @@ def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
             return None
         speaker_map[normalized_speaker_id] = speaker_name.strip()
 
-    return speaker_map or None
+    return speaker_map
 
 
 def ensure_speaker_session_state(state: MutableMapping[str, Any]) -> None:

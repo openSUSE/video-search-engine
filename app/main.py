@@ -4,7 +4,7 @@ import os
 import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
-from app.ui.speaker_support import normalize_speaker_map
+from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
 
 # Basic configuration for Flask logging
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +64,15 @@ def get_data():
         return jsonify({"error": "Could not read transcript file."}), 500
 
 
+def _required_speaker_ids():
+    if not TRANSCRIPT_PATH:
+        return []
+
+    with open(TRANSCRIPT_PATH, 'r') as f:
+        transcript = json.load(f)
+    return speaker_ids_from_transcript(transcript)
+
+
 @app.route('/api/save_map', methods=['POST'])
 def save_speaker_map():
     """API endpoint to receive speaker mappings and save them to a file."""
@@ -74,6 +83,18 @@ def save_speaker_map():
     speaker_map = normalize_speaker_map(data.get('speaker_map'))
     if speaker_map is None:
         return jsonify({"error": "Speaker map must contain non-empty speaker names."}), 400
+
+    try:
+        required_speaker_ids = _required_speaker_ids()
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error("Could not validate speaker map against transcript: %s", e, exc_info=True)
+        return jsonify({"error": "Could not validate speaker map against transcript."}), 500
+
+    missing_speaker_ids = sorted(set(required_speaker_ids) - set(speaker_map))
+    if missing_speaker_ids:
+        return jsonify({
+            "error": "Speaker map is missing names for: " + ", ".join(missing_speaker_ids)
+        }), 400
 
     video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
     

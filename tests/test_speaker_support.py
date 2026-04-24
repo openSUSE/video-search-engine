@@ -4,6 +4,7 @@ from app.ui.speaker_support import (
     reset_speaker_session_for_video,
     resolve_video_path,
     speaker_artifact_paths,
+    speaker_ids_from_transcript,
 )
 
 
@@ -85,7 +86,23 @@ def test_normalize_speaker_map_trims_ids_and_names():
 
 
 def test_normalize_speaker_map_rejects_invalid_entries():
-    assert normalize_speaker_map({}) is None
     assert normalize_speaker_map({"SPEAKER_00": "   "}) is None
     assert normalize_speaker_map({"SPEAKER_00": {"name": "Alice"}}) is None
     assert normalize_speaker_map({"SPEAKER_00": "Alice", " SPEAKER_00 ": "Alicia"}) is None
+
+
+def test_normalize_speaker_map_allows_empty_map():
+    assert normalize_speaker_map({}) == {}
+
+
+def test_speaker_ids_from_transcript_returns_sorted_non_empty_strings():
+    transcript = [
+        {"speaker": " SPEAKER_01 "},
+        {"speaker": "SPEAKER_00"},
+        {"speaker": "SPEAKER_00"},
+        {"speaker": ""},
+        {"text": "missing speaker"},
+        "not a segment",
+    ]
+
+    assert speaker_ids_from_transcript(transcript) == ["SPEAKER_00", "SPEAKER_01"]

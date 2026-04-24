@@ -9,6 +9,7 @@ from app.ui.speaker_support import (
     processed_video_folders,
     reset_speaker_session_for_video,
     speaker_artifact_paths,
+    speaker_ids_from_transcript,
 )
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "data/processed")
@@ -78,9 +79,7 @@ else:
                     st.session_state.speaker_map = json.load(f)
 
             # Find all unique speaker labels from the transcript
-            all_speakers = sorted(list(set(
-                seg['speaker'] for seg in st.session_state.current_transcript_data if 'speaker' in seg
-            )))
+            all_speakers = speaker_ids_from_transcript(st.session_state.current_transcript_data)
             
             # Filter out speakers that have already been identified
             unidentified_speakers = [s for s in all_speakers if s not in st.session_state.speaker_map]
