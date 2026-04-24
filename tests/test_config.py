@@ -1,6 +1,17 @@
 import importlib
 import sys
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def restore_config_module():
+    original_module = sys.modules.get("core.config")
+    yield
+    sys.modules.pop("core.config", None)
+    if original_module is not None:
+        sys.modules["core.config"] = original_module
+
 
 def _load_config_module(monkeypatch, tmp_path, config_text):
     config_path = tmp_path / "config.yaml"
