@@ -9,6 +9,16 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUEUE = "video.ingestion"
 
 
+def _normalize_optional_string(value: Optional[str], field_name: str) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+
+    value = value.strip()
+    return value or None
+
+
 def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
     resolved_url = (rabbitmq_url or os.getenv("RABBITMQ_URL") or "").strip()
     if not resolved_url:
@@ -26,10 +36,16 @@ class IngestionJob:
     def __post_init__(self):
         if not isinstance(self.video_path, str) or not self.video_path.strip():
             raise ValueError("video_path must be a non-empty string")
-        if self.output_dir is not None and not isinstance(self.output_dir, str):
-            raise ValueError("output_dir must be a string")
-        if self.title is not None and not isinstance(self.title, str):
-            raise ValueError("title must be a string")
+        object.__setattr__(
+            self,
+            "output_dir",
+            _normalize_optional_string(self.output_dir, "output_dir"),
+        )
+        object.__setattr__(
+            self,
+            "title",
+            _normalize_optional_string(self.title, "title"),
+        )
         if self.year is not None and type(self.year) is not int:
             raise ValueError("year must be an integer")
 

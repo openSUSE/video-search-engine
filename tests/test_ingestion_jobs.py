@@ -20,6 +20,48 @@ def test_ingestion_job_message_round_trip_omits_empty_fields():
     assert decoded == job
 
 
+def test_ingestion_job_normalizes_optional_string_fields():
+    job = IngestionJob(
+        video_path="/data/videos/demo.mp4",
+        output_dir="  /data/processed  ",
+        title="  Demo Movie  ",
+    )
+
+    assert job.output_dir == "/data/processed"
+    assert job.title == "Demo Movie"
+    assert json.loads(encode_job_message(job)) == {
+        "video_path": "/data/videos/demo.mp4",
+        "output_dir": "/data/processed",
+        "title": "Demo Movie",
+    }
+    assert job.to_pipeline_kwargs("fallback") == {
+        "video_path": "/data/videos/demo.mp4",
+        "output_dir": "/data/processed",
+        "title": "Demo Movie",
+        "year": None,
+    }
+
+
+def test_ingestion_job_omits_blank_optional_string_fields():
+    job = IngestionJob(
+        video_path="/data/videos/demo.mp4",
+        output_dir="   ",
+        title="\t",
+    )
+
+    assert job.output_dir is None
+    assert job.title is None
+    assert json.loads(encode_job_message(job)) == {
+        "video_path": "/data/videos/demo.mp4",
+    }
+    assert job.to_pipeline_kwargs("fallback") == {
+        "video_path": "/data/videos/demo.mp4",
+        "output_dir": "fallback",
+        "title": None,
+        "year": None,
+    }
+
+
 def test_ingestion_job_rejects_missing_video_path():
     with pytest.raises(ValueError, match="video_path"):
         IngestionJob(video_path="")
