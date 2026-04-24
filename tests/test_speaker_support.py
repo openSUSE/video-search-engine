@@ -1,4 +1,5 @@
 from app.ui.speaker_support import (
+    normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
     resolve_video_path,
@@ -75,3 +76,16 @@ def test_reset_speaker_session_for_video_includes_base_dir_in_selection():
 
     assert state["selected_video_key"] == "processed-b::demo"
     assert state["speaker_map"] == {}
+
+
+def test_normalize_speaker_map_trims_ids_and_names():
+    assert normalize_speaker_map({" SPEAKER_00 ": "  Alice  "}) == {
+        "SPEAKER_00": "Alice",
+    }
+
+
+def test_normalize_speaker_map_rejects_invalid_entries():
+    assert normalize_speaker_map({}) is None
+    assert normalize_speaker_map({"SPEAKER_00": "   "}) is None
+    assert normalize_speaker_map({"SPEAKER_00": {"name": "Alice"}}) is None
+    assert normalize_speaker_map({"SPEAKER_00": "Alice", " SPEAKER_00 ": "Alicia"}) is None

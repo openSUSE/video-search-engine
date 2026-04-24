@@ -5,6 +5,7 @@ import streamlit as st
 
 from app.ui.speaker_support import (
     ensure_speaker_session_state,
+    normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
     speaker_artifact_paths,
@@ -93,8 +94,13 @@ else:
                     speaker_name_input = st.text_input(f"Enter name for {selected_speaker_label}:", key=f"name_{selected_speaker_label}")
                     
                     if st.button(f"Assign Name to {selected_speaker_label}"):
-                        if speaker_name_input:
-                            st.session_state.speaker_map[selected_speaker_label] = speaker_name_input
+                        updated_speaker_map = {
+                            **st.session_state.speaker_map,
+                            selected_speaker_label: speaker_name_input,
+                        }
+                        normalized_speaker_map = normalize_speaker_map(updated_speaker_map)
+                        if normalized_speaker_map:
+                            st.session_state.speaker_map = normalized_speaker_map
                             # Save the map immediately on change
                             with paths.speaker_map.open("w") as f:
                                 json.dump(st.session_state.speaker_map, f, indent=2)

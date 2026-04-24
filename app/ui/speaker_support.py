@@ -52,6 +52,25 @@ def speaker_artifact_paths(
     )
 
 
+def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
+    if not isinstance(raw_speaker_map, dict):
+        return None
+
+    speaker_map = {}
+    for speaker_id, speaker_name in raw_speaker_map.items():
+        if not isinstance(speaker_id, str) or not speaker_id.strip():
+            return None
+        if not isinstance(speaker_name, str) or not speaker_name.strip():
+            return None
+
+        normalized_speaker_id = speaker_id.strip()
+        if normalized_speaker_id in speaker_map:
+            return None
+        speaker_map[normalized_speaker_id] = speaker_name.strip()
+
+    return speaker_map or None
+
+
 def ensure_speaker_session_state(state: MutableMapping[str, Any]) -> None:
     if "speaker_map" not in state:
         state["speaker_map"] = {}
