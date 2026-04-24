@@ -88,6 +88,7 @@ services:
       VIDEO_DATA_PATH: /data/videos
       MODEL_CACHE_DIR: /models
       SPEAKER_UI_MODE: external
+      SPEAKER_MAP_TIMEOUT_SECONDS: "${SPEAKER_MAP_TIMEOUT_SECONDS:-3600}"
       ML_DEVICE: "${ML_DEVICE:-cpu}"
       HF_TOKEN: "${HF_TOKEN:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"

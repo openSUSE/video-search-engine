@@ -101,7 +101,7 @@ Optional metadata:
   --year 2024
 ```
 
-By default `SPEAKER_UI_MODE=external`, so the pipeline waits for the configured `speaker_map.json` after extraction. Run the speaker identification UI in another terminal when needed:
+By default `SPEAKER_UI_MODE=external`, so the pipeline waits for the configured `speaker_map.json` after extraction. Set `SPEAKER_MAP_TIMEOUT_SECONDS` to cap that wait for workers, or leave it empty for no timeout. Run the speaker identification UI in another terminal when needed:
 
 ```bash
 .venv/bin/streamlit run app/ui/speaker_id_tool.py
@@ -143,6 +143,7 @@ Important variables:
 
 - `HF_TOKEN`, `GEMINI_API_KEY`, `TMDB_API_KEY`
 - `ML_DEVICE`, `OUTPUT_DIR`, `VIDEO_DATA_PATH`, `MODEL_CACHE_DIR`
+- `SPEAKER_UI_MODE`, `SPEAKER_MAP_TIMEOUT_SECONDS`
 - `API_HOST`, `API_PORT`, `UI_HOST`, `UI_PORT`
 - `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`
 - `RABBITMQ_URL`, `INGESTION_QUEUE`

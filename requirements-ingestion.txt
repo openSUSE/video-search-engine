@@ -15,6 +15,7 @@ colorlog
 pandas
 scikit-learn
 ffmpeg-python
+requests
 python-dotenv
 PyYAML
 tmdbv3api

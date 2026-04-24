@@ -54,6 +54,8 @@ The local worker imports the ingestion pipeline when it receives a job, so insta
 
 Messages are JSON objects with `video_path`, optional `output_dir`, optional `title`, and optional `year`. The worker acknowledges successful jobs and rejects failed jobs without requeueing, so failed jobs should be republished after fixing the underlying issue.
 
+`SPEAKER_MAP_TIMEOUT_SECONDS` caps how long the worker waits for manual speaker identification output. The Compose and Kubernetes defaults use 3600 seconds so a missing `speaker_map.json` fails the job instead of occupying the worker forever.
+
 Kubernetes queue components:
 
 ```bash
@@ -105,6 +107,7 @@ API starts but returns no results:
 Pipeline waits after extraction:
 
 - `SPEAKER_UI_MODE=external` means the pipeline waits for `speaker_map.json`.
+- Check `SPEAKER_MAP_TIMEOUT_SECONDS` if the worker rejected a job while waiting.
 - Run the speaker UI and save the map, or provide the expected file under the processed video directory.
 
 RabbitMQ worker does nothing:

@@ -16,7 +16,60 @@ import requests
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# ... (The wait_for_speaker_identification function remains unchanged) ...
+
+def _speaker_map_timeout_seconds():
+    raw_value = os.getenv("SPEAKER_MAP_TIMEOUT_SECONDS")
+    if raw_value in (None, ""):
+        return None
+
+    try:
+        timeout_seconds = float(raw_value)
+    except ValueError:
+        logger.warning("Invalid SPEAKER_MAP_TIMEOUT_SECONDS=%r; waiting without a timeout.", raw_value)
+        return None
+
+    if timeout_seconds <= 0:
+        return None
+
+    return timeout_seconds
+
+
+def _wait_until_speaker_map_exists(speaker_map_path: str, server_process=None) -> bool:
+    timeout_seconds = _speaker_map_timeout_seconds()
+    deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
+
+    while not os.path.exists(speaker_map_path):
+        if server_process and server_process.poll() is not None:
+            logger.error("UI server exited prematurely. Please check the logs.")
+            return False
+
+        if deadline and time.monotonic() >= deadline:
+            logger.error(
+                "Timed out waiting for speaker map at %s after %.0f seconds.",
+                speaker_map_path,
+                timeout_seconds,
+            )
+            return False
+
+        sleep_seconds = 2
+        if deadline:
+            sleep_seconds = min(sleep_seconds, max(0.1, deadline - time.monotonic()))
+        time.sleep(sleep_seconds)
+
+    return True
+
+
+def _terminate_server_process(server_process) -> None:
+    if server_process.poll() is not None:
+        return
+
+    server_process.terminate()
+    try:
+        server_process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        server_process.kill()
+
+
 def wait_for_speaker_identification(video_path: str, output_dir: str):
     """
     Launches the speaker identification UI and waits for the user to complete it.
@@ -34,8 +87,8 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
 
     if os.getenv("SPEAKER_UI_MODE", "external").lower() == "external":
         logger.warning("External speaker UI mode: waiting for speaker_map.json to appear...")
-        while not os.path.exists(speaker_map_path):
-            time.sleep(2)
+        if not _wait_until_speaker_map_exists(speaker_map_path):
+            return None
         logger.info("Speaker map found; continuing.")
         return speaker_map_path
 
@@ -63,12 +116,10 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
         logger.warning("Speaker identification UI server started.")
         logger.warning(f"Please go to {ui_url} to identify speakers.")
         logger.warning("The pipeline will automatically continue once you save your changes in the UI.")
-        
-        while not os.path.exists(speaker_map_path):
-            if server_process.poll() is not None:
-                logger.error("UI server exited prematurely. Please check the logs.")
-                return None
-            time.sleep(2)
+
+        if not _wait_until_speaker_map_exists(speaker_map_path, server_process=server_process):
+            _terminate_server_process(server_process)
+            return None
 
         logger.info("Speaker map file found! Requesting UI shutdown...")
         try:
@@ -94,7 +145,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
     except Exception as e:
         logger.error(f"Failed to run speaker identification UI: {e}", exc_info=True)
         if 'server_process' in locals() and server_process.poll() is None:
-            server_process.terminate()
+            _terminate_server_process(server_process)
         return None
 
 

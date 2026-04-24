@@ -4,3 +4,4 @@ python-dotenv
 colorlog
 pika
 Flask
+requests

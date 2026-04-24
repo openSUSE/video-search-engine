@@ -32,6 +32,7 @@ data:
 
   # Speaker-ID step decoupled in K8s
   SPEAKER_UI_MODE: "external"
+  SPEAKER_MAP_TIMEOUT_SECONDS: "3600"
 
   # Queue settings. RABBITMQ_URL belongs in video-se-secrets because it contains credentials.
   INGESTION_QUEUE: "video.ingestion"
