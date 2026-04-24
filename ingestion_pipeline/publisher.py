@@ -34,16 +34,16 @@ def main() -> None:
     try:
         rabbitmq_url = resolve_rabbitmq_url(args.rabbitmq_url)
         queue_name = resolve_ingestion_queue(args.queue)
+        job = IngestionJob(
+            video_path=args.video,
+            output_dir=args.output_dir,
+            title=args.title,
+            year=args.year,
+        )
     except ValueError as exc:
         parser.error(str(exc))
 
     setup_logging()
-    job = IngestionJob(
-        video_path=args.video,
-        output_dir=args.output_dir,
-        title=args.title,
-        year=args.year,
-    )
     publish_ingestion_job(job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 
 

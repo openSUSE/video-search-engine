@@ -59,3 +59,28 @@ def test_publisher_main_rejects_blank_queue_argument(monkeypatch):
         publisher.main()
 
     assert exc_info.value.code == 2
+
+
+def test_publisher_main_rejects_blank_video_argument_before_logging(monkeypatch):
+    monkeypatch.setattr(publisher, "load_dotenv", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publisher",
+            "--video",
+            " ",
+            "--rabbitmq-url",
+            "amqp://broker",
+        ],
+    )
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with a blank video path")
+
+    monkeypatch.setattr(publisher, "setup_logging", fail_setup_logging)
+
+    with pytest.raises(SystemExit) as exc_info:
+        publisher.main()
+
+    assert exc_info.value.code == 2
