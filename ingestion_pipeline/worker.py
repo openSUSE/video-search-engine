@@ -1,6 +1,5 @@
 import os
 
-from core.config import CONFIG
 from core.logger import setup_logging
 from ingestion_pipeline.jobs import (
     DEFAULT_QUEUE,
@@ -11,6 +10,7 @@ from ingestion_pipeline.jobs import (
 
 
 def handle_job(job: IngestionJob) -> bool:
+    from core.config import CONFIG
     from ingestion_pipeline.run_pipeline import run_pipeline
 
     kwargs = job.to_pipeline_kwargs(CONFIG["general"]["default_output_dir"])
@@ -18,11 +18,11 @@ def handle_job(job: IngestionJob) -> bool:
 
 
 def main() -> None:
-    setup_logging()
     try:
         rabbitmq_url = resolve_rabbitmq_url()
     except ValueError as exc:
         raise SystemExit(str(exc))
+    setup_logging()
     queue_name = os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE)
     consume_ingestion_jobs(handle_job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 
