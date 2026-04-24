@@ -5,6 +5,19 @@ from pathlib import Path
 import yaml
 
 
+def _top_level_imports(path: str) -> set[str]:
+    tree = ast.parse(Path(path).read_text())
+    imported_modules = set()
+
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_modules.add(node.module.split(".")[0])
+
+    return imported_modules
+
+
 def test_local_env_files_are_ignored_without_hiding_example_file():
     for ignore_file in [".gitignore", ".dockerignore"]:
         patterns = Path(ignore_file).read_text().splitlines()
@@ -49,14 +62,14 @@ def test_service_dockerfiles_use_pinned_python_base_image():
 
 
 def test_api_main_defers_heavy_search_dependency_imports():
-    tree = ast.parse(Path("api/main.py").read_text())
-    imported_modules = set()
+    imported_modules = _top_level_imports("api/main.py")
 
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            imported_modules.update(alias.name.split(".")[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported_modules.add(node.module.split(".")[0])
+    assert "chromadb" not in imported_modules
+    assert "sentence_transformers" not in imported_modules
+
+
+def test_indexing_step_defers_heavy_dependency_imports():
+    imported_modules = _top_level_imports("ingestion_pipeline/steps/step_04_indexing.py")
 
     assert "chromadb" not in imported_modules
     assert "sentence_transformers" not in imported_modules
