@@ -18,11 +18,14 @@ spec:
         image: <REG>/video-se-api:<TAG>
         imagePullPolicy: IfNotPresent
         ports: [{ containerPort: 1234 }]
+        env:
+          - { name: HOME, value: /tmp }
         envFrom:
           - configMapRef: { name: video-se-config }
           - secretRef:    { name: video-se-secrets }
         volumeMounts:
           - { name: model-cache, mountPath: /models }
+          - { name: tmp,         mountPath: /tmp }
         readinessProbe:
           httpGet: { path: /healthz, port: 1234 }
           initialDelaySeconds: 10
@@ -41,6 +44,8 @@ spec:
       volumes:
         - name: model-cache
           persistentVolumeClaim: { claimName: model-cache-pvc }
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
