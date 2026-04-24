@@ -20,6 +20,7 @@ data:
   API_PORT: "1234"
   CHROMA_HOST: "chroma"
   CHROMA_PORT: "8000"
+  CHROMA_COLLECTION: "video_search_engine"
 
   # UI binding (pods should bind to all interfaces)
   UI_HOST: "0.0.0.0"

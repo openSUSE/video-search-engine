@@ -34,6 +34,12 @@ def test_compose_dependencies_wait_for_healthy_services():
     )
 
 
+def test_kubernetes_configmap_exposes_runtime_collection_name():
+    configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
+
+    assert configmap["data"]["CHROMA_COLLECTION"] == "video_search_engine"
+
+
 def test_chroma_runtime_images_are_pinned():
     compose = yaml.safe_load(Path("docker-compose.yml").read_text())
     k8s_chroma = list(yaml.safe_load_all(Path("k8s/chroma.yaml").read_text()))[0]
