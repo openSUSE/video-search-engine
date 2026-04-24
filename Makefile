@@ -2,7 +2,7 @@ PYTHON ?= python3
 COMPOSE ?= docker compose
 VENV ?= .venv
 
-.PHONY: venv install-dev test publish-ingest compose-up compose-down compose-worker
+.PHONY: venv install-dev test validate publish-ingest compose-up compose-down compose-worker
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -12,6 +12,11 @@ install-dev: venv
 
 test:
 	$(VENV)/bin/python -m pytest
+
+validate: test
+	$(COMPOSE) config
+	$(COMPOSE) --profile worker config
+	$(VENV)/bin/python -m py_compile core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
 
 publish-ingest:
 	$(VENV)/bin/python -m ingestion_pipeline.publisher --video $(VIDEO)
