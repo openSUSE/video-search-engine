@@ -50,10 +50,10 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         # Format the data into our desired structure
         metadata = {
             "title": details.title,
-            "logline": details.overview,
+            "synopsis": details.overview,
             "genre": ", ".join([genre['name'] for genre in details.genres]),
             "setting": "N/A", # TMDb doesn't have a standard 'setting' field, so we'll leave it
-            "main_characters": [] # This is also not a standard field, but we have the title/logline
+            "main_characters": [] # This is also not a standard field, but we have the title/synopsis
         }
         return metadata
 

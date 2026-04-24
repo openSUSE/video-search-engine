@@ -63,6 +63,7 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
     metadata = json.loads((video_dir / "video_metadata.json").read_text())
     assert metadata["title"] == "Fetched Demo"
     assert metadata["synopsis"] == "Fetched synopsis."
+    assert "logline" not in metadata
 
 
 def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):

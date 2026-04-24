@@ -110,6 +110,10 @@ def _resolve_llm_client(provider: str, llm_clients: Optional[Dict[str, LLMClient
     return None
 
 
+def _video_synopsis(video_metadata: Dict[str, Any]) -> str:
+    return video_metadata.get('synopsis') or video_metadata.get('logline') or 'N/A'
+
+
 def run_enrichment(
     segments_path: str,
     config: Dict[str, Any],
@@ -161,7 +165,7 @@ def run_enrichment(
         logger.warning(f"{video_metadata_path} not found. Proceeding without video context.")
     
     video_title = video_metadata.get('title', 'N/A')
-    video_synopsis = video_metadata.get('synopsis', 'N/A')
+    video_synopsis = _video_synopsis(video_metadata)
 
     total_segments = len(segments)
     for i, segment in enumerate(segments):

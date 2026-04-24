@@ -348,7 +348,7 @@ def run_extraction(
 
     video_metadata = {
         "title": video_title or video_filename,
-        "logline": "No logline provided.",
+        "synopsis": "No synopsis provided.",
         "genre": "N/A",
         "setting": "N/A",
         "main_characters": []

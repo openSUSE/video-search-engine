@@ -61,6 +61,43 @@ def test_run_enrichment_uses_injected_provider_and_preserves_completed_segments(
     assert calls[0]["config"] == config
 
 
+def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "full_transcript": "dialogue",
+                    "speakers": [],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+    (tmp_path / "video_metadata.json").write_text(
+        json.dumps({"title": "Demo Movie", "logline": "A legacy overview."})
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, config):
+        calls.append(prompt)
+        return {"title": "Generated", "summary": "Summary.", "keywords": ["demo"]}
+
+    run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert "A legacy overview." in calls[0]
+
+
 def test_call_gemini_api_missing_key_does_not_require_google_sdk(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
