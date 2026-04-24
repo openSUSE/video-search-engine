@@ -1,13 +1,9 @@
 import logging
 import json
 import os
-import cv2  # OpenCV for getting video FPS
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-from typing import List, Dict, Any, Set
+import math
 from collections import defaultdict
-from core.config import CONFIG  # Import the global config object
+from typing import Any, Dict, List, Optional, Protocol
 
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
@@ -38,7 +34,57 @@ EMBEDDING_MODEL = 'all-MiniLM-L6-v2'
 
 # =================================================================================
 
-def run_segmentation(video_path: str, analysis_path: str, speaker_map_path: str) -> str:
+
+class EmbeddingModel(Protocol):
+    def encode(self, sentences: List[str], **kwargs: Any) -> Any:
+        ...
+
+
+def _load_config() -> Dict[str, Any]:
+    from core.config import CONFIG
+
+    return CONFIG
+
+
+def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
+    from sentence_transformers import SentenceTransformer
+
+    embedding_model_name = (
+        config.get("models", {})
+        .get("embedding", {})
+        .get("name", EMBEDDING_MODEL)
+    )
+    logger.info("   -> Loading sentence embedding model: '%s'...", embedding_model_name)
+    return SentenceTransformer(embedding_model_name, device='cpu')
+
+
+def _vector_to_floats(vector: Any) -> List[float]:
+    if hasattr(vector, "tolist"):
+        vector = vector.tolist()
+    return [float(value) for value in vector]
+
+
+def _cosine_similarity(left: Any, right: Any) -> float:
+    left_values = _vector_to_floats(left)
+    right_values = _vector_to_floats(right)
+
+    numerator = sum(left_value * right_value for left_value, right_value in zip(left_values, right_values))
+    left_norm = math.sqrt(sum(value * value for value in left_values))
+    right_norm = math.sqrt(sum(value * value for value in right_values))
+
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+
+    return numerator / (left_norm * right_norm)
+
+
+def run_segmentation(
+    video_path: str,
+    analysis_path: str,
+    speaker_map_path: str,
+    config: Optional[Dict[str, Any]] = None,
+    embedding_model: Optional[EmbeddingModel] = None,
+) -> Optional[str]:
     """
     Performs intelligent segmentation by grouping shots based on a composite "Boundary Score".
     This function implements the "Phase 2: Intelligent Segmentation" logic.
@@ -51,11 +97,16 @@ def run_segmentation(video_path: str, analysis_path: str, speaker_map_path: str)
     Returns:
         The path to the final segments JSON file.
     """
+    if config is None:
+        config = _load_config()
     logger.info("--- Starting Step 2: Intelligent Segmentation with Boundary Scoring ---")
 
     # Define output path early from CONFIG to check for its existence
     processed_dir = os.path.dirname(analysis_path)
-    output_filename = CONFIG['filenames']['final_segments']
+    output_filename = config.get('filenames', {}).get(
+        'final_segments',
+        'final_segments.json',
+    )
     output_path = os.path.join(processed_dir, output_filename)
 
     # --- CHECK IF ALREADY COMPLETED ---
@@ -81,12 +132,12 @@ def run_segmentation(video_path: str, analysis_path: str, speaker_map_path: str)
 
     # 3. Perform the segmentation algorithm
     logger.info("3/4: Performing boundary scoring segmentation...")
-    final_segments = _perform_boundary_scoring(rich_shots)
+    if embedding_model is None:
+        embedding_model = create_embedding_model(config)
+    final_segments = _perform_boundary_scoring(rich_shots, embedding_model)
 
     # 4. Save the final segments to a file
     logger.info("4/4: Saving final segments...")
-    processed_dir = os.path.dirname(analysis_path) # Save in the same directory
-    output_path = os.path.join(processed_dir, "final_segments.json")
     with open(output_path, 'w') as f:
         json.dump(final_segments, f, indent=4)
     
@@ -119,7 +170,10 @@ def _prepare_rich_shots(analysis_data: List[Dict[str, Any]], speaker_map: Dict[s
         })
     return rich_shots
 
-def _perform_boundary_scoring(rich_shots: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _perform_boundary_scoring(
+    rich_shots: List[Dict[str, Any]],
+    embedding_model: Optional[EmbeddingModel] = None,
+) -> List[Dict[str, Any]]:
     """
     The core algorithm. Iterates through shots, calculates a Boundary Score between
     adjacent shots, and splits them into segments based on a threshold.
@@ -127,17 +181,24 @@ def _perform_boundary_scoring(rich_shots: List[Dict[str, Any]]) -> List[Dict[str
     if not rich_shots:
         return []
 
-    # Load a sentence transformer model. This will download the model on the first run.
-    logger.info(f"   -> Loading sentence embedding model: '{EMBEDDING_MODEL}'...")
-    model = SentenceTransformer(EMBEDDING_MODEL, device='cpu')
+    if embedding_model is None:
+        embedding_model = create_embedding_model({})
     
     # Pre-calculate embeddings for all shots to avoid re-calculating in the loop.
     logger.info("   -> Pre-calculating text and visual embeddings for all shots...")
     dialogue_texts = [shot['dialogue_text'] for shot in rich_shots]
     visual_captions = [shot['visual_caption'] for shot in rich_shots]
     
-    dialogue_embeddings = model.encode(dialogue_texts, show_progress_bar=True, normalize_embeddings=True)
-    visual_embeddings = model.encode(visual_captions, show_progress_bar=True, normalize_embeddings=True)
+    dialogue_embeddings = embedding_model.encode(
+        dialogue_texts,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+    )
+    visual_embeddings = embedding_model.encode(
+        visual_captions,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+    )
 
     final_segments = []
     current_segment_shots = [rich_shots[0]]
@@ -148,12 +209,12 @@ def _perform_boundary_scoring(rich_shots: List[Dict[str, Any]]) -> List[Dict[str
 
         # --- 1. Textual Change Score ---
         # How much the topic of conversation has shifted.
-        text_sim = cosine_similarity(dialogue_embeddings[i-1].reshape(1, -1), dialogue_embeddings[i].reshape(1, -1))[0][0]
+        text_sim = _cosine_similarity(dialogue_embeddings[i-1], dialogue_embeddings[i])
         text_change = 1 - text_sim
 
         # --- 2. Visual Change Score ---
         # How much the visual content has shifted, using captions as a proxy.
-        visual_sim = cosine_similarity(visual_embeddings[i-1].reshape(1, -1), visual_embeddings[i].reshape(1, -1))[0][0]
+        visual_sim = _cosine_similarity(visual_embeddings[i-1], visual_embeddings[i])
         visual_change = 1 - visual_sim
 
         # --- 3. Speaker Change Score ---

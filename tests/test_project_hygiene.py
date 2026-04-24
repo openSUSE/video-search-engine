@@ -101,6 +101,16 @@ def test_indexing_step_defers_heavy_dependency_imports():
     assert "sentence_transformers" not in imported_modules
 
 
+def test_segmentation_step_defers_heavy_dependency_imports():
+    imported_modules = _top_level_import_modules("ingestion_pipeline/steps/step_02_segmentation.py")
+
+    assert "core.config" not in imported_modules
+    assert "cv2" not in imported_modules
+    assert "numpy" not in imported_modules
+    assert "sentence_transformers" not in imported_modules
+    assert "sklearn.metrics.pairwise" not in imported_modules
+
+
 def test_run_pipeline_defers_runtime_dependency_imports():
     imported_modules = _top_level_import_modules("ingestion_pipeline/run_pipeline.py")
 
