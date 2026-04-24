@@ -10,10 +10,15 @@ from app.ui.speaker_support import (
     reset_speaker_session_for_video,
     speaker_artifact_paths,
 )
-from core.config import CONFIG
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "data/processed")
 VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
+
+
+def get_config():
+    from core.config import CONFIG
+
+    return CONFIG
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Speaker Identification Tool")
@@ -50,7 +55,12 @@ else:
         reset_speaker_session_for_video(st.session_state, selected_video_folder, base_dir)
 
         # Define paths for the required files
-        paths = speaker_artifact_paths(base_dir, selected_video_folder, VIDEO_DATA_DIR, CONFIG)
+        paths = speaker_artifact_paths(
+            base_dir,
+            selected_video_folder,
+            VIDEO_DATA_DIR,
+            get_config(),
+        )
 
         # --- MAIN LOGIC ---
         if not paths.transcript.exists():
