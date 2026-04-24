@@ -1,0 +1,72 @@
+# ===================================================================
+# == Configuration for the Video Search Engine Ingestion Pipeline  ==
+# ===================================================================
+
+general:
+  device: "auto"
+  hf_token:
+  default_output_dir: "data/processed"
+
+ui:
+  host: "127.0.0.1"
+  port: 5050
+
+api_server:
+  host: "127.0.0.1"
+  port: 1234
+
+database:
+  host: "localhost"
+  port: 8000
+  collection_name: "video_search_engine"
+
+filenames:
+  audio: "normalized_audio.mp3"
+  raw_transcript: "transcript_raw.json"
+  speaker_map: "speaker_map.json"
+  transcript: "transcript_generic.json"
+  shots: "shots.json"
+  audio_events: "audio_events.json"
+  visual_details: "visual_details.json"
+  actions: "actions.json"
+  final_analysis: "final_analysis.json"
+  final_segments: "final_segments.json"
+  enriched_segments: "final_enriched_segments.json"
+
+llm_enrichment:
+  provider: "gemini"
+  ollama:
+    enabled: true
+    host: "http://localhost"
+    port: 11434
+    model: "gemma:2b"
+    timeout_sec: 120
+  gemini:
+    model: "gemini-1.5-flash"
+
+models:
+  transcription:
+    name: "base"
+    compute_type: "int8"
+  audio_events:
+    name: "MIT/ast-finetuned-audioset-10-10-0.4593"
+  visual_captioning:
+    name: "Salesforce/blip-image-captioning-base"
+  embedding:
+    name: "all-MiniLM-L6-v2"
+  action_recognition:
+    name: "MCG-NJU/videomae-base-finetuned-kinetics"
+
+parameters:
+  transcription:
+    batch_size: 32
+  audio:
+    sample_rate: 16000
+  audio_events:
+    top_n: 3
+    confidence_threshold: 0.1
+  visual_captioning:
+    max_new_tokens: 50
+  action_recognition:
+    num_frames: 16
+    top_n: 3

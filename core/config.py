@@ -1,6 +1,9 @@
 # core/config.py
-import os, logging, torch, yaml
+import logging
+import os
 from typing import Dict, Any
+
+import yaml
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -11,6 +14,30 @@ def _yaml(path: str) -> Dict[str, Any]:
         with open(path, "r") as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+def _select_device(requested_device: str) -> str:
+    requested = (requested_device or "auto").lower()
+    if requested in {"cpu", "cuda", "mps"} and requested != "auto":
+        return requested
+
+    if requested != "auto":
+        logger.warning("Unknown ML_DEVICE '%s'; falling back to cpu.", requested_device)
+        return "cpu"
+
+    try:
+        import torch
+    except Exception:
+        return "cpu"
+
+    if torch.cuda.is_available():
+        return "cuda"
+
+    mps_backend = getattr(torch.backends, "mps", None)
+    if mps_backend and mps_backend.is_available():
+        return "mps"
+
+    return "cpu"
 
 
 def load_config() -> Dict[str, Any]:
@@ -32,12 +59,13 @@ def load_config() -> Dict[str, Any]:
         cfg.setdefault(k, {})
 
     # ------- device selection -------
-    ml_dev = os.getenv("ML_DEVICE", cfg["general"].get("device", "auto")).lower()
-    device = "cpu"
-    if ml_dev == "cuda" or (ml_dev == "auto" and torch.cuda.is_available()):
-        device = "cuda"
-    cfg["general"]["device"] = device
-    cfg["general"]["hf_token"] = os.getenv("HF_TOKEN", cfg["general"].get("hf_token"))
+    ml_dev = os.getenv("ML_DEVICE", cfg["general"].get("device", "auto"))
+    cfg["general"]["device"] = _select_device(ml_dev)
+
+    if cfg["general"].get("hf_token") and not os.getenv("HF_TOKEN"):
+        logger.warning("Ignoring general.hf_token from config file; set HF_TOKEN in the environment.")
+    cfg["general"]["hf_token"] = os.getenv("HF_TOKEN")
+
     cfg["general"]["default_output_dir"] = os.getenv(
         "OUTPUT_DIR", cfg["general"].get("default_output_dir", "data/processed")
     )

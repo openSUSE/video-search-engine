@@ -9,7 +9,8 @@ general:
   device: "auto"
   
   # Hugging Face access token for speaker diarization.
-  hf_token: "REMOVED_HF_TOKEN"
+  # Set this with HF_TOKEN in your environment or .env file.
+  hf_token:
 
   # Default base directory for all processed video data.
   default_output_dir: "data/processed"
@@ -63,7 +64,7 @@ llm_enrichment:
   gemini:
     # Model name from Google (gemini-1.5-flash is fast and cost-effective)
     model: "gemini-1.5-flash"
-    # The API key will be read from the GOOGLE_API_KEY environment variable
+    # The API key will be read from the GEMINI_API_KEY environment variable
 
 # --- Model identifiers and settings ---
 models:
