@@ -185,7 +185,8 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
         final_segments_path = run_segmentation(
             video_path=video_path,
             analysis_path=final_analysis_path,
-            speaker_map_path=speaker_map_path
+            speaker_map_path=speaker_map_path,
+            config=config,
         )
         
         if not final_segments_path:
