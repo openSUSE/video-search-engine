@@ -1,14 +1,14 @@
 # ingestion_pipeline/steps/step_03_enrichment.py
 
-import logging
 import json
+import logging
 import os
-import requests
 import shutil
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+LLMClient = Callable[[str, Dict[str, Any]], Optional[Dict[str, Any]]]
 
 # Main prompt for when a transcript is available
 PROMPT_WITH_TRANSCRIPT = """
@@ -58,7 +58,7 @@ Based on the visual and audio context, generate the following:
 """
 
 
-def _call_ollama_api(prompt: str, config: dict) -> dict:
+def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     ollama_config = config['llm_enrichment']['ollama']
     api_url = f"{ollama_config['host']}:{ollama_config['port']}/api/generate"
     payload = {
@@ -66,6 +66,8 @@ def _call_ollama_api(prompt: str, config: dict) -> dict:
         "stream": False, "format": "json"
     }
     try:
+        import requests
+
         response = requests.post(api_url, json=payload, timeout=ollama_config.get('timeout_sec', 120))
         response.raise_for_status()
         return json.loads(response.json()['response'])
@@ -73,12 +75,21 @@ def _call_ollama_api(prompt: str, config: dict) -> dict:
         logger.error(f"Ollama API request failed: {e}")
         return None
 
-def _call_gemini_api(prompt: str, config: dict) -> dict:
+def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     gemini_config = config['llm_enrichment']['gemini']
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("Gemini API request failed: GEMINI_API_KEY environment variable not set.")
+        return None
+
     try:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set.")
+        import google.generativeai as genai
+        from google.api_core import exceptions as google_exceptions
+    except ImportError as e:
+        logger.error(f"Gemini API request failed: Google SDK is not installed: {e}")
+        return None
+
+    try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(gemini_config['model'])
         generation_config = genai.GenerationConfig(response_mime_type="application/json")
@@ -88,7 +99,22 @@ def _call_gemini_api(prompt: str, config: dict) -> dict:
         logger.error(f"Gemini API request failed: {e}")
         return None
 
-def run_enrichment(segments_path: str, config: dict) -> str:
+
+def _resolve_llm_client(provider: str, llm_clients: Optional[Dict[str, LLMClient]]) -> Optional[LLMClient]:
+    if llm_clients and provider in llm_clients:
+        return llm_clients[provider]
+    if provider == 'gemini':
+        return _call_gemini_api
+    if provider == 'ollama':
+        return _call_ollama_api
+    return None
+
+
+def run_enrichment(
+    segments_path: str,
+    config: Dict[str, Any],
+    llm_clients: Optional[Dict[str, LLMClient]] = None,
+) -> Optional[str]:
     """
     Enriches segments with LLM data, saving progress after each segment.
     On rerun, it skips already enriched segments.
@@ -99,6 +125,10 @@ def run_enrichment(segments_path: str, config: dict) -> str:
 
     provider = config.get('llm_enrichment', {}).get('provider', 'ollama')
     logger.info(f"--- Starting Step 3: LLM Enrichment using provider: '{provider}' ---")
+    llm_client = _resolve_llm_client(provider, llm_clients)
+    if llm_client is None:
+        logger.error(f"Invalid LLM provider: {provider}. Halting.")
+        return None
 
     # If the output file doesn't exist, create it by copying the input file.
     # This initializes our "state" file for enrichment.
@@ -162,14 +192,7 @@ def run_enrichment(segments_path: str, config: dict) -> str:
             prompt = PROMPT_NO_TRANSCRIPT.format(**context)
 
         # Call the appropriate API
-        llm_data = None
-        if provider == 'gemini':
-            llm_data = _call_gemini_api(prompt, config)
-        elif provider == 'ollama':
-            llm_data = _call_ollama_api(prompt, config)
-        else:
-            logger.error(f"Invalid LLM provider: {provider}. Halting.")
-            break # Exit loop on invalid config
+        llm_data = llm_client(prompt, config)
 
         # Update the segment in the list
         if llm_data:

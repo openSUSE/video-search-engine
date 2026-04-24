@@ -111,6 +111,14 @@ def test_segmentation_step_defers_heavy_dependency_imports():
     assert "sklearn.metrics.pairwise" not in imported_modules
 
 
+def test_enrichment_step_defers_provider_dependency_imports():
+    imported_modules = _top_level_import_modules("ingestion_pipeline/steps/step_03_enrichment.py")
+
+    assert "google.generativeai" not in imported_modules
+    assert "google.api_core" not in imported_modules
+    assert "requests" not in imported_modules
+
+
 def test_run_pipeline_defers_runtime_dependency_imports():
     imported_modules = _top_level_import_modules("ingestion_pipeline/run_pipeline.py")
 
