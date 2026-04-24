@@ -6,11 +6,14 @@ pillow
 librosa
 transformers
 sentence-transformers
-timm. 
+timm
 colorlog
 pandas
 scikit-learn
 ffmpeg-python
 python-dotenv
+PyYAML
 tmdbv3api
 google-generativeai
+pika
+Flask

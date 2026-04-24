@@ -1,0 +1,96 @@
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /chroma/chroma
+    volumes:
+      - chroma-data:/chroma/chroma
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-guest}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-guest}"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "${API_PORT:-1234}:1234"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "1234"
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: "${CHROMA_COLLECTION:-video_search_engine}"
+      ML_DEVICE: "${ML_DEVICE:-cpu}"
+      MODEL_CACHE_DIR: /models
+    volumes:
+      - model-cache:/models
+    depends_on:
+      - chroma
+
+  ui-search:
+    build:
+      context: .
+      dockerfile: docker/ui-search.Dockerfile
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    environment:
+      API_HOST: api
+      API_PORT: "1234"
+      VIDEO_DATA_PATH: /data/videos
+      ML_DEVICE: "${ML_DEVICE:-cpu}"
+    volumes:
+      - ./data/videos:/data/videos:ro
+    depends_on:
+      - api
+
+  ingestion-worker:
+    profiles:
+      - worker
+    build:
+      context: .
+      dockerfile: docker/ingestion.Dockerfile
+    command: ["python", "-m", "ingestion_pipeline.worker"]
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: "${CHROMA_COLLECTION:-video_search_engine}"
+      OUTPUT_DIR: /data/processed
+      VIDEO_DATA_PATH: /data/videos
+      MODEL_CACHE_DIR: /models
+      SPEAKER_UI_MODE: external
+      ML_DEVICE: "${ML_DEVICE:-cpu}"
+      HF_TOKEN: "${HF_TOKEN:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/%2F}"
+    volumes:
+      - ./data/videos:/data/videos
+      - ./data/processed:/data/processed
+      - model-cache:/models
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+
+volumes:
+  chroma-data:
+  rabbitmq-data:
+  model-cache:
