@@ -79,6 +79,12 @@ celerybeat-schedule
 .env
 .models/
 
+# Runtime media inputs and generated pipeline outputs
+data/videos/*
+data/processed/*
+!data/videos/.gitkeep
+!data/processed/.gitkeep
+
 # virtualenv
 .venv/
 venv/
