@@ -119,6 +119,18 @@ def test_enrichment_step_defers_provider_dependency_imports():
     assert "requests" not in imported_modules
 
 
+def test_extraction_step_defers_heavy_dependency_imports():
+    imported_modules = _top_level_import_modules("ingestion_pipeline/steps/step_01_extraction.py")
+
+    assert "PIL" not in imported_modules
+    assert "core.config" not in imported_modules
+    assert "cv2" not in imported_modules
+    assert "ingestion_pipeline.utils.metadata_fetcher" not in imported_modules
+    assert "numpy" not in imported_modules
+    assert "torch" not in imported_modules
+    assert "whisperx" not in imported_modules
+
+
 def test_run_pipeline_defers_runtime_dependency_imports():
     imported_modules = _top_level_import_modules("ingestion_pipeline/run_pipeline.py")
 

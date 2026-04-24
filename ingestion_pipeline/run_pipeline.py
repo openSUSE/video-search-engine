@@ -168,7 +168,7 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
 
     try:
         # Step 1: Data Extraction
-        run_extraction(video_path, output_dir, title, year)
+        run_extraction(video_path, output_dir, title, year, config=config)
 
         # Step 1.5: Manual Speaker Identification
         speaker_map_path = wait_for_speaker_identification(video_path, output_dir, config=config)

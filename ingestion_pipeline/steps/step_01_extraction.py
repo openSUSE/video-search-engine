@@ -1,20 +1,26 @@
 import subprocess
-import whisperx
-import torch
+import json
 import logging
 import os
-import json
-import csv
-import cv2
-from PIL import Image
-from typing import Dict, Any, List
 from collections import defaultdict
-import numpy as np
-from core.config import CONFIG
-
-from ingestion_pipeline.utils.metadata_fetcher import fetch_movie_metadata
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+MetadataFetcher = Callable[[str, Optional[int]], Optional[Dict[str, Any]]]
+
+
+def _load_config() -> Dict[str, Any]:
+    from core.config import CONFIG
+
+    return CONFIG
+
+
+def _fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    from ingestion_pipeline.utils.metadata_fetcher import fetch_movie_metadata
+
+    return fetch_movie_metadata(title, year)
+
 
 # Added path for the final unified output file.
 def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
@@ -23,7 +29,10 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
     return {
         "audio": os.path.join(processed_dir, f_names['audio']),
         "shots": os.path.join(processed_dir, f_names['shots']),
-        "transcript_raw": os.path.join(processed_dir, 'transcript_raw.json'),
+        "transcript_raw": os.path.join(
+            processed_dir,
+            f_names.get('raw_transcript', 'transcript_raw.json'),
+        ),
         "transcript_aligned": os.path.join(processed_dir, f_names['transcript']),
         "audio_events": os.path.join(processed_dir, f_names['audio_events']),
         "visual_details": os.path.join(processed_dir, f_names['visual_details']),
@@ -45,6 +54,8 @@ def extract_audio(video_path: str, audio_path: str):
 def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Dict[str, Any]):
     """Transcribes audio and performs speaker diarization, saving the raw output."""
     logger.info("    -> Transcribing and identifying speakers (raw output)...")
+    import whisperx
+
     device = config['general']['device']
     model_cfg = config['models']['transcription']
     params_cfg = config['parameters']['transcription']
@@ -64,6 +75,7 @@ def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Di
 def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, Any]]:
     """Detects shot boundaries and saves them as a rich JSON object."""
     logger.info("    -> Detecting shot boundaries with TransNetV2...")
+    import cv2
     from transnetv2_pytorch import TransNetV2
     
     cap = cv2.VideoCapture(video_path)
@@ -120,6 +132,8 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
 def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Detects audio events for each shot."""
     logger.info("    -> Detecting audio events per shot...")
+    import torch
+
     device = config['general']['device']
     model_cfg = config['models']['audio_events']
     audio_params = config['parameters']['audio']
@@ -158,6 +172,9 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
 def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Generates captions for each shot."""
     logger.info("    -> Generating visual captions for shots...")
+    import cv2
+    from PIL import Image
+
     device = config['general']['device']
     model_cfg = config['models']['visual_captioning']
     params_cfg = config['parameters']['visual_captioning']
@@ -191,6 +208,10 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     Detects actions and activities for each shot using a video classification model.
     """
     logger.info("    -> Detecting actions/activities per shot...")
+    import cv2
+    import numpy as np
+    import torch
+
     device = config['general']['device']
     model_cfg = config['models']['action_recognition']
     params_cfg = config['parameters']['action_recognition']
@@ -304,9 +325,18 @@ def create_final_analysis_file(paths: Dict[str, str]):
         json.dump(final_data, f, indent=2)
     logger.info(f"    -> Final analysis file saved to {paths['final_analysis']}")
 
-# --- MAIN ORCHESTRATOR FUNCTION ---
-def run_extraction(video_path: str, base_output_dir: str, video_title: str = None, video_year: int = None):
+def run_extraction(
+    video_path: str,
+    base_output_dir: str,
+    video_title: str = None,
+    video_year: int = None,
+    config: Optional[Dict[str, Any]] = None,
+    metadata_fetcher: Optional[MetadataFetcher] = None,
+):
     """Runs the full data extraction pipeline for a given video."""
+    if config is None:
+        config = _load_config()
+
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
     video_specific_dir = os.path.join(base_output_dir, video_filename)
     
@@ -314,7 +344,7 @@ def run_extraction(video_path: str, base_output_dir: str, video_title: str = Non
     logger.info(f"Output will be saved in: {video_specific_dir}")
     
     os.makedirs(video_specific_dir, exist_ok=True)
-    paths = _get_paths(video_specific_dir, CONFIG)
+    paths = _get_paths(video_specific_dir, config)
 
     video_metadata = {
         "title": video_title or video_filename,
@@ -326,7 +356,9 @@ def run_extraction(video_path: str, base_output_dir: str, video_title: str = Non
 
     if video_title:
         logger.info(f"Attempting to fetch metadata for '{video_title}'...")
-        fetched_metadata = fetch_movie_metadata(video_title, video_year)
+        if metadata_fetcher is None:
+            metadata_fetcher = _fetch_movie_metadata
+        fetched_metadata = metadata_fetcher(video_title, video_year)
         
         if fetched_metadata:
             logger.info("Successfully fetched metadata from TMDb.")
@@ -357,7 +389,7 @@ def run_extraction(video_path: str, base_output_dir: str, video_title: str = Non
 
     # 3. Create raw transcript
     if not os.path.exists(paths["transcript_raw"]):
-        transcribe_and_diarize(paths["audio"], paths["transcript_raw"], CONFIG)
+        transcribe_and_diarize(paths["audio"], paths["transcript_raw"], config)
 
     # 4. Align the transcript to the shots
     if not os.path.exists(paths["transcript_aligned"]):
@@ -365,14 +397,14 @@ def run_extraction(video_path: str, base_output_dir: str, video_title: str = Non
     
     # 5. Run per-shot analysis for audio events
     if not os.path.exists(paths["audio_events"]):
-        detect_audio_events_per_shot(paths["audio"], scenes, paths["audio_events"], CONFIG)
+        detect_audio_events_per_shot(paths["audio"], scenes, paths["audio_events"], config)
 
     # 6. Run per-shot analysis for visual captions
     if not os.path.exists(paths["visual_details"]):
-        generate_visual_captions(video_path, scenes, paths["visual_details"], CONFIG)
+        generate_visual_captions(video_path, scenes, paths["visual_details"], config)
 
     if not os.path.exists(paths["actions"]):
-        detect_actions_per_shot(video_path, scenes, paths["actions"], CONFIG)
+        detect_actions_per_shot(video_path, scenes, paths["actions"], config)
     
     if not os.path.exists(paths["final_analysis"]):
         create_final_analysis_file(paths)

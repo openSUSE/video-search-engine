@@ -18,7 +18,7 @@ validate: test
 	$(COMPOSE) --profile worker config
 	$(VENV)/bin/python -c "import pathlib, yaml; [list(yaml.safe_load_all(path.read_text())) for path in pathlib.Path('k8s').glob('*.yaml')]"
 	@if command -v kubectl >/dev/null 2>&1; then kubectl kustomize k8s >/dev/null; else echo "kubectl not found; skipping kustomize validation"; fi
-	$(VENV)/bin/python -m py_compile api/main.py api/schemas.py api/search_service.py api/search_utils.py app/main.py app/ui/search_client.py app/ui/speaker_id_tool.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py ingestion_pipeline/steps/step_02_segmentation.py ingestion_pipeline/steps/step_03_enrichment.py ingestion_pipeline/steps/step_04_indexing.py inspect_db.py
+	$(VENV)/bin/python -m py_compile api/main.py api/schemas.py api/search_service.py api/search_utils.py app/main.py app/ui/search_client.py app/ui/speaker_id_tool.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py ingestion_pipeline/steps/step_01_extraction.py ingestion_pipeline/steps/step_02_segmentation.py ingestion_pipeline/steps/step_03_enrichment.py ingestion_pipeline/steps/step_04_indexing.py inspect_db.py
 
 publish-ingest:
 	@test -n "$(VIDEO)" || (echo "Set VIDEO=/data/videos/your_video.mp4" && exit 1)
