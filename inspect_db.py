@@ -1,12 +1,16 @@
 import argparse
 import pprint
 
-from core.config import load_config
-
 # --- SCRIPT CONFIGURATION ---
 # How many records to fetch and display.
 # Since each segment has 2 entries (text/visual), a limit of 10 will show 5 full segments.
 FETCH_LIMIT = 10 
+
+
+def _load_config():
+    from core.config import load_config
+
+    return load_config()
 
 
 def inspect_collection(fetch_limit: int = FETCH_LIMIT) -> None:
@@ -17,7 +21,7 @@ def inspect_collection(fetch_limit: int = FETCH_LIMIT) -> None:
     
     # 1. Load configuration to get database details
     try:
-        config = load_config()
+        config = _load_config()
         db_config = config['database']
     except Exception as e:
         print(f"Error loading config: {e}")

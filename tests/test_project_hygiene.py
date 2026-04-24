@@ -215,6 +215,13 @@ def test_run_pipeline_defers_runtime_dependency_imports():
     )
 
 
+def test_inspect_db_defers_config_and_chroma_imports():
+    imported_modules = _top_level_import_modules("inspect_db.py")
+
+    assert "chromadb" not in imported_modules
+    assert "core.config" not in imported_modules
+
+
 def test_chroma_runtime_images_are_pinned():
     compose = yaml.safe_load(Path("docker-compose.yml").read_text())
     k8s_chroma = list(yaml.safe_load_all(Path("k8s/chroma.yaml").read_text()))[0]

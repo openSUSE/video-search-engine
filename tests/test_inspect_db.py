@@ -29,7 +29,7 @@ def test_inspect_collection_loads_config_without_path_argument(monkeypatch, caps
             calls["collection"] = name
             return FakeCollection()
 
-    monkeypatch.setattr(inspect_db, "load_config", fake_load_config)
+    monkeypatch.setattr(inspect_db, "_load_config", fake_load_config)
     monkeypatch.setitem(sys.modules, "chromadb", SimpleNamespace(HttpClient=FakeClient))
 
     inspect_db.inspect_collection(fetch_limit=3)
