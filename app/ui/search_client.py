@@ -4,6 +4,7 @@ from typing import Any, Mapping
 import requests
 
 DEFAULT_SEARCH_TIMEOUT_SECONDS = 10.0
+RequestException = requests.exceptions.RequestException
 
 
 def search_api_url(config: Mapping[str, Any]) -> str:

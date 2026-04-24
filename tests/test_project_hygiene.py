@@ -31,6 +31,15 @@ def _top_level_import_modules(path: str) -> set[str]:
     return imported_modules
 
 
+def _qualified_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _qualified_name(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
+    return ""
+
+
 def test_local_env_files_are_ignored_without_hiding_example_file():
     for ignore_file in [".gitignore", ".dockerignore"]:
         patterns = Path(ignore_file).read_text().splitlines()
@@ -72,6 +81,25 @@ def test_search_ui_timeout_is_configured_for_deployments():
         == "${SEARCH_API_TIMEOUT_SECONDS:-10}"
     )
     assert configmap["data"]["SEARCH_API_TIMEOUT_SECONDS"] == "10"
+
+
+def test_search_app_handles_request_failures_through_client_boundary():
+    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    imported_client_names = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.ui.search_client"
+        for alias in node.names
+    }
+    handled_exceptions = {
+        _qualified_name(node.type)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler) and node.type is not None
+    }
+
+    assert "RequestException" in imported_client_names
+    assert "RequestException" in handled_exceptions
+    assert "requests.exceptions.RequestException" not in handled_exceptions
 
 
 def test_kubernetes_configmap_exposes_runtime_collection_name():

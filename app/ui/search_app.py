@@ -9,7 +9,12 @@ VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
 
 # Add the project root to the Python path to allow importing from 'core'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-from app.ui.search_client import post_search, search_api_url, search_payload
+from app.ui.search_client import (
+    RequestException,
+    post_search,
+    search_api_url,
+    search_payload,
+)
 from core.config import CONFIG
 
 # --- PAGE CONFIGURATION ---
@@ -85,7 +90,7 @@ with col1:
                         st.error(f"Response: {response.text}")
                         st.session_state.search_results = []
 
-                except requests.exceptions.RequestException as e:
+                except RequestException as e:
                     st.error(f"Could not connect to the Search API at {API_URL}. Is it running?")
                     st.error(f"Details: {e}")
                     st.session_state.search_results = []

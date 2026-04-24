@@ -19,6 +19,10 @@ def test_search_payload_includes_query_limit_and_video_filter():
     }
 
 
+def test_request_exception_is_exposed_by_client_boundary():
+    assert search_client.RequestException is search_client.requests.exceptions.RequestException
+
+
 def test_post_search_uses_timeout_from_environment(monkeypatch):
     monkeypatch.setenv("SEARCH_API_TIMEOUT_SECONDS", "2.5")
     captured = {}
