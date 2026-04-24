@@ -29,6 +29,26 @@ def get_config():
         CONFIG = loaded_config
     return CONFIG
 
+
+def _normalize_speaker_map(raw_speaker_map):
+    if not isinstance(raw_speaker_map, dict):
+        return None
+
+    speaker_map = {}
+    for speaker_id, speaker_name in raw_speaker_map.items():
+        if not isinstance(speaker_id, str) or not speaker_id.strip():
+            return None
+        if not isinstance(speaker_name, str) or not speaker_name.strip():
+            return None
+
+        normalized_speaker_id = speaker_id.strip()
+        if normalized_speaker_id in speaker_map:
+            return None
+        speaker_map[normalized_speaker_id] = speaker_name.strip()
+
+    return speaker_map or None
+
+
 @app.route('/')
 def index():
     """Serves the main UI page."""
@@ -68,10 +88,9 @@ def save_speaker_map():
     if not isinstance(data, dict):
         return jsonify({"error": "No speaker map data received."}), 400
 
-    speaker_map = data.get('speaker_map')
-    
-    if not isinstance(speaker_map, dict) or not speaker_map:
-        return jsonify({"error": "No speaker map data received."}), 400
+    speaker_map = _normalize_speaker_map(data.get('speaker_map'))
+    if speaker_map is None:
+        return jsonify({"error": "Speaker map must contain non-empty speaker names."}), 400
 
     video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
     
