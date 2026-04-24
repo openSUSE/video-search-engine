@@ -1,3 +1,4 @@
+import builtins
 import sys
 import types
 
@@ -8,6 +9,22 @@ def test_fetch_movie_metadata_without_api_key_does_not_require_tmdb_sdk(monkeypa
     monkeypatch.delenv("TMDB_API_KEY", raising=False)
 
     assert fetch_movie_metadata("Demo") is None
+
+
+def test_fetch_movie_metadata_blank_api_key_does_not_require_tmdb_sdk(monkeypatch):
+    monkeypatch.setenv("TMDB_API_KEY", " ")
+    imported_tmdb_modules = []
+    original_import = builtins.__import__
+
+    def tracking_import(name, *args, **kwargs):
+        if name == "tmdbv3api":
+            imported_tmdb_modules.append(name)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+
+    assert fetch_movie_metadata("Demo") is None
+    assert imported_tmdb_modules == []
 
 
 def test_fetch_movie_metadata_formats_overview_as_synopsis(monkeypatch):

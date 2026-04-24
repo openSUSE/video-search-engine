@@ -10,7 +10,7 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
     """
     Fetches movie metadata from The Movie Database (TMDb).
     """
-    api_key = os.getenv("TMDB_API_KEY")
+    api_key = (os.getenv("TMDB_API_KEY") or "").strip()
     if not api_key:
         logger.error("TMDB_API_KEY environment variable not set. Cannot fetch metadata.")
         return None

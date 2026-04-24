@@ -1,3 +1,4 @@
+import builtins
 import json
 
 from ingestion_pipeline.steps.step_03_enrichment import _call_gemini_api, run_enrichment
@@ -105,6 +106,25 @@ def test_call_gemini_api_missing_key_does_not_require_google_sdk(monkeypatch):
         "prompt",
         {"llm_enrichment": {"gemini": {"model": "gemini-test"}}},
     ) is None
+
+
+def test_call_gemini_api_blank_key_does_not_require_google_sdk(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", " ")
+    imported_google_modules = []
+    original_import = builtins.__import__
+
+    def tracking_import(name, *args, **kwargs):
+        if name.startswith("google"):
+            imported_google_modules.append(name)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+
+    assert _call_gemini_api(
+        "prompt",
+        {"llm_enrichment": {"gemini": {"model": "gemini-test"}}},
+    ) is None
+    assert imported_google_modules == []
 
 
 def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):

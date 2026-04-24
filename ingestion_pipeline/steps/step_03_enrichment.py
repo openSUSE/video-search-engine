@@ -77,7 +77,7 @@ def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
 
 def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     gemini_config = config['llm_enrichment']['gemini']
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
     if not api_key:
         logger.error("Gemini API request failed: GEMINI_API_KEY environment variable not set.")
         return None
