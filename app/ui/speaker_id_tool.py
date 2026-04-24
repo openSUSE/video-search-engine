@@ -94,7 +94,7 @@ else:
                             # Save the map immediately on change
                             with open(speaker_map_path, 'w') as f:
                                 json.dump(st.session_state.speaker_map, f, indent=2)
-                            st.experimental_rerun() # Rerun the app to update the UI
+                            st.rerun() # Rerun the app to update the UI
                         else:
                             st.warning("Please enter a name.")
 
@@ -112,4 +112,3 @@ else:
             with right_col:
                 st.header("Video Player")
                 st.video(video_path_original, start_time=st.session_state.video_start_time)
-

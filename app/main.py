@@ -55,10 +55,13 @@ def get_data():
 @app.route('/api/save_map', methods=['POST'])
 def save_speaker_map():
     """API endpoint to receive speaker mappings and save them to a file."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "No speaker map data received."}), 400
+
     speaker_map = data.get('speaker_map')
     
-    if not speaker_map:
+    if not isinstance(speaker_map, dict) or not speaker_map:
         return jsonify({"error": "No speaker map data received."}), 400
 
     video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
@@ -66,8 +69,22 @@ def save_speaker_map():
     # Use the filename from the central CONFIG file
     speaker_map_filename = CONFIG['filenames']['speaker_map']
     output_path = os.path.join(OUTPUT_DIR, video_filename_no_ext, speaker_map_filename)
-    
-    # Ask the server to shut down in the background — UI is done.
+
+    try:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(speaker_map, f, indent=2)
+        logger.info("Saved speaker map to %s", output_path)
+    except Exception as e:
+        logger.error("Failed to save speaker map to %s: %s", output_path, e, exc_info=True)
+        return jsonify({"error": "Could not save speaker map."}), 500
+
+    # Ask the server to shut down in the background; the UI work is done.
+    _request_shutdown_async()
+    return jsonify({"message": "Speaker map saved successfully. Shutting down UI..."})
+
+
+def _request_shutdown_async():
     try:
         import threading, requests
         def _shutdown():
@@ -78,7 +95,6 @@ def save_speaker_map():
         threading.Thread(target=_shutdown, daemon=True).start()
     except Exception:
         pass
-    return jsonify({"message": "Speaker map saved successfully. Shutting down UI..."})
 
 def shutdown_server():
     """Function to shut down the Werkzeug server."""

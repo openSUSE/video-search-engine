@@ -3,3 +3,4 @@ PyYAML
 python-dotenv
 colorlog
 pika
+Flask
