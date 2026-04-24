@@ -34,6 +34,8 @@ Useful endpoints:
 - RabbitMQ management: `http://localhost:15672`
 - ChromaDB: `http://localhost:8000`
 
+When `.env` is copied from `.env.example`, RabbitMQ uses `RABBITMQ_DEFAULT_USER` and `RABBITMQ_DEFAULT_PASS` from that file. The host publisher should use a `localhost` `RABBITMQ_URL`; the Compose worker is wired to the `rabbitmq` service DNS name.
+
 ## Job Queue
 
 Publisher:
@@ -45,13 +47,24 @@ Publisher:
 Worker:
 
 ```bash
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2F \
 .venv/bin/python -m ingestion_pipeline.worker
 ```
 
 The local worker imports the ingestion pipeline when it receives a job, so install `requirements-ingestion.txt` before running it outside Docker.
 
 Messages are JSON objects with `video_path`, optional `output_dir`, optional `title`, and optional `year`. The worker acknowledges successful jobs and rejects failed jobs without requeueing, so failed jobs should be republished after fixing the underlying issue.
+
+Kubernetes queue components:
+
+```bash
+kubectl -n video-se rollout status deployment/rabbitmq
+kubectl -n video-se rollout status deployment/ingestion-worker
+kubectl -n video-se logs deployment/ingestion-worker -f
+```
+
+The bundled `k8s/rabbitmq.yaml` uses the same `video-se-secrets` object as the worker. For a managed broker, keep `RABBITMQ_URL` in that secret pointed at the managed endpoint and skip applying the bundled RabbitMQ manifest.
+
+The default deploy path is `kubectl apply -k k8s/`. Apply `k8s/ingestion-job.yaml` only when you want a one-off ingestion job for a specific video path.
 
 ## Secrets
 

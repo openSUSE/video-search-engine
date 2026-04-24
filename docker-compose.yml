@@ -15,8 +15,8 @@ services:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-guest}"
-      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-guest}"
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-video_se}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-video_se_dev}"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -92,7 +92,7 @@ services:
       HF_TOKEN: "${HF_TOKEN:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
-      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/%2F}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER:-video_se}:${RABBITMQ_DEFAULT_PASS:-video_se_dev}@rabbitmq:5672/%2F"
       INGESTION_QUEUE: "${INGESTION_QUEUE:-video.ingestion}"
     volumes:
       - ./data/videos:/data/videos

@@ -14,7 +14,7 @@ def handle_job(job: IngestionJob) -> bool:
 
 def main() -> None:
     setup_logging()
-    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/%2F")
+    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://video_se:video_se_dev@localhost:5672/%2F")
     queue_name = os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE)
     consume_ingestion_jobs(handle_job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 

@@ -28,9 +28,13 @@ data:
   # Filesystem layout (PVC mount points)
   OUTPUT_DIR: "/data/processed"
   VIDEO_DATA_PATH: "/data/videos"
+  MODEL_CACHE_DIR: "/models"
 
   # Speaker-ID step decoupled in K8s
   SPEAKER_UI_MODE: "external"
+
+  # Queue settings. RABBITMQ_URL belongs in video-se-secrets because it contains credentials.
+  INGESTION_QUEUE: "video.ingestion"
 
   # Model caches (mount a small PVC here for warm starts)
   HF_HOME: "/models/hf"

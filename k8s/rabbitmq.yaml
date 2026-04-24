@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: video-se
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: rabbitmq } }
+  template:
+    metadata: { labels: { app: rabbitmq } }
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management
+        imagePullPolicy: IfNotPresent
+        ports:
+          - { name: amqp, containerPort: 5672 }
+          - { name: management, containerPort: 15672 }
+        env:
+          - name: RABBITMQ_DEFAULT_USER
+            valueFrom:
+              secretKeyRef: { name: video-se-secrets, key: RABBITMQ_DEFAULT_USER }
+          - name: RABBITMQ_DEFAULT_PASS
+            valueFrom:
+              secretKeyRef: { name: video-se-secrets, key: RABBITMQ_DEFAULT_PASS }
+        volumeMounts:
+          - { name: data, mountPath: /var/lib/rabbitmq }
+        readinessProbe:
+          exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+        resources:
+          requests: { cpu: "250m", memory: "512Mi" }
+          limits:   { memory: "1Gi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: rabbitmq-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: video-se
+spec:
+  selector: { app: rabbitmq }
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672

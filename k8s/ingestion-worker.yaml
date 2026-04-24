@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-worker
+  namespace: video-se
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: ingestion-worker } }
+  template:
+    metadata: { labels: { app: ingestion-worker } }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: ingestion-worker
+        image: <REG>/video-se-ingestion:<TAG>
+        imagePullPolicy: IfNotPresent
+        command: ["python", "-m", "ingestion_pipeline.worker"]
+        env:
+          - { name: HOME, value: /tmp }
+        envFrom:
+          - configMapRef: { name: video-se-config }
+          - secretRef:    { name: video-se-secrets }  # RABBITMQ_URL, HF_TOKEN, GEMINI_API_KEY, TMDB_API_KEY
+        volumeMounts:
+          - { name: videos,      mountPath: /data/videos }
+          - { name: processed,   mountPath: /data/processed }
+          - { name: model-cache, mountPath: /models }
+          - { name: tmp,         mountPath: /tmp }
+        resources:
+          requests: { cpu: "1000m", memory: "4Gi" }
+          limits:   { memory: "8Gi" }
+        securityContext:
+          readOnlyRootFilesystem: true
+      volumes:
+        - name: videos
+          persistentVolumeClaim: { claimName: videos-pvc }
+        - name: processed
+          persistentVolumeClaim: { claimName: processed-pvc }
+        - name: model-cache
+          persistentVolumeClaim: { claimName: model-cache-pvc }
+        - name: tmp
+          emptyDir: {}

@@ -71,8 +71,10 @@ Default URLs:
 - Speaker identification UI: `http://localhost:5050` when started with `make compose-speaker`
 - Search API: `http://localhost:1234`
 - API health: `http://localhost:1234/healthz`
-- RabbitMQ management: `http://localhost:15672` with `guest` / `guest`
+- RabbitMQ management: `http://localhost:15672` with credentials from `.env` or `video_se` / `video_se_dev` if unset
 - ChromaDB: `http://localhost:8000`
+
+If you copied `.env.example`, RabbitMQ uses the local development credentials from that file. The container worker connects through the Compose service name, while host-side publisher commands use `localhost`.
 
 Stop services:
 
@@ -144,6 +146,7 @@ Important variables:
 - `API_HOST`, `API_PORT`, `UI_HOST`, `UI_PORT`
 - `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`
 - `RABBITMQ_URL`, `INGESTION_QUEUE`
+- `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` for local Compose or the bundled Kubernetes RabbitMQ
 - `LLM_PROVIDER`, `GEMINI_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT`, `OLLAMA_MODEL`
 
 Use `config.example.yaml` and `.env.example` as references. Do not put secrets in tracked YAML.
@@ -174,11 +177,14 @@ kubectl apply -f k8s/ns.yaml
 kubectl -n video-se create secret generic video-se-secrets \
   --from-literal=HF_TOKEN=... \
   --from-literal=GEMINI_API_KEY=... \
-  --from-literal=TMDB_API_KEY=...
-kubectl apply -f k8s/
+  --from-literal=TMDB_API_KEY=... \
+  --from-literal=RABBITMQ_DEFAULT_USER=video_se \
+  --from-literal=RABBITMQ_DEFAULT_PASS='change-me' \
+  --from-literal=RABBITMQ_URL='amqp://video_se:change-me@rabbitmq:5672/%2F'
+kubectl apply -k k8s/
 ```
 
-Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags.
+Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
 
 ## Operations
 
