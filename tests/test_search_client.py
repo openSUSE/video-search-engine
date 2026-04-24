@@ -46,6 +46,16 @@ def test_search_payload_includes_query_limit_and_video_filter():
     }
 
 
+def test_search_payload_strips_query_and_video_filter():
+    payload = search_client.search_payload("  opening scene  ", "  demo  ")
+
+    assert payload == {
+        "query": "opening scene",
+        "top_k": 5,
+        "video_filename": "demo",
+    }
+
+
 def test_request_exception_is_exposed_by_client_boundary():
     assert search_client.RequestException is search_client.requests.exceptions.RequestException
 

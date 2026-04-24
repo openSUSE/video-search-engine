@@ -66,7 +66,10 @@ col1, col2 = st.columns([1, 1.2])
 
 with col1:
     st.header("Search")
-    query = st.text_input("What are you looking for?", placeholder="e.g., a man holding a gun")
+    query = st.text_input(
+        "What are you looking for?",
+        placeholder="e.g., a man holding a gun",
+    ).strip()
     
     if st.button("Search", type="primary"):
         if not query:

@@ -17,6 +17,12 @@ def _url_component(value: Any, default: str) -> str:
     return value or default
 
 
+def _payload_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def search_api_url(config: Mapping[str, Any] | None = None) -> str:
     if config is None:
         host = _url_component(os.getenv("API_HOST"), DEFAULT_API_HOST)
@@ -31,9 +37,9 @@ def search_api_url(config: Mapping[str, Any] | None = None) -> str:
 
 def search_payload(query: str, video_filename: str, top_k: int = 5) -> dict[str, Any]:
     return {
-        "query": query,
+        "query": _payload_text(query),
         "top_k": top_k,
-        "video_filename": video_filename,
+        "video_filename": _payload_text(video_filename),
     }
 
 
