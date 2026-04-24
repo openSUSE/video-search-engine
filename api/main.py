@@ -1,18 +1,24 @@
 import logging
 from contextlib import asynccontextmanager
+from typing import Any, Dict
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from api.schemas import SearchQuery, SearchResponse
 from api.search_service import HybridSearchService, create_search_service
-from core.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
 
+def load_api_config() -> Dict[str, Any]:
+    from core.config import CONFIG
+
+    return CONFIG
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.search_service = create_search_service(CONFIG)
+    app.state.search_service = create_search_service(load_api_config())
     yield
 
 

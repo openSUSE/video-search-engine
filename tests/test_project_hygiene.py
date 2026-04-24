@@ -136,9 +136,10 @@ def test_validate_compiles_source_trees_instead_of_fixed_file_list():
 
 
 def test_api_main_defers_heavy_search_dependency_imports():
-    imported_modules = _top_level_imports("api/main.py")
+    imported_modules = _top_level_import_modules("api/main.py")
 
     assert "chromadb" not in imported_modules
+    assert "core.config" not in imported_modules
     assert "sentence_transformers" not in imported_modules
 
 
