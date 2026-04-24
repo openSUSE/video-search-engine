@@ -33,6 +33,22 @@ def _clean_env_value(value: str | None) -> str | None:
     return value or None
 
 
+def _normalize_required_string(value: str | None, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value.strip()
+
+
+def _normalize_optional_string(value: str | None, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+
+    value = value.strip()
+    return value or None
+
+
 def _speaker_ui_mode() -> str:
     return (_clean_env_value(os.getenv("SPEAKER_UI_MODE")) or "external").lower()
 
@@ -173,6 +189,14 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
 
 
 def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int = None) -> bool:
+    try:
+        video_path = _normalize_required_string(video_path, "video_path")
+        output_dir = _normalize_required_string(output_dir, "output_dir")
+        title = _normalize_optional_string(title, "title")
+    except ValueError as e:
+        logger.critical("Invalid pipeline input: %s", e)
+        return False
+
     config = _load_config()
     run_extraction, run_segmentation, run_enrichment, run_indexing = _load_pipeline_steps()
 
@@ -230,21 +254,32 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
 
 
 def main():
-    setup_logging()
-    config = _load_config()
-
     parser = argparse.ArgumentParser(description="Run the full video ingestion pipeline.")
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument(
         "--output_dir",
-        default=config['general']['default_output_dir'],
-        help="Base directory to save processed subdirectories."
+        help="Base directory to save processed subdirectories. Defaults to configured output dir."
     )
     parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")
     parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
 
     args = parser.parse_args()
-    succeeded = run_pipeline(args.video, args.output_dir, args.title, args.year)
+
+    try:
+        video_path = _normalize_required_string(args.video, "video")
+        output_dir = _normalize_optional_string(args.output_dir, "output_dir")
+        title = _normalize_optional_string(args.title, "title")
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    setup_logging()
+    config = _load_config()
+    succeeded = run_pipeline(
+        video_path,
+        output_dir or config['general']['default_output_dir'],
+        title,
+        args.year,
+    )
     if not succeeded:
         sys.exit(1)
 

@@ -3,6 +3,8 @@ import logging
 import sys
 import types
 
+import pytest
+
 
 def _load_run_pipeline_with_stubbed_steps(monkeypatch):
     config_module = types.ModuleType("core.config")
@@ -160,4 +162,78 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
         "segmentation_config": config,
         "enrichment_config": config,
         "indexing_config": config,
+    }
+
+
+def test_run_pipeline_rejects_blank_video_path_before_loading_runtime(monkeypatch, tmp_path):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+
+    def fail_load_pipeline_steps():
+        raise AssertionError("runtime pipeline steps should not load for a blank video path")
+
+    monkeypatch.setattr(run_pipeline, "_load_pipeline_steps", fail_load_pipeline_steps)
+
+    assert not run_pipeline.run_pipeline(" ", str(tmp_path / "processed"))
+
+
+def test_run_pipeline_main_rejects_blank_video_before_config_and_logging(monkeypatch):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["run_pipeline", "--video", " "])
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with a blank video path")
+
+    def fail_load_config():
+        raise AssertionError("config should not load before validating required CLI args")
+
+    monkeypatch.setattr(run_pipeline, "setup_logging", fail_setup_logging)
+    monkeypatch.setattr(run_pipeline, "_load_config", fail_load_config)
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_pipeline.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_run_pipeline_main_normalizes_string_arguments(monkeypatch, tmp_path):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    default_output_dir = str(tmp_path / "processed")
+    monkeypatch.setattr(sys, "argv", [
+        "run_pipeline",
+        "--video",
+        "  data/videos/demo.mp4  ",
+        "--output_dir",
+        " ",
+        "--title",
+        "  Demo Title  ",
+    ])
+    monkeypatch.setattr(run_pipeline, "setup_logging", lambda: None)
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_config",
+        lambda: {"general": {"default_output_dir": default_output_dir}},
+    )
+
+    calls = {}
+
+    def fake_run_pipeline(video_path, output_dir, title=None, year=None):
+        calls.update(
+            {
+                "video_path": video_path,
+                "output_dir": output_dir,
+                "title": title,
+                "year": year,
+            }
+        )
+        return True
+
+    monkeypatch.setattr(run_pipeline, "run_pipeline", fake_run_pipeline)
+
+    run_pipeline.main()
+
+    assert calls == {
+        "video_path": "data/videos/demo.mp4",
+        "output_dir": default_output_dir,
+        "title": "Demo Title",
+        "year": None,
     }
