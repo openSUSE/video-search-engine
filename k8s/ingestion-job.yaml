@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: ingest-videoplayback
+  name: ingest-example
   namespace: video-se
 spec:
   backoffLimit: 0
@@ -29,7 +29,7 @@ spec:
         command: ["python","-m","ingestion_pipeline.run_pipeline"]
         args:
           - "--video"
-          - "/data/videos/videoplayback.mp4"
+          - "/data/videos/your_video.mp4"
           # Optional metadata for nicer enrichment:
           # - "--title"; "My Movie"
           # - "--year";  "2019"
