@@ -129,6 +129,12 @@ def test_service_dockerfiles_use_pinned_python_base_image():
         assert first_line == "FROM python:3.12.13-slim"
 
 
+def test_validate_compiles_source_trees_instead_of_fixed_file_list():
+    makefile = Path("Makefile").read_text()
+
+    assert "-m compileall -q api app core ingestion_pipeline inspect_db.py" in makefile
+
+
 def test_api_main_defers_heavy_search_dependency_imports():
     imported_modules = _top_level_imports("api/main.py")
 
