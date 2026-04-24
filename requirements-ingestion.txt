@@ -1,4 +1,8 @@
-torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+torch
+torchvision
+torchaudio
 git+https://github.com/m-bain/whisperx.git
 transnetv2-pytorch
 opencv-python-headless
