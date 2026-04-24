@@ -102,6 +102,20 @@ def test_search_app_handles_request_failures_through_client_boundary():
     assert "requests.exceptions.RequestException" not in handled_exceptions
 
 
+def test_speaker_streamlit_ui_uses_support_path_boundary():
+    tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
+    imported_modules = _top_level_import_modules("app/ui/speaker_id_tool.py")
+    literal_strings = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+    assert "app.ui.speaker_support" in imported_modules
+    assert "transcript_generic.json" not in literal_strings
+    assert "speaker_map.json" not in literal_strings
+
+
 def test_kubernetes_configmap_exposes_runtime_collection_name():
     configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
 
