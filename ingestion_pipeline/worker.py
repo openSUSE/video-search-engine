@@ -1,5 +1,7 @@
 import os
 
+from dotenv import load_dotenv
+
 from core.logger import setup_logging
 from ingestion_pipeline.jobs import (
     DEFAULT_QUEUE,
@@ -18,6 +20,7 @@ def handle_job(job: IngestionJob) -> bool:
 
 
 def main() -> None:
+    load_dotenv(".env")
     try:
         rabbitmq_url = resolve_rabbitmq_url()
     except ValueError as exc:
