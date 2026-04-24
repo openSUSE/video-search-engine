@@ -1,253 +1,177 @@
 # Semantic Video Search Engine
 
-This project is an end-to-end pipeline and application that transforms a raw video file into a fully searchable asset. It uses a suite of AI models to understand the video's content, allowing you to search for specific moments using natural language. You can search by describing **what was said** (dialogue) or **what was shown** (visuals).
+An end-to-end video ingestion and semantic search system. The pipeline extracts transcript, speaker, visual, action, and audio-event metadata from videos, enriches segments with an LLM, indexes them in ChromaDB, and serves hybrid text/visual search through FastAPI and Streamlit.
 
+## What Is Included
 
+- FastAPI search API backed by ChromaDB vector search.
+- Streamlit search UI for selecting videos and jumping to result timestamps.
+- Batch ingestion pipeline for extraction, segmentation, enrichment, and indexing.
+- RabbitMQ ingestion queue with publisher and worker entrypoints.
+- Docker Compose stack for local API, UI, ChromaDB, RabbitMQ, and optional worker.
+- Kubernetes manifests for production-style deployment.
+- Lightweight tests, Compose validation, and CI.
 
-## Troubleshooting
+## Architecture
 
-### Common Issues
-
-1. **Port conflicts**: If you see "Address already in use" errors:
-   ```bash
-   # Check what's using the port (e.g., 5050)
-   lsof -nP -iTCP:5050 | grep LISTEN
-   
-   # Kill the process if needed
-   kill -9 <process_id>
-   ```
-
-2. **FFmpeg not found**: Make sure FFmpeg is installed and in your PATH:
-   ```bash
-   # macOS
-   brew install ffmpeg
-   
-   # Ubuntu/Debian
-   sudo apt update && sudo apt install ffmpeg
-   ```
-
-3. **Model download issues**: The first run downloads large AI models. Ensure you have:
-   - Stable internet connection
-   - Sufficient disk space (several GB)
-   - Patience for the initial setup
-
-### Database Inspection
-
-To inspect your ChromaDB database:
-```bash
-python inspect_db.py
+```text
+data/videos/*.mp4
+  -> ingestion_pipeline.run_pipeline
+  -> extracted transcript, shots, visual captions, actions, audio events
+  -> manual speaker map
+  -> enriched segments
+  -> ChromaDB collection
+  -> FastAPI search API
+  -> Streamlit search UI
 ```
 
----
+RabbitMQ can decouple ingestion from callers:
 
-## Features
-
-- **Automated Processing Pipeline:** Ingests a raw video and automatically performs all processing steps.
-- **Multi-Modal Analysis:** Extracts information from three different modalities:
-    - **Audio:** Speaker diarization (who spoke when) and non-speech event detection (music, applause).
-    - **Visuals:** Shot detection and AI-powered visual captioning for every scene.
-    - **Text:** High-accuracy transcription of all spoken dialogue.
-- **Intelligent Segmentation:** Uses a "Boundary Scoring" algorithm to group individual shots into coherent, logical narrative segments.
-- **LLM-Powered Enrichment:** Leverages a Large Language Model (like GPT or Gemini) to generate a concise title, summary, and keywords for every segment.
-- **Hybrid Semantic Search:** Creates separate vector embeddings for textual and visual data, allowing for powerful and precise hybrid search.
-- **Interactive UI:** A simple web interface to search videos and instantly jump to the relevant timestamp.
-
----
-
-## System Architecture
-
-The project is divided into two main parts: an offline **Ingestion Pipeline** that processes videos and a real-time **Search Application** that serves user queries.
-
-```
-+----------------+      +--------------------------+      +----------------------+
-|   Raw Video    |----->|  Phase 1: Extraction     |----->|  Processed Files     |
-+----------------+      |  - Transcription (WhisperX) |      |  - transcript.json   |
-                        |  - Shots (TransNetV2)       |      |  - shots.json        |
-                        |  - Visuals (BLIP)           |      |  - visual_details.json|
-                        |  - Audio Events (AST)       |      |  - audio_events.json |
-                        +--------------------------+      +----------------------+
-                                     |
-                                     v
-+----------------------+      +--------------------------+      +---------------------+
-| Speaker ID Tool (UI) |----->|  Phase 2: Segmentation   |----->|  final_segments.json|
-+----------------------+      +--------------------------+      +---------------------+
-                                     |
-                                     v
-+----------------------+      +--------------------------+      +-------------------------+
-| enriched_segments.json|<----|  Phase 3: LLM Enrichment |      |  Phase 4: Indexing      |
-+----------------------+      +--------------------------+      |  - Create Embeddings    |
-                                                                |  - Store in ChromaDB    |
-                                                                +-------------------------+
-                                                                          |
-+----------------------+      +--------------------------+                v
-| Search UI (Streamlit)|<---->|   Search API (FastAPI)   |<------> [ Vector Database ]
-+----------------------+      +--------------------------+          [  (ChromaDB)   ]
+```text
+publisher CLI -> RabbitMQ queue -> ingestion worker -> pipeline -> ChromaDB
 ```
 
----
+## Prerequisites
 
-## Tech Stack
+- Python 3.12 recommended.
+- Docker and Docker Compose.
+- FFmpeg for local ingestion outside Docker.
+- Enough disk for model caches and processed media.
+- `HF_TOKEN` for WhisperX speaker diarization.
+- `GEMINI_API_KEY` when `LLM_PROVIDER=gemini`.
+- Optional `TMDB_API_KEY` for movie metadata lookup.
 
-- **Backend API:** FastAPI, Uvicorn
-- **Frontend UI:** Streamlit
-- **Vector Database:** ChromaDB
-- **AI/ML Models:**
-    - **Transcription:** `WhisperX`
-    - **Shot Detection:** `TransNetV2`
-    - **Visual Captioning:** `Salesforce/blip-image-captioning-base`
-    - **Audio Events:** `MIT/ast-finetuned-audioset-10-10-0.4593`
-    - **Embeddings:** `all-MiniLM-L6-v2` (or other sentence-transformers)
-    - **Enrichment:** Google Gemini API (primary) or OLLAMA models
-- **Core Libraries:** PyTorch, OpenCV, Pandas, FFmpeg, PyYAML, colorlog
-- **Web Framework:** FastAPI (with Uvicorn), Streamlit
-- **Additional:** google-generativeai, ffmpeg-python
-
----
-
-## Setup and Installation
-
-Follow these steps to set up the project environment.
-
-### 1. Prerequisites
-
-- **Python 3.10+**
-- **FFmpeg:** Must be installed and accessible from your command line.
-    - On macOS: `brew install ffmpeg`
-    - On Ubuntu/Debian: `sudo apt update && sudo apt install ffmpeg`
-- **Docker and Docker Compose:** For running the ChromaDB vector database.
-
-### 2. Clone the Repository
+## Local Setup
 
 ```bash
-git clone https://github.com/your-username/video-search-engine.git
-cd video-search-engine
+cp .env.example .env
+make install-dev
+make validate
 ```
 
-### 3. Set Up Project Structure
+Edit `.env` and set real secrets. Tracked config files are safe defaults only; credentials must come from environment variables.
 
-Create the necessary directories:
+For local ingestion outside Docker, install the heavier runtime dependencies into the same virtualenv:
 
 ```bash
-mkdir -p data/videos
-mkdir -p ingestion_pipeline/steps
-mkdir -p app/ui
-mkdir -p api
+.venv/bin/python -m pip install -r requirements-ingestion.txt -r requirements-ui.txt
 ```
 
-### 4. Set Up Python Environment
+## Run The Stack
 
-Create and activate a virtual environment (Python 3.12 recommended):
+Start ChromaDB, RabbitMQ, the API, and the search UI:
 
 ```bash
-# Create the virtual environment
-python3.12 -m venv venv
-
-# Activate it (macOS/Linux)
-source venv/bin/activate
-
-# Activate it (Windows)
-.\venv\Scripts\activate
+make compose-up
 ```
 
-Install the core dependencies:
+Default URLs:
+
+- Search UI: `http://localhost:8501`
+- Search API: `http://localhost:1234`
+- API health: `http://localhost:1234/healthz`
+- RabbitMQ management: `http://localhost:15672` with `guest` / `guest`
+- ChromaDB: `http://localhost:8000`
+
+Stop services:
 
 ```bash
-# Install PyTorch and related packages
-pip install torch torchvision torchaudio
-
-# Install WhisperX and its dependencies
-pip install git+https://github.com/m-bain/whisperx.git
-
-# Install TransNetV2
-pip install transnetv2-pytorch
-
-# Install other required packages
-pip install pandas scikit-learn sentence-transformers opencv-python
-pip install ffmpeg-python colorlog PyYAML
-pip install transformers opencv-python-headless Pillow librosa timm
-pip install streamlit fastapi uvicorn chromadb
-pip install google-generativeai
+make compose-down
 ```
 
-Or install from requirements.txt if available:
+## Ingest A Video
+
+Put videos under `data/videos`.
+
+Run ingestion synchronously from the local virtualenv:
 
 ```bash
-pip install -r requirements.txt
+.venv/bin/python -m ingestion_pipeline.run_pipeline --video data/videos/your_video.mp4
 ```
 
-### 5. Start the Vector Database
-
-Run the ChromaDB Docker container:
+Optional metadata:
 
 ```bash
-docker run -p 8000:8000 chromadb/chroma
+.venv/bin/python -m ingestion_pipeline.run_pipeline \
+  --video data/videos/your_video.mp4 \
+  --title "Movie Title" \
+  --year 2024
 ```
 
-### 6. Configure Environment Variables
-
-Create a `config.yaml` file by copying the example, or set environment variables:
+By default `SPEAKER_UI_MODE=external`, so the pipeline waits for the configured `speaker_map.json` after extraction. Run the speaker identification UI in another terminal when needed:
 
 ```bash
-# For Gemini API (recommended based on your setup)
-export GEMINI_API_KEY=your_gemini_api_key_here
-
-# Alternative: create config.yaml with your API keys
-cp config.example.yaml config.yaml
+.venv/bin/streamlit run app/ui/speaker_id_tool.py
 ```
 
-Edit `config.yaml` and fill in your API keys:
-- `hf_token`: Your Hugging Face token (for speaker diarization)
-- `gemini_api_key`: Your Google Gemini API key (for LLM enrichment)
-- `openai_api_key`: Your OpenAI API key (alternative to Gemini)
+## Queue-Based Ingestion
 
----
-
-## How to Use
-
-The workflow involves three main stages: processing a video, starting the servers, and using the search app.
-
-### Stage 1: Process a Video
-
-Run the main ingestion pipeline script as a module, pointing it to your video file:
+Start the worker profile:
 
 ```bash
-python -m ingestion_pipeline.run_pipeline --video data/videos/your_video.mp4
+make compose-worker
 ```
 
-**Note:** The first time you run this, it will download several large AI models, which may take some time.
-
-### Stage 2: Run the Human-in-the-Loop Speaker ID Tool
-
-After the pipeline finishes Step 1, it will pause. You need to run the speaker identification tool to map generic speaker labels (e.g., `SPEAKER_00`) to real names.
+Publish a job. When targeting the container worker, use the path as seen inside the worker container:
 
 ```bash
-streamlit run app/ui/speaker_id_tool.py
+make publish-ingest VIDEO=/data/videos/your_video.mp4
 ```
 
-Use the web interface to assign names. Once the `speaker_map.json` is saved, the main pipeline will automatically continue.
+Equivalent direct command:
 
-### Stage 3: Start the Servers and Search
+```bash
+.venv/bin/python -m ingestion_pipeline.publisher --video /data/videos/your_video.mp4
+```
 
-Once the full pipeline is complete for at least one video, you can start the application servers. **Run each command in a separate terminal window.**
-
-1.  **Start the Backend API:**
-    ```bash
-    uvicorn api.main:app --reload --port 8001
-    ```
-
-2.  **Start the Frontend UI:**
-    ```bash
-    streamlit run app/ui/search_app.py
-    ```
-
-A browser tab should open with the search application. Select your video from the sidebar, type a query, and start searching!
-
----
+The worker consumes `INGESTION_QUEUE` from `RABBITMQ_URL`, runs the same pipeline, acknowledges successful jobs, and rejects failed jobs without requeueing.
 
 ## Configuration
 
-The entire pipeline is configurable via the `config.yaml` file. You can change:
-- The AI models used for each step (`transcription`, `embedding`, `llm`, etc.).
-- The ports for the API server.
-- The connection details for the database.
-- Default filenames and processing parameters.
+Config is loaded from `CONFIG_PATH` or `config.yaml`, then environment variables override runtime values.
+
+Important variables:
+
+- `HF_TOKEN`, `GEMINI_API_KEY`, `TMDB_API_KEY`
+- `ML_DEVICE`, `OUTPUT_DIR`, `VIDEO_DATA_PATH`, `MODEL_CACHE_DIR`
+- `API_HOST`, `API_PORT`, `UI_HOST`, `UI_PORT`
+- `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`
+- `RABBITMQ_URL`, `INGESTION_QUEUE`
+- `LLM_PROVIDER`, `GEMINI_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT`, `OLLAMA_MODEL`
+
+Use `config.example.yaml` and `.env.example` as references. Do not put secrets in tracked YAML.
+
+## Development
+
+Run the lightweight validation suite:
+
+```bash
+make validate
+```
+
+This runs unit tests, validates Compose config with and without the worker profile, and compiles lightweight Python entrypoints. CI runs the same target.
+
+## Deployment
+
+Build and publish the Docker images from `docker/`:
+
+- `docker/api.Dockerfile`
+- `docker/ingestion.Dockerfile`
+- `docker/ui-search.Dockerfile`
+- `docker/ui-speaker.Dockerfile`
+
+Kubernetes manifests live in `k8s/`. Create secrets outside Git:
+
+```bash
+kubectl -n video-se create secret generic video-se-secrets \
+  --from-literal=HF_TOKEN=... \
+  --from-literal=GEMINI_API_KEY=... \
+  --from-literal=TMDB_API_KEY=...
+kubectl apply -f k8s/
+```
+
+Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags.
+
+## Operations
+
+See [docs/operations.md](docs/operations.md) for local runbook commands, environment notes, queue behavior, and troubleshooting.
