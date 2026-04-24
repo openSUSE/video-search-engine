@@ -65,26 +65,49 @@
             const uniqueSpeakers = [...new Set(transcript.map(seg => seg.speaker).filter(Boolean))];
 
             // 3. Create input fields for each unique speaker
-            uniqueSpeakers.forEach(speakerId => {
+            uniqueSpeakers.forEach((speakerId, index) => {
                 const group = document.createElement('div');
                 group.className = 'speaker-input-group';
-                group.innerHTML = `
-                    <label for="speaker-${speakerId}">${speakerId}:</label>
-                    <input type="text" id="speaker-${speakerId}" placeholder="Enter real name...">
-                `;
+
+                const inputId = `speaker-${index}`;
+                const label = document.createElement('label');
+                label.htmlFor = inputId;
+                label.textContent = `${speakerId}:`;
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = inputId;
+                input.placeholder = 'Enter real name...';
+                input.dataset.speakerId = speakerId;
+
+                group.append(label, input);
                 speakerInputs.appendChild(group);
             });
 
             // 4. Create clickable list of transcript segments
             transcript.forEach(seg => {
+                const startTime = Number(seg.start);
+                const endTime = Number(seg.end);
                 const segmentDiv = document.createElement('div');
                 segmentDiv.className = 'segment';
-                segmentDiv.innerHTML = `
-                    <p>${seg.text}</p>
-                    <span class="meta"><strong>${seg.speaker || 'UNKNOWN'}</strong> | ${seg.start.toFixed(2)}s - ${seg.end.toFixed(2)}s</span>
-                `;
+
+                const text = document.createElement('p');
+                text.textContent = seg.text || '';
+
+                const meta = document.createElement('span');
+                meta.className = 'meta';
+
+                const speaker = document.createElement('strong');
+                speaker.textContent = seg.speaker || 'UNKNOWN';
+
+                meta.append(
+                    speaker,
+                    ` | ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
+                );
+
+                segmentDiv.append(text, meta);
                 segmentDiv.addEventListener('click', () => {
-                    videoPlayer.currentTime = seg.start;
+                    videoPlayer.currentTime = Number.isFinite(startTime) ? startTime : 0;
                     videoPlayer.play();
                 });
                 transcriptList.appendChild(segmentDiv);
@@ -93,10 +116,11 @@
             // 5. Handle Save button click
             saveButton.addEventListener('click', async () => {
                 const speakerMap = {};
-                uniqueSpeakers.forEach(speakerId => {
-                    const input = document.getElementById(`speaker-${speakerId}`);
+                const speakerNameInputs = speakerInputs.querySelectorAll('input[data-speaker-id]');
+                speakerNameInputs.forEach(input => {
+                    const speakerId = input.dataset.speakerId;
                     // Only add to map if a name was entered
-                    if (input.value.trim()) {
+                    if (speakerId && input.value.trim()) {
                         speakerMap[speakerId] = input.value.trim();
                     }
                 });

@@ -1,6 +1,13 @@
 import json
+from pathlib import Path
 
 from app import main as speaker_app
+
+
+def test_speaker_ui_template_does_not_render_transcript_data_with_inner_html():
+    template = Path("app/ui/index.html").read_text()
+
+    assert "innerHTML" not in template
 
 
 def test_save_speaker_map_writes_configured_output(monkeypatch, tmp_path):
