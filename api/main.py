@@ -2,17 +2,14 @@
 
 import logging
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 import chromadb
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Any, Optional
-# Assuming your config loader is in the core directory
-# You might need to adjust the Python path for this to work depending on how you run it.
-# One way is to run `uvicorn` from the project root.
-from core.config import CONFIG # MODIFIED: Import the CONFIG object directly
+from api.schemas import SearchQuery, SearchResponse
+from api.search_utils import text_metadata_by_segment_id
+from core.config import CONFIG
 
 # --- API SETUP ---
-# MODIFIED: The CONFIG object is already loaded, so we just use it.
 logger = logging.getLogger(__name__)
 
 # Create the FastAPI app instance
@@ -43,25 +40,6 @@ except Exception as e:
     # If we can't load models or connect to DB, the API is useless.
     # In a real production system, you might have more graceful error handling.
     raise
-
-# --- PYDANTIC MODELS FOR REQUEST AND RESPONSE ---
-class SearchQuery(BaseModel):
-    query: str
-    top_k: int = 5
-    video_filename: Optional[str] = None
-
-class SearchResult(BaseModel):
-    id: str
-    score: float
-    start_time: float
-    end_time: float
-    title: str
-    summary: str
-    video_filename: str
-    speakers: str
-
-class SearchResponse(BaseModel):
-    results: List[SearchResult]
 
 # --- HYBRID SEARCH AND RE-RANKING LOGIC ---
 def perform_hybrid_search(query: str, top_k: int, video_filename: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -123,12 +101,15 @@ def perform_hybrid_search(query: str, top_k: int, video_filename: Optional[str] 
     # We only need to fetch the metadata once per segment. Let's fetch the 'text' version.
     final_ids_to_fetch = [f"{id}_text" for id in top_segment_ids]
     final_results_data = collection.get(ids=final_ids_to_fetch, include=["metadatas"])
+    metadata_by_segment_id = text_metadata_by_segment_id(
+        final_results_data.get("ids", []),
+        final_results_data.get("metadatas", []),
+    )
 
     # 6. Format the final results list
     formatted_results = []
-    for i, segment_id in enumerate(top_segment_ids):
-        # Find the corresponding metadata
-        metadata = next((meta for id, meta in zip(final_results_data['ids'], final_results_data['metadatas']) if segment_id in id), None)
+    for segment_id in top_segment_ids:
+        metadata = metadata_by_segment_id.get(segment_id)
         if metadata:
             formatted_results.append({
                 "id": segment_id,
