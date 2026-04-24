@@ -131,6 +131,12 @@ def test_extraction_step_defers_heavy_dependency_imports():
     assert "whisperx" not in imported_modules
 
 
+def test_metadata_fetcher_defers_tmdb_sdk_import():
+    imported_modules = _top_level_import_modules("ingestion_pipeline/utils/metadata_fetcher.py")
+
+    assert "tmdbv3api" not in imported_modules
+
+
 def test_run_pipeline_defers_runtime_dependency_imports():
     imported_modules = _top_level_import_modules("ingestion_pipeline/run_pipeline.py")
 

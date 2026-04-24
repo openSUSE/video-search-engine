@@ -2,7 +2,6 @@
 
 import os
 import logging
-from tmdbv3api import TMDb, Movie
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -17,6 +16,8 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         return None
 
     try:
+        from tmdbv3api import TMDb, Movie
+
         tmdb = TMDb()
         tmdb.api_key = api_key
         
