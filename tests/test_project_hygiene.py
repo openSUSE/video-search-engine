@@ -31,3 +31,16 @@ def test_compose_dependencies_wait_for_healthy_services():
         compose["services"]["ingestion-worker"]["depends_on"]["rabbitmq"]["condition"]
         == "service_healthy"
     )
+
+
+def test_chroma_runtime_images_are_pinned():
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+    k8s_chroma = list(yaml.safe_load_all(Path("k8s/chroma.yaml").read_text()))[0]
+
+    compose_image = compose["services"]["chroma"]["image"]
+    k8s_image = k8s_chroma["spec"]["template"]["spec"]["containers"][0]["image"]
+
+    assert compose_image.startswith("chromadb/chroma:${CHROMA_IMAGE_TAG:-")
+    assert k8s_image.startswith("chromadb/chroma:")
+    assert ":latest" not in compose_image
+    assert ":latest" not in k8s_image

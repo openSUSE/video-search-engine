@@ -84,6 +84,8 @@ Do not add these to tracked YAML. Use `.env` locally, Docker/Kubernetes secrets 
 
 The Compose stack uses persistent volumes for ChromaDB, RabbitMQ, and model caches. In Kubernetes, the manifests expect PVCs for videos, processed data, and model caches.
 
+Chroma is pinned to a release image instead of `latest`. For local Compose, set `CHROMA_IMAGE_TAG` in `.env` when testing an upgrade; for Kubernetes, update `k8s/chroma.yaml` and validate before rollout.
+
 Large model downloads happen on first run. Keep `MODEL_CACHE_DIR` or `/models` persistent between restarts to avoid repeated downloads.
 
 ## Troubleshooting
