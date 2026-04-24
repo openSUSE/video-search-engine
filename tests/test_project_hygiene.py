@@ -102,6 +102,12 @@ def test_search_app_handles_request_failures_through_client_boundary():
     assert "requests.exceptions.RequestException" not in handled_exceptions
 
 
+def test_search_streamlit_ui_defers_core_config_import():
+    imported_modules = _top_level_import_modules("app/ui/search_app.py")
+
+    assert "core.config" not in imported_modules
+
+
 def test_speaker_streamlit_ui_uses_support_path_boundary():
     tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
     imported_modules = _top_level_import_modules("app/ui/speaker_id_tool.py")

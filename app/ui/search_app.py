@@ -15,7 +15,6 @@ from app.ui.search_client import (
     search_api_url,
     search_payload,
 )
-from core.config import CONFIG
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -23,12 +22,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- LOAD CONFIGURATION ---
-try:
-    API_URL = search_api_url(CONFIG)
-except Exception as e:
-    st.error(f"Error accessing configuration. Details: {e}")
-    st.stop()
+API_URL = search_api_url()
 
 # --- SESSION STATE INITIALIZATION ---
 # Session state holds variables that persist across user interactions.

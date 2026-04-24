@@ -4,12 +4,21 @@ from typing import Any, Mapping
 import requests
 
 DEFAULT_SEARCH_TIMEOUT_SECONDS = 10.0
+DEFAULT_API_HOST = "localhost"
+DEFAULT_API_PORT = "1234"
 RequestException = requests.exceptions.RequestException
 
 
-def search_api_url(config: Mapping[str, Any]) -> str:
-    api_config = config["api_server"]
-    return f"http://{api_config['host']}:{api_config['port']}/search"
+def search_api_url(config: Mapping[str, Any] | None = None) -> str:
+    if config is None:
+        host = os.getenv("API_HOST") or DEFAULT_API_HOST
+        port = os.getenv("API_PORT") or DEFAULT_API_PORT
+    else:
+        api_config = config["api_server"]
+        host = api_config["host"]
+        port = api_config["port"]
+
+    return f"http://{host}:{port}/search"
 
 
 def search_payload(query: str, video_filename: str, top_k: int = 5) -> dict[str, Any]:

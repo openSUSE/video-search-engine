@@ -9,6 +9,13 @@ def test_search_api_url_uses_config_host_and_port():
     assert search_client.search_api_url(config) == "http://api:1234/search"
 
 
+def test_search_api_url_uses_environment_when_config_is_not_provided(monkeypatch):
+    monkeypatch.setenv("API_HOST", "api")
+    monkeypatch.setenv("API_PORT", "1234")
+
+    assert search_client.search_api_url() == "http://api:1234/search"
+
+
 def test_search_payload_includes_query_limit_and_video_filter():
     payload = search_client.search_payload("opening scene", "demo", top_k=7)
 
