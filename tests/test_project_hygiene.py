@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 
@@ -45,6 +46,20 @@ def test_service_dockerfiles_use_pinned_python_base_image():
         first_line = dockerfile.read_text().splitlines()[0]
 
         assert first_line == "FROM python:3.12.13-slim"
+
+
+def test_api_main_defers_heavy_search_dependency_imports():
+    tree = ast.parse(Path("api/main.py").read_text())
+    imported_modules = set()
+
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_modules.add(node.module.split(".")[0])
+
+    assert "chromadb" not in imported_modules
+    assert "sentence_transformers" not in imported_modules
 
 
 def test_chroma_runtime_images_are_pinned():
