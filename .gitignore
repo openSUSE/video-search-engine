@@ -80,6 +80,7 @@ celerybeat-schedule
 .models/
 
 # Runtime media inputs and generated pipeline outputs
+/transcript_generic.json
 data/videos/*
 data/processed/*
 !data/videos/.gitkeep

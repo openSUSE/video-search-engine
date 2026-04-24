@@ -1,15 +1,15 @@
-# inspect_db.py
+import argparse
+import pprint
 
-import chromadb
-import pprint # Python's built-in "pretty-print" library
-from core.config import load_config # Assuming you have a config loader
+from core.config import load_config
 
 # --- SCRIPT CONFIGURATION ---
 # How many records to fetch and display.
 # Since each segment has 2 entries (text/visual), a limit of 10 will show 5 full segments.
 FETCH_LIMIT = 10 
 
-def inspect_collection():
+
+def inspect_collection(fetch_limit: int = FETCH_LIMIT) -> None:
     """
     Connects to ChromaDB, fetches a sample of records, and prints them.
     """
@@ -17,16 +17,18 @@ def inspect_collection():
     
     # 1. Load configuration to get database details
     try:
-        config = load_config("config.yaml")
+        config = load_config()
         db_config = config['database']
     except Exception as e:
-        print(f"Error loading config.yaml: {e}")
-        print("Please ensure config.yaml exists and is correctly formatted.")
+        print(f"Error loading config: {e}")
+        print("Please ensure CONFIG_PATH or config.yaml is correctly formatted.")
         return
 
     # 2. Connect to the ChromaDB client
     print(f"Connecting to ChromaDB at {db_config['host']}:{db_config['port']}...")
     try:
+        import chromadb
+
         client = chromadb.HttpClient(host=db_config['host'], port=db_config['port'])
         collection = client.get_collection(name=db_config['collection_name'])
         print(f"Successfully connected to collection '{db_config['collection_name']}'.")
@@ -43,13 +45,13 @@ def inspect_collection():
         return
 
     # 4. Fetch a sample of items from the collection
-    print(f"\nFetching the first {FETCH_LIMIT} items...")
+    print(f"\nFetching the first {fetch_limit} items...")
     
     # Use collection.get() to retrieve records.
     # We include 'metadatas' because that's where all our human-readable info is.
     # We EXCLUDE 'embeddings' because they are just giant arrays of numbers.
     results = collection.get(
-        limit=FETCH_LIMIT,
+        limit=fetch_limit,
         include=["metadatas"] 
     )
     
@@ -58,5 +60,12 @@ def inspect_collection():
     pprint.pprint(results)
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Inspect a ChromaDB collection sample.")
+    parser.add_argument("--limit", type=int, default=FETCH_LIMIT, help="Number of vectors to fetch.")
+    args = parser.parse_args()
+    inspect_collection(fetch_limit=args.limit)
+
+
 if __name__ == '__main__':
-    inspect_collection()
+    main()
