@@ -163,6 +163,7 @@ Build and publish the Docker images from `docker/`:
 Kubernetes manifests live in `k8s/`. Create secrets outside Git:
 
 ```bash
+kubectl apply -f k8s/ns.yaml
 kubectl -n video-se create secret generic video-se-secrets \
   --from-literal=HF_TOKEN=... \
   --from-literal=GEMINI_API_KEY=... \

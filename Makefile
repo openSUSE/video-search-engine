@@ -19,6 +19,7 @@ validate: test
 	$(VENV)/bin/python -m py_compile api/main.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
 
 publish-ingest:
+	@test -n "$(VIDEO)" || (echo "Set VIDEO=/data/videos/your_video.mp4" && exit 1)
 	$(VENV)/bin/python -m ingestion_pipeline.publisher --video $(VIDEO)
 
 compose-up:
