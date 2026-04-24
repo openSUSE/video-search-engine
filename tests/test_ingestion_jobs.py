@@ -20,6 +20,22 @@ def test_ingestion_job_rejects_missing_video_path():
         IngestionJob(video_path="")
 
 
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    [
+        ({"video_path": 123}, "video_path"),
+        ({"video_path": "  "}, "video_path"),
+        ({"video_path": "/data/videos/demo.mp4", "output_dir": 42}, "output_dir"),
+        ({"video_path": "/data/videos/demo.mp4", "title": 42}, "title"),
+        ({"video_path": "/data/videos/demo.mp4", "year": "2024"}, "year"),
+        ({"video_path": "/data/videos/demo.mp4", "year": True}, "year"),
+    ],
+)
+def test_decode_job_message_rejects_invalid_field_types(payload, error):
+    with pytest.raises(ValueError, match=error):
+        decode_job_message(json.dumps(payload).encode("utf-8"))
+
+
 def test_ingestion_job_builds_pipeline_kwargs_with_default_output_dir():
     job = IngestionJob(video_path="/data/videos/demo.mp4", title="Demo", year=2024)
 

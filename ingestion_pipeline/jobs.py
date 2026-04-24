@@ -16,9 +16,13 @@ class IngestionJob:
     year: Optional[int] = None
 
     def __post_init__(self):
-        if not self.video_path or not self.video_path.strip():
-            raise ValueError("video_path is required")
-        if self.year is not None and not isinstance(self.year, int):
+        if not isinstance(self.video_path, str) or not self.video_path.strip():
+            raise ValueError("video_path must be a non-empty string")
+        if self.output_dir is not None and not isinstance(self.output_dir, str):
+            raise ValueError("output_dir must be a string")
+        if self.title is not None and not isinstance(self.title, str):
+            raise ValueError("title must be a string")
+        if self.year is not None and type(self.year) is not int:
             raise ValueError("year must be an integer")
 
     def to_message(self) -> dict:
