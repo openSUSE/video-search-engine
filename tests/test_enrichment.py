@@ -99,6 +99,53 @@ def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
     assert "A legacy overview." in calls[0]
 
 
+def test_run_enrichment_does_not_apply_structural_llm_fields(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 10.0,
+                    "end_time": 20.0,
+                    "full_transcript": "dialogue",
+                    "speakers": ["Alice"],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+
+    def fake_ollama_client(_prompt, _config):
+        return {
+            "segment_id": "overwritten",
+            "start_time": 999,
+            "speakers": ["Mallory"],
+            "title": "  Generated Title  ",
+            "summary": "  Generated summary.  ",
+            "keywords": [" safe ", "", 42],
+        }
+
+    run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert segment["segment_id"] == "segment_0001"
+    assert segment["start_time"] == 10.0
+    assert segment["speakers"] == ["Alice"]
+    assert segment["title"] == "Generated Title"
+    assert segment["summary"] == "Generated summary."
+    assert segment["keywords"] == ["safe", "42"]
+
+
 def test_call_gemini_api_missing_key_does_not_require_google_sdk(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 

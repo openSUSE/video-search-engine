@@ -114,6 +114,42 @@ def _video_synopsis(video_metadata: Dict[str, Any]) -> str:
     return video_metadata.get('synopsis') or video_metadata.get('logline') or 'N/A'
 
 
+def _clean_llm_string(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+
+    cleaned = str(value).strip()
+    return cleaned or None
+
+
+def _normalize_llm_keywords(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [
+            keyword
+            for keyword in (_clean_llm_string(item) for item in value)
+            if keyword
+        ]
+
+    keyword = _clean_llm_string(value)
+    return [keyword] if keyword else []
+
+
+def _safe_llm_updates(llm_data: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(llm_data, dict):
+        return None
+
+    updates: Dict[str, Any] = {}
+    for field in ("title", "summary"):
+        value = _clean_llm_string(llm_data.get(field))
+        if value:
+            updates[field] = value
+
+    if "keywords" in llm_data:
+        updates["keywords"] = _normalize_llm_keywords(llm_data["keywords"])
+
+    return updates or None
+
+
 def run_enrichment(
     segments_path: str,
     config: Dict[str, Any],
@@ -197,10 +233,11 @@ def run_enrichment(
 
         # Call the appropriate API
         llm_data = llm_client(prompt, config)
+        llm_updates = _safe_llm_updates(llm_data)
 
         # Update the segment in the list
-        if llm_data:
-            segment.update(llm_data)
+        if llm_updates:
+            segment.update(llm_updates)
             logger.info(f"  -> Successfully enriched segment {segment['segment_id']}.")
         else:
             logger.error(f"  -> Failed to enrich segment {segment['segment_id']}.")
