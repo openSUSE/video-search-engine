@@ -98,54 +98,41 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
         return None
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run the full video ingestion pipeline.")
-    parser.add_argument("--video", required=True, help="Path to the video file.")
-    parser.add_argument(
-        "--output_dir", 
-        default=CONFIG['general']['default_output_dir'], 
-        help="Base directory to save processed subdirectories."
-    )
-    # CHANGE: Add arguments for title and year to pass to the extraction step
-    parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")
-    parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
-    
-    args = parser.parse_args()
+def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int = None) -> bool:
+    logger.info(f"Starting ingestion pipeline for video: {video_path}")
 
-    logger.info(f"Starting ingestion pipeline for video: {args.video}")
-    
     try:
         # Step 1: Data Extraction
-        run_extraction(args.video, args.output_dir, args.title, args.year)
+        run_extraction(video_path, output_dir, title, year)
 
         # Step 1.5: Manual Speaker Identification
-        speaker_map_path = wait_for_speaker_identification(args.video, args.output_dir)
+        speaker_map_path = wait_for_speaker_identification(video_path, output_dir)
         
         if not speaker_map_path:
             raise RuntimeError("Speaker identification step failed. Halting pipeline.")
 
-        video_filename = os.path.splitext(os.path.basename(args.video))[0]
-        video_specific_dir = os.path.join(args.output_dir, video_filename)
+        video_filename = os.path.splitext(os.path.basename(video_path))[0]
+        video_specific_dir = os.path.join(output_dir, video_filename)
         
         final_analysis_path = os.path.join(video_specific_dir, CONFIG["filenames"]["final_analysis"])
 
         # Step 2: Intelligent Segmentation
         final_segments_path = run_segmentation(
-            video_path=args.video,
+            video_path=video_path,
             analysis_path=final_analysis_path,
             speaker_map_path=speaker_map_path
         )
         
         if not final_segments_path:
             logger.warning("Segmentation step did not produce an output file. Halting pipeline.")
-            return
+            return False
 
         # Step 3: LLM-Powered Enrichment
         enriched_segments_path = run_enrichment(final_segments_path, CONFIG)
         
         if not enriched_segments_path:
             logger.warning("Enrichment step failed or was skipped. Halting pipeline.")
-            return
+            return False
 
         # Step 4: Indexing
         run_indexing(
@@ -156,10 +143,29 @@ def main():
         
         logger.info("🚀 Ingestion pipeline completed successfully!")
         logger.info(f"Final enriched segments are available at: {enriched_segments_path}")
+        return True
 
 
     except Exception as e:
         logger.critical(f"Pipeline failed with a critical error: {e}", exc_info=True)
+        return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run the full video ingestion pipeline.")
+    parser.add_argument("--video", required=True, help="Path to the video file.")
+    parser.add_argument(
+        "--output_dir",
+        default=CONFIG['general']['default_output_dir'],
+        help="Base directory to save processed subdirectories."
+    )
+    parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")
+    parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
+
+    args = parser.parse_args()
+    succeeded = run_pipeline(args.video, args.output_dir, args.title, args.year)
+    if not succeeded:
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

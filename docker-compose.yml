@@ -80,6 +80,7 @@ services:
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
       RABBITMQ_URL: "${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/%2F}"
+      INGESTION_QUEUE: "${INGESTION_QUEUE:-video.ingestion}"
     volumes:
       - ./data/videos:/data/videos
       - ./data/processed:/data/processed

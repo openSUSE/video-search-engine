@@ -1,3 +1,5 @@
 pytest
 PyYAML
 python-dotenv
+colorlog
+pika
