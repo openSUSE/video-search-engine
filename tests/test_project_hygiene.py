@@ -105,6 +105,7 @@ def test_search_app_handles_request_failures_through_client_boundary():
 def test_search_streamlit_ui_defers_core_config_import():
     imported_modules = _top_level_import_modules("app/ui/search_app.py")
 
+    assert "app.ui.path_settings" in imported_modules
     assert "core.config" not in imported_modules
 
 
@@ -124,6 +125,7 @@ def test_speaker_streamlit_ui_uses_support_path_boundary():
     }
 
     assert "app.ui.speaker_support" in imported_modules
+    assert "app.ui.path_settings" in imported_modules
     assert "core.config" not in imported_modules
     assert "normalize_speaker_map" in imported_support_names
     assert "transcript_generic.json" not in literal_strings

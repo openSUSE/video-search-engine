@@ -5,10 +5,9 @@ import sys
 
 import streamlit as st
 
-VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
-
 # Add the project root to the Python path to allow importing from 'core'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+from app.ui.path_settings import env_path_setting
 from app.ui.search_client import (
     RequestException,
     post_search,
@@ -19,6 +18,8 @@ from app.ui.search_state import (
     ensure_search_session_state,
     reset_search_session_for_video,
 )
+
+VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(

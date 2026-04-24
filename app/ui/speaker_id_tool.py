@@ -3,6 +3,7 @@ import os
 
 import streamlit as st
 
+from app.ui.path_settings import env_path_setting
 from app.ui.speaker_support import (
     ensure_speaker_session_state,
     normalize_speaker_map,
@@ -12,8 +13,8 @@ from app.ui.speaker_support import (
     speaker_ids_from_transcript,
 )
 
-OUTPUT_DIR = os.getenv("OUTPUT_DIR", "data/processed")
-VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
+OUTPUT_DIR = env_path_setting("OUTPUT_DIR", "data/processed")
+VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
 
 
 def get_config():
