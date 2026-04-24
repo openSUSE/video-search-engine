@@ -16,7 +16,7 @@ test:
 validate: test
 	$(COMPOSE) config
 	$(COMPOSE) --profile worker config
-	$(VENV)/bin/python -m py_compile core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
+	$(VENV)/bin/python -m py_compile api/main.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
 
 publish-ingest:
 	$(VENV)/bin/python -m ingestion_pipeline.publisher --video $(VIDEO)

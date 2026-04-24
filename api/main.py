@@ -32,7 +32,10 @@ try:
     logger.info("Connecting to ChromaDB...")
     db_config = CONFIG['database']
     chroma_client = chromadb.HttpClient(host=db_config['host'], port=db_config['port'])
-    collection = chroma_client.get_collection(name=db_config['collection_name'])
+    collection = chroma_client.get_or_create_collection(
+        name=db_config['collection_name'],
+        metadata={"hnsw:space": "cosine"}
+    )
     logger.info("Successfully connected to ChromaDB collection.")
 
 except Exception as e:
@@ -156,4 +159,3 @@ def read_root():
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
-
