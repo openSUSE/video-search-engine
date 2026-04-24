@@ -1,20 +1,28 @@
 import argparse
 import logging
 import os
+import subprocess
 import sys
 import time
-import subprocess
 
 from core.logger import setup_logging
-from ingestion_pipeline.steps.step_01_extraction import run_extraction
-from ingestion_pipeline.steps.step_02_segmentation import run_segmentation
-from ingestion_pipeline.steps.step_03_enrichment import run_enrichment
-from ingestion_pipeline.steps.step_04_indexing import run_indexing
-from core.config import CONFIG
-import requests
 
-setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def _load_config():
+    from core.config import CONFIG
+
+    return CONFIG
+
+
+def _load_pipeline_steps():
+    from ingestion_pipeline.steps.step_01_extraction import run_extraction
+    from ingestion_pipeline.steps.step_02_segmentation import run_segmentation
+    from ingestion_pipeline.steps.step_03_enrichment import run_enrichment
+    from ingestion_pipeline.steps.step_04_indexing import run_indexing
+
+    return run_extraction, run_segmentation, run_enrichment, run_indexing
 
 
 def _speaker_map_timeout_seconds():
@@ -70,18 +78,19 @@ def _terminate_server_process(server_process) -> None:
         server_process.kill()
 
 
-def wait_for_speaker_identification(video_path: str, output_dir: str):
+def wait_for_speaker_identification(video_path: str, output_dir: str, config=None):
     """
     Launches the speaker identification UI and waits for the user to complete it.
     """
+    config = config or _load_config()
     logger.info("--- Starting Step 1.5: Manual Speaker Identification ---")
     
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
     video_specific_dir = os.path.join(output_dir, video_filename)
     
     # Paths required by the UI server, now read from CONFIG
-    raw_transcript_path = os.path.join(video_specific_dir, CONFIG['filenames']['raw_transcript'])
-    speaker_map_path = os.path.join(video_specific_dir, CONFIG['filenames']['speaker_map'])
+    raw_transcript_path = os.path.join(video_specific_dir, config['filenames']['raw_transcript'])
+    speaker_map_path = os.path.join(video_specific_dir, config['filenames']['speaker_map'])
 
     logger.info(f"Raw transcript path: {raw_transcript_path}")
 
@@ -106,13 +115,13 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
         "--video", video_path,
         "--transcript", raw_transcript_path,
         "--output_dir", output_dir,
-        "--port", str(CONFIG['ui']['port'])
+        "--port", str(config['ui']['port'])
     ]
 
     try:
         server_process = subprocess.Popen(command)
         # Build URL from CONFIG
-        ui_url = f"http://{CONFIG['ui']['host']}:{CONFIG['ui']['port']}"
+        ui_url = f"http://{config['ui']['host']}:{config['ui']['port']}"
         logger.warning("Speaker identification UI server started.")
         logger.warning(f"Please go to {ui_url} to identify speakers.")
         logger.warning("The pipeline will automatically continue once you save your changes in the UI.")
@@ -123,7 +132,9 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
 
         logger.info("Speaker map file found! Requesting UI shutdown...")
         try:
-            ui_url = f"http://{CONFIG['ui']['host']}:{CONFIG['ui']['port']}"
+            import requests
+
+            ui_url = f"http://{config['ui']['host']}:{config['ui']['port']}"
             requests.post(f"{ui_url}/api/shutdown", timeout=3)
         except Exception as e:
             logger.warning(f"Could not reach UI shutdown endpoint: {e}")
@@ -150,6 +161,9 @@ def wait_for_speaker_identification(video_path: str, output_dir: str):
 
 
 def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int = None) -> bool:
+    config = _load_config()
+    run_extraction, run_segmentation, run_enrichment, run_indexing = _load_pipeline_steps()
+
     logger.info(f"Starting ingestion pipeline for video: {video_path}")
 
     try:
@@ -157,7 +171,7 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
         run_extraction(video_path, output_dir, title, year)
 
         # Step 1.5: Manual Speaker Identification
-        speaker_map_path = wait_for_speaker_identification(video_path, output_dir)
+        speaker_map_path = wait_for_speaker_identification(video_path, output_dir, config=config)
         
         if not speaker_map_path:
             raise RuntimeError("Speaker identification step failed. Halting pipeline.")
@@ -165,7 +179,7 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
         video_filename = os.path.splitext(os.path.basename(video_path))[0]
         video_specific_dir = os.path.join(output_dir, video_filename)
         
-        final_analysis_path = os.path.join(video_specific_dir, CONFIG["filenames"]["final_analysis"])
+        final_analysis_path = os.path.join(video_specific_dir, config["filenames"]["final_analysis"])
 
         # Step 2: Intelligent Segmentation
         final_segments_path = run_segmentation(
@@ -179,7 +193,7 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
             return False
 
         # Step 3: LLM-Powered Enrichment
-        enriched_segments_path = run_enrichment(final_segments_path, CONFIG)
+        enriched_segments_path = run_enrichment(final_segments_path, config)
         
         if not enriched_segments_path:
             logger.warning("Enrichment step failed or was skipped. Halting pipeline.")
@@ -189,7 +203,7 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
         run_indexing(
             enriched_segments_path=enriched_segments_path,
             video_filename=video_filename, # Pass the filename for metadata
-            config=CONFIG
+            config=config
         )
         
         logger.info("🚀 Ingestion pipeline completed successfully!")
@@ -203,11 +217,14 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
 
 
 def main():
+    setup_logging()
+    config = _load_config()
+
     parser = argparse.ArgumentParser(description="Run the full video ingestion pipeline.")
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument(
         "--output_dir",
-        default=CONFIG['general']['default_output_dir'],
+        default=config['general']['default_output_dir'],
         help="Base directory to save processed subdirectories."
     )
     parser.add_argument("--title", help="Optional: The title of the movie to search for metadata.")

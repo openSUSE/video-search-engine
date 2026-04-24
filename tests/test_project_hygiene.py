@@ -18,6 +18,19 @@ def _top_level_imports(path: str) -> set[str]:
     return imported_modules
 
 
+def _top_level_import_modules(path: str) -> set[str]:
+    tree = ast.parse(Path(path).read_text())
+    imported_modules = set()
+
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_modules.add(node.module)
+
+    return imported_modules
+
+
 def test_local_env_files_are_ignored_without_hiding_example_file():
     for ignore_file in [".gitignore", ".dockerignore"]:
         patterns = Path(ignore_file).read_text().splitlines()
@@ -73,6 +86,16 @@ def test_indexing_step_defers_heavy_dependency_imports():
 
     assert "chromadb" not in imported_modules
     assert "sentence_transformers" not in imported_modules
+
+
+def test_run_pipeline_defers_runtime_dependency_imports():
+    imported_modules = _top_level_import_modules("ingestion_pipeline/run_pipeline.py")
+
+    assert "core.config" not in imported_modules
+    assert "requests" not in imported_modules
+    assert not any(
+        module.startswith("ingestion_pipeline.steps.") for module in imported_modules
+    )
 
 
 def test_chroma_runtime_images_are_pinned():
