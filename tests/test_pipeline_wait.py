@@ -1,4 +1,5 @@
 import importlib
+import logging
 import sys
 import types
 
@@ -60,6 +61,26 @@ def test_external_speaker_map_wait_times_out(monkeypatch, tmp_path):
     )
 
     assert result is None
+
+
+def test_speaker_ui_mode_strips_blank_environment_values(monkeypatch):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+
+    monkeypatch.setenv("SPEAKER_UI_MODE", " local ")
+    assert run_pipeline._speaker_ui_mode() == "local"
+
+    monkeypatch.setenv("SPEAKER_UI_MODE", " ")
+    assert run_pipeline._speaker_ui_mode() == "external"
+
+
+def test_blank_speaker_map_timeout_does_not_log_invalid_warning(monkeypatch, caplog):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_MAP_TIMEOUT_SECONDS", " ")
+
+    with caplog.at_level(logging.WARNING):
+        assert run_pipeline._speaker_map_timeout_seconds() is None
+
+    assert "Invalid SPEAKER_MAP_TIMEOUT_SECONDS" not in caplog.text
 
 
 def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_path):

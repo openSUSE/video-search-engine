@@ -25,9 +25,21 @@ def _load_pipeline_steps():
     return run_extraction, run_segmentation, run_enrichment, run_indexing
 
 
+def _clean_env_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    value = value.strip()
+    return value or None
+
+
+def _speaker_ui_mode() -> str:
+    return (_clean_env_value(os.getenv("SPEAKER_UI_MODE")) or "external").lower()
+
+
 def _speaker_map_timeout_seconds():
-    raw_value = os.getenv("SPEAKER_MAP_TIMEOUT_SECONDS")
-    if raw_value in (None, ""):
+    raw_value = _clean_env_value(os.getenv("SPEAKER_MAP_TIMEOUT_SECONDS"))
+    if raw_value is None:
         return None
 
     try:
@@ -94,7 +106,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
 
     logger.info(f"Raw transcript path: {raw_transcript_path}")
 
-    if os.getenv("SPEAKER_UI_MODE", "external").lower() == "external":
+    if _speaker_ui_mode() == "external":
         logger.warning("External speaker UI mode: waiting for speaker_map.json to appear...")
         if not _wait_until_speaker_map_exists(speaker_map_path):
             return None
