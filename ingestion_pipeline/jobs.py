@@ -1,11 +1,19 @@
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE = "video.ingestion"
+
+
+def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
+    resolved_url = (rabbitmq_url or os.getenv("RABBITMQ_URL") or "").strip()
+    if not resolved_url:
+        raise ValueError("RabbitMQ URL must be configured through RABBITMQ_URL or an explicit argument")
+    return resolved_url
 
 
 @dataclass(frozen=True)

@@ -77,6 +77,8 @@ celerybeat-schedule
 
 # dotenv
 .env
+.env.*
+!.env.example
 .models/
 
 # Runtime media inputs and generated pipeline outputs

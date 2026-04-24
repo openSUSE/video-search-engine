@@ -8,6 +8,12 @@ services:
       PERSIST_DIRECTORY: /chroma/chroma
     volumes:
       - chroma-data:/chroma/chroma
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 8000), 2).close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -42,7 +48,14 @@ services:
     volumes:
       - model-cache:/models
     depends_on:
-      - chroma
+      chroma:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:1234/healthz', timeout=2).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   ui-search:
     build:
@@ -58,7 +71,14 @@ services:
     volumes:
       - ./data/videos:/data/videos:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 8501), 2).close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   ui-speaker:
     build:
@@ -72,6 +92,12 @@ services:
     volumes:
       - ./data/videos:/data/videos:ro
       - ./data/processed:/data/processed
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 5050), 2).close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   ingestion-worker:
     profiles:
@@ -103,7 +129,7 @@ services:
       rabbitmq:
         condition: service_healthy
       chroma:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   chroma-data:

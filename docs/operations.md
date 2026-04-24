@@ -38,6 +38,8 @@ When `.env` is copied from `.env.example`, RabbitMQ uses `RABBITMQ_DEFAULT_USER`
 
 ## Job Queue
 
+Direct publisher and worker commands require `RABBITMQ_URL`. Copy `.env.example` to `.env` for local defaults, export the variable in your shell, or pass `--rabbitmq-url` to the publisher.
+
 Publisher:
 
 ```bash

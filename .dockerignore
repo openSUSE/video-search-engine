@@ -13,6 +13,8 @@ tests/
 venv/
 .venv/
 .env
+.env.*
+!.env.example
 data/
 models/
 .models/

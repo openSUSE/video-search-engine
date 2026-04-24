@@ -4,7 +4,12 @@ import os
 from dotenv import load_dotenv
 
 from core.logger import setup_logging
-from ingestion_pipeline.jobs import DEFAULT_QUEUE, IngestionJob, publish_ingestion_job
+from ingestion_pipeline.jobs import (
+    DEFAULT_QUEUE,
+    IngestionJob,
+    publish_ingestion_job,
+    resolve_rabbitmq_url,
+)
 
 
 def main() -> None:
@@ -16,7 +21,7 @@ def main() -> None:
     parser.add_argument("--year", type=int, help="Optional release year for metadata lookup.")
     parser.add_argument(
         "--rabbitmq-url",
-        default=os.getenv("RABBITMQ_URL", "amqp://video_se:video_se_dev@localhost:5672/%2F"),
+        default=os.getenv("RABBITMQ_URL"),
         help="RabbitMQ AMQP URL.",
     )
     parser.add_argument(
@@ -25,15 +30,20 @@ def main() -> None:
         help="RabbitMQ queue name.",
     )
     args = parser.parse_args()
-    setup_logging()
 
+    try:
+        rabbitmq_url = resolve_rabbitmq_url(args.rabbitmq_url)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    setup_logging()
     job = IngestionJob(
         video_path=args.video,
         output_dir=args.output_dir,
         title=args.title,
         year=args.year,
     )
-    publish_ingestion_job(job, rabbitmq_url=args.rabbitmq_url, queue_name=args.queue)
+    publish_ingestion_job(job, rabbitmq_url=rabbitmq_url, queue_name=args.queue)
 
 
 if __name__ == "__main__":

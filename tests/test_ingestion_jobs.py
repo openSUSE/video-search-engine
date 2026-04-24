@@ -2,7 +2,12 @@ import json
 
 import pytest
 
-from ingestion_pipeline.jobs import IngestionJob, decode_job_message, encode_job_message
+from ingestion_pipeline.jobs import (
+    IngestionJob,
+    decode_job_message,
+    encode_job_message,
+    resolve_rabbitmq_url,
+)
 
 
 def test_ingestion_job_message_round_trip_omits_empty_fields():
@@ -45,3 +50,22 @@ def test_ingestion_job_builds_pipeline_kwargs_with_default_output_dir():
         "title": "Demo",
         "year": 2024,
     }
+
+
+def test_resolve_rabbitmq_url_prefers_explicit_argument(monkeypatch):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
+
+    assert resolve_rabbitmq_url("amqp://explicit") == "amqp://explicit"
+
+
+def test_resolve_rabbitmq_url_uses_environment(monkeypatch):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
+
+    assert resolve_rabbitmq_url() == "amqp://env"
+
+
+def test_resolve_rabbitmq_url_rejects_missing_value(monkeypatch):
+    monkeypatch.delenv("RABBITMQ_URL", raising=False)
+
+    with pytest.raises(ValueError, match="RabbitMQ URL"):
+        resolve_rabbitmq_url()

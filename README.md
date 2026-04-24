@@ -121,7 +121,7 @@ Start the worker profile:
 make compose-worker
 ```
 
-Publish a job. When targeting the container worker, use the path as seen inside the worker container:
+Publish a job. When targeting the container worker, use the path as seen inside the worker container. The host-side publisher reads `RABBITMQ_URL` from `.env`, or you can pass `--rabbitmq-url` explicitly:
 
 ```bash
 make publish-ingest VIDEO=/data/videos/your_video.mp4
@@ -133,7 +133,7 @@ Equivalent direct command:
 .venv/bin/python -m ingestion_pipeline.publisher --video /data/videos/your_video.mp4
 ```
 
-The worker consumes `INGESTION_QUEUE` from `RABBITMQ_URL`, runs the same pipeline, acknowledges successful jobs, and rejects failed jobs without requeueing.
+The worker requires `RABBITMQ_URL`, consumes `INGESTION_QUEUE`, runs the same pipeline, acknowledges successful jobs, and rejects failed jobs without requeueing. Compose wires this URL automatically for the container worker.
 
 ## Configuration
 
