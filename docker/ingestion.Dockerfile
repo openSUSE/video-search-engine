@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.13-slim
 
 # System libs: ffmpeg for audio; libsndfile1 for librosa; libglib for OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \

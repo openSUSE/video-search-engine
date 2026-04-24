@@ -40,6 +40,13 @@ def test_kubernetes_configmap_exposes_runtime_collection_name():
     assert configmap["data"]["CHROMA_COLLECTION"] == "video_search_engine"
 
 
+def test_service_dockerfiles_use_pinned_python_base_image():
+    for dockerfile in Path("docker").glob("*.Dockerfile"):
+        first_line = dockerfile.read_text().splitlines()[0]
+
+        assert first_line == "FROM python:3.12.13-slim"
+
+
 def test_chroma_runtime_images_are_pinned():
     compose = yaml.safe_load(Path("docker-compose.yml").read_text())
     k8s_chroma = list(yaml.safe_load_all(Path("k8s/chroma.yaml").read_text()))[0]

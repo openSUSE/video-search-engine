@@ -185,7 +185,7 @@ kubectl -n video-se create secret generic video-se-secrets \
 kubectl apply -k k8s/
 ```
 
-Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Chroma is pinned to `chromadb/chroma:1.5.6` and bundled RabbitMQ is pinned to `rabbitmq:4.1.4-management`; update them intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
+Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Service Dockerfiles use `python:3.12.13-slim`; Chroma is pinned to `chromadb/chroma:1.5.6`; bundled RabbitMQ is pinned to `rabbitmq:4.1.4-management`. Update them intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
 
 ## Operations
 
