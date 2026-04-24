@@ -42,6 +42,16 @@ def test_ingestion_job_normalizes_optional_string_fields():
     }
 
 
+def test_ingestion_job_normalizes_video_path():
+    job = IngestionJob(video_path="  /data/videos/demo.mp4  ")
+
+    assert job.video_path == "/data/videos/demo.mp4"
+    assert json.loads(encode_job_message(job)) == {
+        "video_path": "/data/videos/demo.mp4",
+    }
+    assert job.to_pipeline_kwargs("fallback")["video_path"] == "/data/videos/demo.mp4"
+
+
 def test_ingestion_job_omits_blank_optional_string_fields():
     job = IngestionJob(
         video_path="/data/videos/demo.mp4",

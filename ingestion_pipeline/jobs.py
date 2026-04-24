@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUEUE = "video.ingestion"
 
 
+def _normalize_required_string(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value.strip()
+
+
 def _normalize_optional_string(value: Optional[str], field_name: str) -> Optional[str]:
     if value is None:
         return None
@@ -34,8 +40,11 @@ class IngestionJob:
     year: Optional[int] = None
 
     def __post_init__(self):
-        if not isinstance(self.video_path, str) or not self.video_path.strip():
-            raise ValueError("video_path must be a non-empty string")
+        object.__setattr__(
+            self,
+            "video_path",
+            _normalize_required_string(self.video_path, "video_path"),
+        )
         object.__setattr__(
             self,
             "output_dir",
