@@ -60,6 +60,19 @@ services:
     depends_on:
       - api
 
+  ui-speaker:
+    build:
+      context: .
+      dockerfile: docker/ui-speaker.Dockerfile
+    ports:
+      - "${SPEAKER_UI_PORT:-5050}:5050"
+    environment:
+      OUTPUT_DIR: /data/processed
+      VIDEO_DATA_PATH: /data/videos
+    volumes:
+      - ./data/videos:/data/videos:ro
+      - ./data/processed:/data/processed
+
   ingestion-worker:
     profiles:
       - worker

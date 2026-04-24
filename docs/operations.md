@@ -14,6 +14,12 @@ Start the RabbitMQ ingestion worker:
 make compose-worker
 ```
 
+Start the speaker identification UI:
+
+```bash
+make compose-speaker
+```
+
 Stop the stack:
 
 ```bash
@@ -24,6 +30,7 @@ Useful endpoints:
 
 - API health: `http://localhost:1234/healthz`
 - Search UI: `http://localhost:8501`
+- Speaker identification UI: `http://localhost:5050`
 - RabbitMQ management: `http://localhost:15672`
 - ChromaDB: `http://localhost:8000`
 

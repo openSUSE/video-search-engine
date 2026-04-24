@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui-speaker
+  namespace: video-se
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: ui-speaker } }
+  template:
+    metadata: { labels: { app: ui-speaker } }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: ui
+        image: <REG>/video-se-ui-speaker:<TAG>
+        imagePullPolicy: IfNotPresent
+        command: ["streamlit","run","app/ui/speaker_id_tool.py","--server.address","0.0.0.0","--server.port","5050"]
+        ports: [{ containerPort: 5050 }]
+        env:
+          - { name: HOME, value: /tmp }
+          - { name: STREAMLIT_BROWSER_GATHER_USAGE_STATS, value: "false" }
+        envFrom:
+          - configMapRef: { name: video-se-config }
+        volumeMounts:
+          - { name: videos,    mountPath: /data/videos,    readOnly: true }
+          - { name: processed, mountPath: /data/processed }
+          - { name: tmp,       mountPath: /tmp }
+        readinessProbe:
+          httpGet: { path: "/", port: 5050 }
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          tcpSocket: { port: 5050 }
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        resources:
+          requests: { cpu: "100m", memory: "128Mi" }
+          limits:   { memory: "512Mi" }
+        securityContext:
+          readOnlyRootFilesystem: true
+      volumes:
+        - name: videos
+          persistentVolumeClaim: { claimName: videos-pvc }
+        - name: processed
+          persistentVolumeClaim: { claimName: processed-pvc }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-speaker
+  namespace: video-se
+spec:
+  selector: { app: ui-speaker }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5050

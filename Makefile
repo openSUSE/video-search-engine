@@ -2,7 +2,7 @@ PYTHON ?= python3
 COMPOSE ?= docker compose
 VENV ?= .venv
 
-.PHONY: venv install-dev test validate publish-ingest compose-up compose-down compose-worker
+.PHONY: venv install-dev test validate publish-ingest compose-up compose-down compose-speaker compose-worker
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -16,7 +16,8 @@ test:
 validate: test
 	$(COMPOSE) config
 	$(COMPOSE) --profile worker config
-	$(VENV)/bin/python -m py_compile api/main.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
+	$(VENV)/bin/python -c "import pathlib, yaml; [list(yaml.safe_load_all(path.read_text())) for path in pathlib.Path('k8s').glob('*.yaml')]"
+	$(VENV)/bin/python -m py_compile api/main.py app/main.py app/ui/speaker_id_tool.py core/config.py ingestion_pipeline/jobs.py ingestion_pipeline/publisher.py ingestion_pipeline/worker.py ingestion_pipeline/run_pipeline.py
 
 publish-ingest:
 	@test -n "$(VIDEO)" || (echo "Set VIDEO=/data/videos/your_video.mp4" && exit 1)
@@ -24,6 +25,9 @@ publish-ingest:
 
 compose-up:
 	$(COMPOSE) up --build chroma rabbitmq api ui-search
+
+compose-speaker:
+	$(COMPOSE) up --build ui-speaker
 
 compose-worker:
 	$(COMPOSE) --profile worker up --build ingestion-worker

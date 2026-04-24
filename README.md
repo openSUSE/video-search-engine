@@ -68,6 +68,7 @@ make compose-up
 Default URLs:
 
 - Search UI: `http://localhost:8501`
+- Speaker identification UI: `http://localhost:5050` when started with `make compose-speaker`
 - Search API: `http://localhost:1234`
 - API health: `http://localhost:1234/healthz`
 - RabbitMQ management: `http://localhost:15672` with `guest` / `guest`
@@ -102,6 +103,12 @@ By default `SPEAKER_UI_MODE=external`, so the pipeline waits for the configured 
 
 ```bash
 .venv/bin/streamlit run app/ui/speaker_id_tool.py
+```
+
+Or run the containerized speaker UI against the Compose data mounts:
+
+```bash
+make compose-speaker
 ```
 
 ## Queue-Based Ingestion

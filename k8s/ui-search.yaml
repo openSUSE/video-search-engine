@@ -18,13 +18,17 @@ spec:
       - name: ui
         image: <REG>/video-se-ui-search:<TAG>
         imagePullPolicy: IfNotPresent
-        args: ["streamlit","run","app/ui/search_app.py","--server.address","0.0.0.0","--server.port","8501"]
+        command: ["streamlit","run","app/ui/search_app.py","--server.address","0.0.0.0","--server.port","8501"]
         ports: [{ containerPort: 8501 }]
+        env:
+          - { name: HOME, value: /tmp }
+          - { name: STREAMLIT_BROWSER_GATHER_USAGE_STATS, value: "false" }
         envFrom:
           - configMapRef: { name: video-se-config }   # gives API_HOST, API_PORT, VIDEO_DATA_PATH, etc.
         volumeMounts:
           - { name: videos,    mountPath: /data/videos,    readOnly: true }
           - { name: processed, mountPath: /data/processed }
+          - { name: tmp,       mountPath: /tmp }
         readinessProbe:
           httpGet: { path: "/", port: 8501 }
           initialDelaySeconds: 10
@@ -44,6 +48,8 @@ spec:
           persistentVolumeClaim: { claimName: videos-pvc }
         - name: processed
           persistentVolumeClaim: { claimName: processed-pvc }
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

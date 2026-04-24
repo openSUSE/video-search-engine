@@ -3,6 +3,9 @@ import os
 import json
 import pandas as pd
 
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "data/processed")
+VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
+
 # --- PAGE CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Speaker Identification Tool")
 st.title("🗣️ Manual Speaker Identification Tool")
@@ -28,7 +31,7 @@ st.sidebar.info(
 )
 
 # --- DIRECTORY AND VIDEO SELECTION ---
-base_dir = st.text_input("Enter the base path for processed data:", "data/processed")
+base_dir = st.text_input("Enter the base path for processed data:", OUTPUT_DIR)
 
 if not os.path.isdir(base_dir):
     st.error("The provided directory does not exist.")
@@ -44,7 +47,7 @@ else:
         
         # Define paths for the required files
         transcript_path = os.path.join(video_specific_dir, "transcript_generic.json")
-        video_path_original = os.path.join("data/videos", f"{selected_video_folder}.mp4") # Assuming this structure
+        video_path_original = os.path.join(VIDEO_DATA_DIR, f"{selected_video_folder}.mp4")
         speaker_map_path = os.path.join(video_specific_dir, "speaker_map.json")
 
         # --- MAIN LOGIC ---
