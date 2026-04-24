@@ -49,13 +49,14 @@ def _load_config() -> Dict[str, Any]:
 def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
     from sentence_transformers import SentenceTransformer
 
+    device = config.get("general", {}).get("device", "cpu")
     embedding_model_name = (
         config.get("models", {})
         .get("embedding", {})
         .get("name", EMBEDDING_MODEL)
     )
     logger.info("   -> Loading sentence embedding model: '%s'...", embedding_model_name)
-    return SentenceTransformer(embedding_model_name, device='cpu')
+    return SentenceTransformer(embedding_model_name, device=device)
 
 
 def _vector_to_floats(vector: Any) -> List[float]:

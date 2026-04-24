@@ -1,6 +1,8 @@
 import json
+import sys
+import types
 
-from ingestion_pipeline.steps.step_02_segmentation import run_segmentation
+from ingestion_pipeline.steps.step_02_segmentation import create_embedding_model, run_segmentation
 
 
 class FakeEmbeddingModel:
@@ -17,6 +19,31 @@ class FakeEmbeddingModel:
             "fast car": [0.0, 1.0],
         }
         return [vectors[text] for text in texts]
+
+
+def test_create_embedding_model_uses_configured_name_and_device(monkeypatch):
+    calls = {}
+    fake_module = types.ModuleType("sentence_transformers")
+
+    class FakeSentenceTransformer:
+        def __init__(self, model_name, device):
+            calls["model_name"] = model_name
+            calls["device"] = device
+
+    fake_module.SentenceTransformer = FakeSentenceTransformer
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+
+    create_embedding_model(
+        {
+            "general": {"device": "cuda"},
+            "models": {"embedding": {"name": "custom-embedding-model"}},
+        }
+    )
+
+    assert calls == {
+        "model_name": "custom-embedding-model",
+        "device": "cuda",
+    }
 
 
 def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_path):
