@@ -15,6 +15,10 @@ from app.ui.search_client import (
     search_api_url,
     search_payload,
 )
+from app.ui.search_state import (
+    ensure_search_session_state,
+    reset_search_session_for_video,
+)
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -26,10 +30,7 @@ API_URL = search_api_url()
 
 # --- SESSION STATE INITIALIZATION ---
 # Session state holds variables that persist across user interactions.
-if 'video_path' not in st.session_state:
-    st.session_state.video_path = None
-if 'start_time' not in st.session_state:
-    st.session_state.start_time = 0
+ensure_search_session_state(st.session_state)
 
 # --- UI LAYOUT ---
 st.title("🎬 Semantic Video Search Engine")
@@ -47,9 +48,13 @@ with st.sidebar:
 
         selected_video_file = st.selectbox("Choose a video to search:", video_files)
         
-        # Update the video path in the session state when a new video is selected
-        st.session_state.video_path = os.path.join(VIDEO_DATA_DIR, selected_video_file)
-        st.session_state.video_filename_clean = os.path.splitext(selected_video_file)[0]
+        # Update the video path and clear stale playback/results on video changes.
+        reset_search_session_for_video(
+            st.session_state,
+            selected_video_file,
+            os.path.join(VIDEO_DATA_DIR, selected_video_file),
+            os.path.splitext(selected_video_file)[0],
+        )
 
     except FileNotFoundError:
         st.error(f"Video directory not found at '{VIDEO_DATA_DIR}'. Please create it and add videos.")
@@ -100,7 +105,7 @@ st.divider()
 
 # --- DISPLAY SEARCH RESULTS ---
 st.header("Results")
-if 'search_results' in st.session_state and st.session_state.search_results:
+if st.session_state.search_results:
     results = st.session_state.search_results
     for result in results:
         with st.container(border=True):
