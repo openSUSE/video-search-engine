@@ -26,10 +26,8 @@ def _normalize_optional_string(value: Optional[str], field_name: str) -> Optiona
 
 
 def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
-    resolved_url = (rabbitmq_url or os.getenv("RABBITMQ_URL") or "").strip()
-    if not resolved_url:
-        raise ValueError("RabbitMQ URL must be configured through RABBITMQ_URL or an explicit argument")
-    return resolved_url
+    resolved_url = os.getenv("RABBITMQ_URL") if rabbitmq_url is None else rabbitmq_url
+    return _normalize_required_string(resolved_url or "", "RabbitMQ URL")
 
 
 def resolve_ingestion_queue(queue_name: Optional[str] = None) -> str:

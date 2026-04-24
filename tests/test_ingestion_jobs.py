@@ -125,6 +125,14 @@ def test_resolve_rabbitmq_url_rejects_missing_value(monkeypatch):
         resolve_rabbitmq_url()
 
 
+@pytest.mark.parametrize("rabbitmq_url", ["", "   ", "\t"])
+def test_resolve_rabbitmq_url_rejects_blank_explicit_values(monkeypatch, rabbitmq_url):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
+
+    with pytest.raises(ValueError, match="RabbitMQ URL"):
+        resolve_rabbitmq_url(rabbitmq_url)
+
+
 def test_resolve_ingestion_queue_prefers_explicit_argument(monkeypatch):
     monkeypatch.setenv("INGESTION_QUEUE", "env.queue")
 
