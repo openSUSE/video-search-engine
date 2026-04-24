@@ -61,6 +61,19 @@ def test_compose_dependencies_wait_for_healthy_services():
     )
 
 
+def test_search_ui_timeout_is_configured_for_deployments():
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+    configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
+    env_example = Path(".env.example").read_text().splitlines()
+
+    assert "SEARCH_API_TIMEOUT_SECONDS=10" in env_example
+    assert (
+        compose["services"]["ui-search"]["environment"]["SEARCH_API_TIMEOUT_SECONDS"]
+        == "${SEARCH_API_TIMEOUT_SECONDS:-10}"
+    )
+    assert configmap["data"]["SEARCH_API_TIMEOUT_SECONDS"] == "10"
+
+
 def test_kubernetes_configmap_exposes_runtime_collection_name():
     configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
 

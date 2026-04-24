@@ -18,6 +18,7 @@ data:
   # Networking between services (K8s service DNS names)
   API_HOST: "api"
   API_PORT: "1234"
+  SEARCH_API_TIMEOUT_SECONDS: "10"
   CHROMA_HOST: "chroma"
   CHROMA_PORT: "8000"
   CHROMA_COLLECTION: "video_search_engine"

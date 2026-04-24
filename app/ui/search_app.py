@@ -1,15 +1,16 @@
 # app/ui/search_app.py
 
-import streamlit as st
-import requests
 import os
 import sys
+
+import streamlit as st
 
 VIDEO_DATA_DIR = os.getenv("VIDEO_DATA_PATH", "data/videos")
 
 # Add the project root to the Python path to allow importing from 'core'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-from core.config import CONFIG # MODIFIED: Import the CONFIG object directly
+from app.ui.search_client import post_search, search_api_url, search_payload
+from core.config import CONFIG
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -19,10 +20,7 @@ st.set_page_config(
 
 # --- LOAD CONFIGURATION ---
 try:
-    # MODIFIED: The CONFIG object is already loaded, so we just use it.
-    API_CONFIG = CONFIG['api_server']
-    API_URL = f"http://{API_CONFIG['host']}:{API_CONFIG['port']}/search"
-    # The VIDEO_DATA_DIR is defined above using an environment variable
+    API_URL = search_api_url(CONFIG)
 except Exception as e:
     st.error(f"Error accessing configuration. Details: {e}")
     st.stop()
@@ -72,13 +70,12 @@ with col1:
         else:
             with st.spinner("Searching for relevant moments..."):
                 try:
-                    # MODIFIED: Add the clean video filename to the payload
-                    payload = {
-                        "query": query, 
-                        "top_k": 5,
-                        "video_filename": st.session_state.video_filename_clean
-                    }
-                    response = requests.post(API_URL, json=payload)
+                    payload = search_payload(
+                        query,
+                        st.session_state.video_filename_clean,
+                        top_k=5,
+                    )
+                    response = post_search(API_URL, payload)
                     
                     if response.status_code == 200:
                         results = response.json().get('results', [])

@@ -66,6 +66,7 @@ services:
     environment:
       API_HOST: api
       API_PORT: "1234"
+      SEARCH_API_TIMEOUT_SECONDS: "${SEARCH_API_TIMEOUT_SECONDS:-10}"
       VIDEO_DATA_PATH: /data/videos
       ML_DEVICE: "${ML_DEVICE:-cpu}"
     volumes:

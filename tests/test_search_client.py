@@ -1,0 +1,50 @@
+import pytest
+
+from app.ui import search_client
+
+
+def test_search_api_url_uses_config_host_and_port():
+    config = {"api_server": {"host": "api", "port": 1234}}
+
+    assert search_client.search_api_url(config) == "http://api:1234/search"
+
+
+def test_search_payload_includes_query_limit_and_video_filter():
+    payload = search_client.search_payload("opening scene", "demo", top_k=7)
+
+    assert payload == {
+        "query": "opening scene",
+        "top_k": 7,
+        "video_filename": "demo",
+    }
+
+
+def test_post_search_uses_timeout_from_environment(monkeypatch):
+    monkeypatch.setenv("SEARCH_API_TIMEOUT_SECONDS", "2.5")
+    captured = {}
+    expected_response = object()
+
+    def fake_post(url, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return expected_response
+
+    monkeypatch.setattr(search_client.requests, "post", fake_post)
+
+    response = search_client.post_search("http://api:1234/search", {"query": "demo"})
+
+    assert response is expected_response
+    assert captured == {
+        "url": "http://api:1234/search",
+        "json": {"query": "demo"},
+        "timeout": 2.5,
+    }
+
+
+@pytest.mark.parametrize("raw_value", [None, "", "0", "-1", "abc"])
+def test_search_timeout_falls_back_to_default_for_unusable_values(raw_value):
+    assert (
+        search_client.search_timeout_seconds(raw_value)
+        == search_client.DEFAULT_SEARCH_TIMEOUT_SECONDS
+    )
