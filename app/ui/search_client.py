@@ -9,14 +9,22 @@ DEFAULT_API_PORT = "1234"
 RequestException = requests.exceptions.RequestException
 
 
+def _url_component(value: Any, default: str) -> str:
+    if value is None:
+        return default
+
+    value = str(value).strip()
+    return value or default
+
+
 def search_api_url(config: Mapping[str, Any] | None = None) -> str:
     if config is None:
-        host = os.getenv("API_HOST") or DEFAULT_API_HOST
-        port = os.getenv("API_PORT") or DEFAULT_API_PORT
+        host = _url_component(os.getenv("API_HOST"), DEFAULT_API_HOST)
+        port = _url_component(os.getenv("API_PORT"), DEFAULT_API_PORT)
     else:
         api_config = config["api_server"]
-        host = api_config["host"]
-        port = api_config["port"]
+        host = _url_component(api_config.get("host"), DEFAULT_API_HOST)
+        port = _url_component(api_config.get("port"), DEFAULT_API_PORT)
 
     return f"http://{host}:{port}/search"
 
