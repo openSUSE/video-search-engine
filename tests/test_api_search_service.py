@@ -1,3 +1,5 @@
+import pytest
+
 from api.search_service import HybridSearchService
 
 
@@ -115,3 +117,28 @@ def test_hybrid_search_service_omits_video_filter_when_not_requested():
         {"type": "text"},
         {"type": "visual"},
     ]
+
+
+@pytest.mark.parametrize(
+    "encoded_query",
+    [
+        [],
+        [0.25, "bad"],
+        [[0.25, 0.75]],
+    ],
+)
+def test_hybrid_search_service_rejects_invalid_query_embeddings_before_query(
+    encoded_query,
+):
+    class BadEmbeddingModel:
+        def encode(self, query):
+            return encoded_query
+
+    collection = FakeCollection()
+    service = HybridSearchService(BadEmbeddingModel(), collection)
+
+    with pytest.raises(ValueError, match="query embedding"):
+        service.search("find highlights", top_k=1)
+
+    assert collection.query_calls == []
+    assert collection.get_call is None

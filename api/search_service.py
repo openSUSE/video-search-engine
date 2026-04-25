@@ -30,8 +30,20 @@ def _where_clause(doc_type: str, video_filename: Optional[str]) -> Dict[str, Any
 def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
     encoded = embedding_model.encode(query)
     if hasattr(encoded, "tolist"):
-        return encoded.tolist()
-    return encoded
+        encoded = encoded.tolist()
+
+    try:
+        vector = list(encoded)
+    except TypeError as exc:
+        raise ValueError("query embedding must be a non-empty numeric vector") from exc
+
+    if not vector or any(isinstance(value, bool) for value in vector):
+        raise ValueError("query embedding must be a non-empty numeric vector")
+
+    try:
+        return [float(value) for value in vector]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("query embedding must be a non-empty numeric vector") from exc
 
 
 def _first_id_list(results: Dict[str, Any]) -> List[str]:
