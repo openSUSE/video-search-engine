@@ -266,6 +266,18 @@ def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencie
         (["not a segment"], "index 0"),
         ([{"summary": "missing id"}], "segment_id"),
         ([{"segment_id": " "}], "segment_id"),
+        ([{"segment_id": "segment-1", "full_transcript": ["bad"]}], "full_transcript"),
+        ([{"segment_id": "segment-1", "summary": {"bad": "data"}}], "summary"),
+        ([{"segment_id": "segment-1", "speakers": "Alice"}], "speakers"),
+        ([{"segment_id": "segment-1", "keywords": [42]}], "keywords"),
+        (
+            [{"segment_id": "segment-1", "consolidated_visual_captions": "caption"}],
+            "consolidated_visual_captions",
+        ),
+        (
+            [{"segment_id": "segment-1", "consolidated_actions": [None]}],
+            "consolidated_actions",
+        ),
     ],
 )
 def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
