@@ -105,7 +105,12 @@ def _open_channel(rabbitmq_url: str, queue_name: str):
     return connection, channel
 
 
-def publish_ingestion_job(job: IngestionJob, rabbitmq_url: str, queue_name: str = DEFAULT_QUEUE) -> None:
+def publish_ingestion_job(
+    job: IngestionJob,
+    rabbitmq_url: Optional[str],
+    queue_name: str = DEFAULT_QUEUE,
+) -> None:
+    rabbitmq_url = resolve_rabbitmq_url(rabbitmq_url)
     queue_name = resolve_ingestion_queue(queue_name)
 
     import pika
@@ -128,9 +133,10 @@ def publish_ingestion_job(job: IngestionJob, rabbitmq_url: str, queue_name: str 
 
 def consume_ingestion_jobs(
     handler: Callable[[IngestionJob], bool],
-    rabbitmq_url: str,
+    rabbitmq_url: Optional[str],
     queue_name: str = DEFAULT_QUEUE,
 ) -> None:
+    rabbitmq_url = resolve_rabbitmq_url(rabbitmq_url)
     queue_name = resolve_ingestion_queue(queue_name)
     connection, channel = _open_channel(rabbitmq_url, queue_name)
     channel.basic_qos(prefetch_count=1)

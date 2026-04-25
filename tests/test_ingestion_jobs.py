@@ -178,3 +178,31 @@ def test_publish_job_rejects_blank_queue_before_opening_channel(monkeypatch):
             rabbitmq_url="amqp://broker",
             queue_name=" ",
         )
+
+
+def test_publish_job_rejects_blank_rabbitmq_url_before_opening_channel(monkeypatch):
+    def fail_open_channel(rabbitmq_url, queue_name):
+        raise AssertionError("blank broker URL should be rejected before opening a channel")
+
+    monkeypatch.setattr(jobs, "_open_channel", fail_open_channel)
+
+    with pytest.raises(ValueError, match="RabbitMQ URL"):
+        jobs.publish_ingestion_job(
+            IngestionJob(video_path="/data/videos/demo.mp4"),
+            rabbitmq_url=" ",
+            queue_name="video.ingestion",
+        )
+
+
+def test_consume_jobs_rejects_blank_rabbitmq_url_before_opening_channel(monkeypatch):
+    def fail_open_channel(rabbitmq_url, queue_name):
+        raise AssertionError("blank broker URL should be rejected before opening a channel")
+
+    monkeypatch.setattr(jobs, "_open_channel", fail_open_channel)
+
+    with pytest.raises(ValueError, match="RabbitMQ URL"):
+        jobs.consume_ingestion_jobs(
+            lambda _job: True,
+            rabbitmq_url=" ",
+            queue_name="video.ingestion",
+        )
