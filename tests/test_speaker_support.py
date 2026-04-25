@@ -120,11 +120,11 @@ def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
 def test_load_transcript_segments_validates_display_fields(tmp_path):
     transcript_path = tmp_path / "transcript.json"
     transcript_path.write_text(
-        '[{"start": 1, "text": " hello ", "speaker": " SPEAKER_00 "}]'
+        '[{"start": 1, "end": 2, "text": " hello ", "speaker": " SPEAKER_00 "}]'
     )
 
     assert load_transcript_segments(transcript_path) == [
-        {"start": 1.0, "text": " hello ", "speaker": "SPEAKER_00"}
+        {"start": 1.0, "end": 2.0, "text": " hello ", "speaker": "SPEAKER_00"}
     ]
 
 
@@ -136,8 +136,12 @@ def test_load_transcript_segments_validates_display_fields(tmp_path):
         ([{"text": "hello"}], "start"),
         ([{"start": True, "text": "hello"}], "start"),
         ([{"start": -1, "text": "hello"}], "start"),
-        ([{"start": 0}], "text"),
-        ([{"start": 0, "text": "hello", "speaker": 7}], "speaker"),
+        ([{"start": 0, "text": "hello"}], "end"),
+        ([{"start": 0, "end": True, "text": "hello"}], "end"),
+        ([{"start": 0, "end": -1, "text": "hello"}], "end"),
+        ([{"start": 2, "end": 1, "text": "hello"}], "end"),
+        ([{"start": 0, "end": 1}], "text"),
+        ([{"start": 0, "end": 1, "text": "hello", "speaker": 7}], "speaker"),
     ],
 )
 def test_load_transcript_segments_rejects_malformed_display_data(

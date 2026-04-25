@@ -96,6 +96,23 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _transcript_time_value(
+    segment: Mapping[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> float:
+    value = segment.get(field_name)
+    if not _is_number(value):
+        raise ValueError(
+            f"transcript segment at index {segment_index} must have numeric {field_name}"
+        )
+    if value < 0:
+        raise ValueError(
+            f"transcript segment at index {segment_index} must have non-negative {field_name}"
+        )
+    return float(value)
+
+
 def validate_transcript_segments_for_display(
     transcript_segments: Any,
 ) -> list[dict[str, Any]]:
@@ -109,14 +126,12 @@ def validate_transcript_segments_for_display(
                 f"transcript segment at index {segment_index} must be a JSON object"
             )
 
-        start = segment.get("start")
-        if not _is_number(start):
+        start = _transcript_time_value(segment, segment_index, "start")
+        end = _transcript_time_value(segment, segment_index, "end")
+        if end < start:
             raise ValueError(
-                f"transcript segment at index {segment_index} must have numeric start"
-            )
-        if start < 0:
-            raise ValueError(
-                f"transcript segment at index {segment_index} must have non-negative start"
+                f"transcript segment at index {segment_index} "
+                "end must be greater than or equal to start"
             )
 
         if not isinstance(segment.get("text"), str):
@@ -125,7 +140,8 @@ def validate_transcript_segments_for_display(
             )
 
         normalized_segment = dict(segment)
-        normalized_segment["start"] = float(start)
+        normalized_segment["start"] = start
+        normalized_segment["end"] = end
 
         speaker = segment.get("speaker")
         if speaker is not None:

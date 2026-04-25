@@ -5,6 +5,7 @@ import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
 from app.ui.speaker_support import (
+    load_transcript_segments,
     normalize_speaker_map,
     validate_speaker_ids_from_transcript,
 )
@@ -59,8 +60,7 @@ def video_file():
 def get_data():
     """API endpoint to provide the raw transcript data to the frontend."""
     try:
-        with open(TRANSCRIPT_PATH, 'r') as f:
-            transcript = json.load(f)
+        transcript = load_transcript_segments(TRANSCRIPT_PATH)
         return jsonify({
             "transcript": transcript,
             "video_filename": os.path.basename(VIDEO_PATH)
@@ -68,6 +68,9 @@ def get_data():
     except FileNotFoundError:
         logger.error(f"Transcript file not found at: {TRANSCRIPT_PATH}")
         return jsonify({"error": "Transcript file not found."}), 404
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Invalid transcript file at {TRANSCRIPT_PATH}: {e}", exc_info=True)
+        return jsonify({"error": "Could not read transcript file."}), 500
     except Exception as e:
         logger.error(f"Error reading transcript file: {e}", exc_info=True)
         return jsonify({"error": "Could not read transcript file."}), 500

@@ -56,9 +56,24 @@
             videoPlayer.src = '/video_file';
 
             // 2. Fetch transcript data and populate UI
-            const response = await fetch('/api/data');
-            const data = await response.json();
-            
+            let data;
+            try {
+                const response = await fetch('/api/data');
+                data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Could not load transcript data.');
+                }
+                if (!Array.isArray(data.transcript)) {
+                    throw new Error('Transcript data is not available.');
+                }
+            } catch (error) {
+                videoTitle.textContent = 'Unable to load transcript';
+                statusMessage.textContent = error.message;
+                statusMessage.style.color = 'red';
+                saveButton.disabled = true;
+                return;
+            }
+
             videoTitle.textContent = `Video: ${data.video_filename}`;
             const transcript = data.transcript;
             
