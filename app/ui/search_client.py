@@ -3,6 +3,8 @@ from typing import Any, Mapping
 
 import requests
 
+from app.ui.url_settings import local_http_url
+
 DEFAULT_SEARCH_TIMEOUT_SECONDS = 10.0
 DEFAULT_API_HOST = "localhost"
 DEFAULT_API_PORT = "1234"
@@ -37,7 +39,7 @@ def search_api_url(config: Mapping[str, Any] | None = None) -> str:
         host = _url_component(api_config.get("host"), DEFAULT_API_HOST)
         port = _url_component(api_config.get("port"), DEFAULT_API_PORT)
 
-    return f"http://{host}:{port}/search"
+    return f"{local_http_url(host, port)}/search"
 
 
 def search_payload(

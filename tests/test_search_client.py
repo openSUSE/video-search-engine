@@ -15,6 +15,12 @@ def test_search_api_url_strips_config_host_and_port():
     assert search_client.search_api_url(config) == "http://api:1234/search"
 
 
+def test_search_api_url_uses_loopback_for_wildcard_config_host():
+    config = {"api_server": {"host": "0.0.0.0", "port": 1234}}
+
+    assert search_client.search_api_url(config) == "http://127.0.0.1:1234/search"
+
+
 def test_search_api_url_uses_environment_when_config_is_not_provided(monkeypatch):
     monkeypatch.setenv("API_HOST", "api")
     monkeypatch.setenv("API_PORT", "1234")
@@ -27,6 +33,13 @@ def test_search_api_url_strips_environment_values(monkeypatch):
     monkeypatch.setenv("API_PORT", " 1234 ")
 
     assert search_client.search_api_url() == "http://api:1234/search"
+
+
+def test_search_api_url_uses_loopback_for_wildcard_environment_host(monkeypatch):
+    monkeypatch.setenv("API_HOST", "::")
+    monkeypatch.setenv("API_PORT", "1234")
+
+    assert search_client.search_api_url() == "http://127.0.0.1:1234/search"
 
 
 def test_search_api_url_uses_defaults_for_blank_environment_values(monkeypatch):
