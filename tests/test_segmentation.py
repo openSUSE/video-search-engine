@@ -273,6 +273,80 @@ def test_run_segmentation_rejects_embedding_count_mismatch_before_writing_output
 
 
 @pytest.mark.parametrize(
+    ("bad_call_index", "message"),
+    [
+        (0, "dialogue embeddings must have consistent dimensions"),
+        (1, "visual embeddings must have consistent dimensions"),
+    ],
+)
+def test_run_segmentation_rejects_embedding_dimension_mismatch_before_scoring(
+    tmp_path,
+    bad_call_index,
+    message,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "hello there",
+                            "speaker": "SPEAKER_00",
+                        }
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+                {
+                    "shot_id": "shot_0002",
+                    "time_start_sec": 1.0,
+                    "time_end_sec": 2.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "still hello",
+                            "speaker": "SPEAKER_00",
+                        }
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    class MismatchedEmbeddingModel:
+        def __init__(self):
+            self.call_count = 0
+
+        def encode(self, texts, **kwargs):
+            call_index = self.call_count
+            self.call_count += 1
+            if call_index == bad_call_index:
+                return [[1.0, 0.0], [1.0, 0.0, 0.0]]
+            return [[1.0, 0.0] for _text in texts]
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": output_path.name}},
+            embedding_model=MismatchedEmbeddingModel(),
+        )
+
+    assert not output_path.exists()
+
+
+@pytest.mark.parametrize(
     ("analysis_data", "message"),
     [
         ({"shot_id": "shot_0001"}, "JSON array"),

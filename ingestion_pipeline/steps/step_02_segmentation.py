@@ -314,12 +314,24 @@ def _encoded_vectors_to_lists(
             f"does not match shot count {expected_count}"
         )
 
+    if vectors:
+        dimension_count = len(vectors[0])
+        if dimension_count == 0:
+            raise ValueError(f"{embedding_type} embeddings must be non-empty vectors")
+        if any(len(vector) != dimension_count for vector in vectors):
+            raise ValueError(
+                f"{embedding_type} embeddings must have consistent dimensions"
+            )
+
     return vectors
 
 
 def _cosine_similarity(left: Any, right: Any) -> float:
     left_values = _vector_to_floats(left)
     right_values = _vector_to_floats(right)
+
+    if len(left_values) != len(right_values):
+        raise ValueError("embedding vectors must have the same dimensions")
 
     numerator = sum(left_value * right_value for left_value, right_value in zip(left_values, right_values))
     left_norm = math.sqrt(sum(value * value for value in left_values))
