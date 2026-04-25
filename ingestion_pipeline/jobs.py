@@ -108,7 +108,7 @@ def _open_channel(rabbitmq_url: str, queue_name: str):
 def publish_ingestion_job(
     job: IngestionJob,
     rabbitmq_url: Optional[str],
-    queue_name: str = DEFAULT_QUEUE,
+    queue_name: Optional[str] = None,
 ) -> None:
     rabbitmq_url = resolve_rabbitmq_url(rabbitmq_url)
     queue_name = resolve_ingestion_queue(queue_name)
@@ -134,7 +134,7 @@ def publish_ingestion_job(
 def consume_ingestion_jobs(
     handler: Callable[[IngestionJob], bool],
     rabbitmq_url: Optional[str],
-    queue_name: str = DEFAULT_QUEUE,
+    queue_name: Optional[str] = None,
 ) -> None:
     rabbitmq_url = resolve_rabbitmq_url(rabbitmq_url)
     queue_name = resolve_ingestion_queue(queue_name)

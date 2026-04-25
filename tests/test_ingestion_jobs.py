@@ -194,6 +194,42 @@ def test_publish_job_rejects_blank_rabbitmq_url_before_opening_channel(monkeypat
         )
 
 
+def test_publish_job_uses_environment_queue_when_queue_omitted(monkeypatch):
+    monkeypatch.setenv("INGESTION_QUEUE", "  env.queue  ")
+    calls = {}
+
+    class FakeConnection:
+        def close(self):
+            calls["closed"] = True
+
+    class FakeChannel:
+        def basic_publish(self, *, exchange, routing_key, body, properties):
+            calls["publish"] = {
+                "exchange": exchange,
+                "routing_key": routing_key,
+                "body": body,
+                "properties": properties,
+            }
+
+    def fake_open_channel(rabbitmq_url, queue_name):
+        calls["open"] = {"rabbitmq_url": rabbitmq_url, "queue_name": queue_name}
+        return FakeConnection(), FakeChannel()
+
+    monkeypatch.setattr(jobs, "_open_channel", fake_open_channel)
+
+    jobs.publish_ingestion_job(
+        IngestionJob(video_path="/data/videos/demo.mp4"),
+        rabbitmq_url="amqp://broker",
+    )
+
+    assert calls["open"] == {
+        "rabbitmq_url": "amqp://broker",
+        "queue_name": "env.queue",
+    }
+    assert calls["publish"]["routing_key"] == "env.queue"
+    assert calls["closed"] is True
+
+
 def test_consume_jobs_rejects_blank_rabbitmq_url_before_opening_channel(monkeypatch):
     def fail_open_channel(rabbitmq_url, queue_name):
         raise AssertionError("blank broker URL should be rejected before opening a channel")
@@ -206,3 +242,46 @@ def test_consume_jobs_rejects_blank_rabbitmq_url_before_opening_channel(monkeypa
             rabbitmq_url=" ",
             queue_name="video.ingestion",
         )
+
+
+def test_consume_jobs_uses_environment_queue_when_queue_omitted(monkeypatch):
+    monkeypatch.setenv("INGESTION_QUEUE", "  env.queue  ")
+    calls = {}
+
+    class FakeConnection:
+        is_open = True
+
+        def close(self):
+            calls["closed"] = True
+
+    class FakeChannel:
+        def basic_qos(self, *, prefetch_count):
+            calls["prefetch_count"] = prefetch_count
+
+        def basic_consume(self, *, queue, on_message_callback, auto_ack):
+            calls["consume"] = {
+                "queue": queue,
+                "on_message_callback": on_message_callback,
+                "auto_ack": auto_ack,
+            }
+
+        def start_consuming(self):
+            calls["started"] = True
+
+    def fake_open_channel(rabbitmq_url, queue_name):
+        calls["open"] = {"rabbitmq_url": rabbitmq_url, "queue_name": queue_name}
+        return FakeConnection(), FakeChannel()
+
+    monkeypatch.setattr(jobs, "_open_channel", fake_open_channel)
+
+    jobs.consume_ingestion_jobs(lambda _job: True, rabbitmq_url="amqp://broker")
+
+    assert calls["open"] == {
+        "rabbitmq_url": "amqp://broker",
+        "queue_name": "env.queue",
+    }
+    assert calls["prefetch_count"] == 1
+    assert calls["consume"]["queue"] == "env.queue"
+    assert calls["consume"]["auto_ack"] is False
+    assert calls["started"] is True
+    assert calls["closed"] is True
