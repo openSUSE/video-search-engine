@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
@@ -84,6 +85,12 @@ def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
         speaker_map[normalized_speaker_id] = speaker_name.strip()
 
     return speaker_map
+
+
+def load_speaker_map(path: str | Path) -> dict[str, str]:
+    with Path(path).open("r") as f:
+        speaker_map = json.load(f)
+    return normalize_speaker_map(speaker_map) or {}
 
 
 def ensure_speaker_session_state(state: MutableMapping[str, Any]) -> None:

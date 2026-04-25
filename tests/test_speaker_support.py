@@ -1,4 +1,5 @@
 from app.ui.speaker_support import (
+    load_speaker_map,
     normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
@@ -93,6 +94,20 @@ def test_normalize_speaker_map_rejects_invalid_entries():
 
 def test_normalize_speaker_map_allows_empty_map():
     assert normalize_speaker_map({}) == {}
+
+
+def test_load_speaker_map_normalizes_existing_map(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+    speaker_map_path.write_text('{" SPEAKER_00 ": "  Alice  "}')
+
+    assert load_speaker_map(speaker_map_path) == {"SPEAKER_00": "Alice"}
+
+
+def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+    speaker_map_path.write_text('{"SPEAKER_00": "   "}')
+
+    assert load_speaker_map(speaker_map_path) == {}
 
 
 def test_speaker_ids_from_transcript_returns_sorted_non_empty_strings():

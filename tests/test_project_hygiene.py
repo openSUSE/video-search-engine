@@ -127,6 +127,7 @@ def test_speaker_streamlit_ui_uses_support_path_boundary():
     assert "app.ui.speaker_support" in imported_modules
     assert "app.ui.path_settings" in imported_modules
     assert "core.config" not in imported_modules
+    assert "load_speaker_map" in imported_support_names
     assert "normalize_speaker_map" in imported_support_names
     assert "transcript_generic.json" not in literal_strings
     assert "speaker_map.json" not in literal_strings

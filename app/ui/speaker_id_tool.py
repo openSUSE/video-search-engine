@@ -6,6 +6,7 @@ import streamlit as st
 from app.ui.path_settings import env_path_setting
 from app.ui.speaker_support import (
     ensure_speaker_session_state,
+    load_speaker_map,
     normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
@@ -76,8 +77,7 @@ else:
             
             # Load existing speaker map if it exists
             if paths.speaker_map.exists():
-                with paths.speaker_map.open("r") as f:
-                    st.session_state.speaker_map = json.load(f)
+                st.session_state.speaker_map = load_speaker_map(paths.speaker_map)
 
             # Find all unique speaker labels from the transcript
             all_speakers = speaker_ids_from_transcript(st.session_state.current_transcript_data)
