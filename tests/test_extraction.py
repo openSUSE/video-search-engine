@@ -9,6 +9,8 @@ from ingestion_pipeline.steps.step_01_extraction import (
     _get_paths,
     create_final_analysis_file,
     detect_shot_boundaries,
+    detect_actions_per_shot,
+    generate_visual_captions,
     run_extraction,
 )
 
@@ -79,6 +81,99 @@ def test_detect_shot_boundaries_rejects_invalid_video_before_model_load(
 
     with pytest.raises(IOError, match=error_match):
         detect_shot_boundaries("bad-video.mp4", str(tmp_path / "shots.json"))
+
+    assert release_calls == ["bad-video.mp4"]
+
+
+def test_generate_visual_captions_rejects_unreadable_video_before_model_load(
+    monkeypatch,
+    tmp_path,
+):
+    release_calls = []
+
+    class FakeVideoCapture:
+        def __init__(self, path):
+            self.path = path
+
+        def isOpened(self):
+            return False
+
+        def release(self):
+            release_calls.append(self.path)
+
+    fake_cv2 = types.SimpleNamespace(VideoCapture=FakeVideoCapture)
+    fake_pil = types.ModuleType("PIL")
+    fake_pil.Image = object()
+    fake_transformers = types.ModuleType("transformers")
+
+    class FailingBlipProcessor:
+        @classmethod
+        def from_pretrained(cls, _name):
+            raise AssertionError("BLIP should not load for unreadable videos")
+
+    fake_transformers.BlipProcessor = FailingBlipProcessor
+    fake_transformers.BlipForConditionalGeneration = FailingBlipProcessor
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "PIL", fake_pil)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    with pytest.raises(IOError, match="Cannot open video file"):
+        generate_visual_captions(
+            "bad-video.mp4",
+            [],
+            str(tmp_path / "visual_details.json"),
+            {
+                "general": {"device": "cpu"},
+                "models": {"visual_captioning": {"name": "blip"}},
+                "parameters": {"visual_captioning": {"max_new_tokens": 50}},
+            },
+        )
+
+    assert release_calls == ["bad-video.mp4"]
+
+
+def test_detect_actions_rejects_unreadable_video_before_model_load(
+    monkeypatch,
+    tmp_path,
+):
+    release_calls = []
+
+    class FakeVideoCapture:
+        def __init__(self, path):
+            self.path = path
+
+        def isOpened(self):
+            return False
+
+        def release(self):
+            release_calls.append(self.path)
+
+    fake_cv2 = types.SimpleNamespace(VideoCapture=FakeVideoCapture)
+    fake_transformers = types.ModuleType("transformers")
+
+    class FailingVideoMAEProcessor:
+        @classmethod
+        def from_pretrained(cls, _name):
+            raise AssertionError("VideoMAE should not load for unreadable videos")
+
+    fake_transformers.VideoMAEImageProcessor = FailingVideoMAEProcessor
+    fake_transformers.VideoMAEForVideoClassification = FailingVideoMAEProcessor
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    with pytest.raises(IOError, match="Cannot open video file"):
+        detect_actions_per_shot(
+            "bad-video.mp4",
+            [],
+            str(tmp_path / "actions.json"),
+            {
+                "general": {"device": "cpu"},
+                "models": {"action_recognition": {"name": "videomae"}},
+                "parameters": {"action_recognition": {"num_frames": 16, "top_n": 3}},
+            },
+        )
 
     assert release_calls == ["bad-video.mp4"]
 

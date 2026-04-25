@@ -182,31 +182,36 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
     """Generates captions for each shot."""
     logger.info("    -> Generating visual captions for shots...")
     import cv2
-    from PIL import Image
-
-    device = config['general']['device']
-    model_cfg = config['models']['visual_captioning']
-    params_cfg = config['parameters']['visual_captioning']
-
-    from transformers import BlipProcessor, BlipForConditionalGeneration
-    processor = BlipProcessor.from_pretrained(model_cfg['name'])
-    model = BlipForConditionalGeneration.from_pretrained(model_cfg['name']).to(device)
 
     cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened(): raise IOError(f"Cannot open video file: {video_path}")
-    visual_details = []
-    for shot in scenes:
-        middle_frame_idx = (shot['start_frame'] + shot['end_frame']) // 2
-        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_idx)
-        ret, frame = cap.read()
+    try:
+        if not cap.isOpened():
+            raise IOError(f"Cannot open video file: {video_path}")
 
-        if ret:
-            pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            inputs = processor(pil_image, return_tensors="pt").to(device)
-            out = model.generate(**inputs, max_new_tokens=params_cfg['max_new_tokens'])
-            caption = processor.decode(out[0], skip_special_tokens=True)
-            visual_details.append({"shot_id": shot["shot_id"], "caption": caption})
-    cap.release()
+        from PIL import Image
+        from transformers import BlipForConditionalGeneration, BlipProcessor
+
+        device = config['general']['device']
+        model_cfg = config['models']['visual_captioning']
+        params_cfg = config['parameters']['visual_captioning']
+
+        processor = BlipProcessor.from_pretrained(model_cfg['name'])
+        model = BlipForConditionalGeneration.from_pretrained(model_cfg['name']).to(device)
+
+        visual_details = []
+        for shot in scenes:
+            middle_frame_idx = (shot['start_frame'] + shot['end_frame']) // 2
+            cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_idx)
+            ret, frame = cap.read()
+
+            if ret:
+                pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                inputs = processor(pil_image, return_tensors="pt").to(device)
+                out = model.generate(**inputs, max_new_tokens=params_cfg['max_new_tokens'])
+                caption = processor.decode(out[0], skip_special_tokens=True)
+                visual_details.append({"shot_id": shot["shot_id"], "caption": caption})
+    finally:
+        cap.release()
 
     with open(output_path, 'w') as f:
         json.dump(visual_details, f, indent=2)
@@ -218,68 +223,69 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     """
     logger.info("    -> Detecting actions/activities per shot...")
     import cv2
-    import numpy as np
-    import torch
-
-    device = config['general']['device']
-    model_cfg = config['models']['action_recognition']
-    params_cfg = config['parameters']['action_recognition']
-    num_frames_to_sample = params_cfg['num_frames']
-
-    from transformers import VideoMAEImageProcessor, VideoMAEForVideoClassification
-
-    processor = VideoMAEImageProcessor.from_pretrained(model_cfg['name'])
-    model = VideoMAEForVideoClassification.from_pretrained(model_cfg['name']).to(device)
 
     cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise IOError(f"Cannot open video file: {video_path}")
+    try:
+        if not cap.isOpened():
+            raise IOError(f"Cannot open video file: {video_path}")
 
-    all_shot_actions = []
-    for shot in scenes:
-        start_frame, end_frame = shot['start_frame'], shot['end_frame']
-        
-        # Ensure the shot is long enough to sample from
-        if end_frame - start_frame < num_frames_to_sample:
-            all_shot_actions.append({"shot_id": shot["shot_id"], "actions": []})
-            continue
+        import numpy as np
+        import torch
+        from transformers import VideoMAEForVideoClassification, VideoMAEImageProcessor
 
-        # Generate evenly spaced frame indices to sample from the shot
-        frame_indices = np.linspace(start_frame, end_frame, num_frames_to_sample, dtype=int)
-        
-        shot_frames = []
-        for frame_idx in frame_indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-            ret, frame = cap.read()
-            if ret:
-                # Convert frame from BGR (OpenCV) to RGB (transformers)
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                shot_frames.append(rgb_frame)
+        device = config['general']['device']
+        model_cfg = config['models']['action_recognition']
+        params_cfg = config['parameters']['action_recognition']
+        num_frames_to_sample = params_cfg['num_frames']
 
-        shot_actions_info = {"shot_id": shot["shot_id"], "actions": []}
-        if shot_frames:
-            # Process the collected frames and perform inference
-            inputs = processor(shot_frames, return_tensors="pt").to(device)
-            with torch.no_grad():
-                outputs = model(**inputs)
-                logits = outputs.logits
+        processor = VideoMAEImageProcessor.from_pretrained(model_cfg['name'])
+        model = VideoMAEForVideoClassification.from_pretrained(model_cfg['name']).to(device)
+
+        all_shot_actions = []
+        for shot in scenes:
+            start_frame, end_frame = shot['start_frame'], shot['end_frame']
             
-            # Get top N predictions
-            scores = torch.softmax(logits, dim=-1)[0]
-            top_predictions = torch.topk(scores, k=params_cfg['top_n'])
-            
-            detected_actions = []
-            for i in range(params_cfg['top_n']):
-                score = top_predictions.values[i].item()
-                label_id = top_predictions.indices[i].item()
-                action = model.config.id2label[label_id]
-                detected_actions.append({"action": action, "score": round(score, 3)})
-            
-            shot_actions_info["actions"] = detected_actions
-        
-        all_shot_actions.append(shot_actions_info)
+            # Ensure the shot is long enough to sample from
+            if end_frame - start_frame < num_frames_to_sample:
+                all_shot_actions.append({"shot_id": shot["shot_id"], "actions": []})
+                continue
 
-    cap.release()
+            # Generate evenly spaced frame indices to sample from the shot
+            frame_indices = np.linspace(start_frame, end_frame, num_frames_to_sample, dtype=int)
+            
+            shot_frames = []
+            for frame_idx in frame_indices:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, frame = cap.read()
+                if ret:
+                    # Convert frame from BGR (OpenCV) to RGB (transformers)
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    shot_frames.append(rgb_frame)
+
+            shot_actions_info = {"shot_id": shot["shot_id"], "actions": []}
+            if shot_frames:
+                # Process the collected frames and perform inference
+                inputs = processor(shot_frames, return_tensors="pt").to(device)
+                with torch.no_grad():
+                    outputs = model(**inputs)
+                    logits = outputs.logits
+
+                # Get top N predictions
+                scores = torch.softmax(logits, dim=-1)[0]
+                top_predictions = torch.topk(scores, k=params_cfg['top_n'])
+
+                detected_actions = []
+                for i in range(params_cfg['top_n']):
+                    score = top_predictions.values[i].item()
+                    label_id = top_predictions.indices[i].item()
+                    action = model.config.id2label[label_id]
+                    detected_actions.append({"action": action, "score": round(score, 3)})
+
+                shot_actions_info["actions"] = detected_actions
+            
+            all_shot_actions.append(shot_actions_info)
+    finally:
+        cap.release()
     
     with open(output_path, 'w') as f:
         json.dump(all_shot_actions, f, indent=2)
