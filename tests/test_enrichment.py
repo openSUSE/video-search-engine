@@ -1,6 +1,8 @@
 import builtins
 import json
 
+import pytest
+
 from ingestion_pipeline.steps.step_03_enrichment import _call_gemini_api, run_enrichment
 
 
@@ -266,3 +268,53 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
 
     assert result is None
     assert not (tmp_path / "enriched.json").exists()
+
+
+@pytest.mark.parametrize(
+    "segments",
+    [
+        {"segment_id": "segment_0001"},
+        ["not a segment"],
+        [{"summary": "missing id"}],
+        [{"segment_id": " "}],
+    ],
+)
+def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_calling_provider(
+    tmp_path,
+    segments,
+):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(json.dumps(segments))
+    calls = []
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: calls.append("called")},
+    )
+
+    assert result is None
+    assert calls == []
+    assert not (tmp_path / "enriched.json").exists()
+
+
+def test_run_enrichment_rejects_invalid_resume_state_before_calling_provider(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(json.dumps([{"segment_id": "segment_0001"}]))
+    (tmp_path / "enriched.json").write_text(json.dumps([{"summary": "missing id"}]))
+    calls = []
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: calls.append("called")},
+    )
+
+    assert result is None
+    assert calls == []

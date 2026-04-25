@@ -126,6 +126,26 @@ def _video_synopsis(video_metadata: Dict[str, Any]) -> str:
     return video_metadata.get('synopsis') or video_metadata.get('logline') or 'N/A'
 
 
+def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
+    if not isinstance(segments, list):
+        raise ValueError("segments file must contain a JSON array")
+
+    for index, segment in enumerate(segments):
+        if not isinstance(segment, dict):
+            raise ValueError(f"segment at index {index} must be a JSON object")
+
+        segment_id = segment.get("segment_id")
+        if not isinstance(segment_id, str) or not segment_id.strip():
+            raise ValueError(f"segment at index {index} must have a segment_id")
+
+    return segments
+
+
+def _load_segments_file(path: str) -> list[Dict[str, Any]]:
+    with open(path, 'r') as f:
+        return _validate_segments(json.load(f))
+
+
 def _clean_llm_string(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -203,16 +223,16 @@ def run_enrichment(
     if not os.path.exists(output_path):
         logger.info(f"Output file not found. Creating initial version from {segments_path}.")
         try:
+            _load_segments_file(segments_path)
             shutil.copy(segments_path, output_path)
-        except IOError as e:
+        except (OSError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to create initial output file: {e}")
             return None
 
     # Now, we read from and write to the same output_path.
     try:
-        with open(output_path, 'r') as f:
-            segments = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+        segments = _load_segments_file(output_path)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
         return None
 
