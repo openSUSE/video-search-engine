@@ -107,6 +107,62 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
     assert results[0]["summary"] == "valid result"
 
 
+def test_hybrid_search_service_skips_malformed_query_result_ids_before_fusion():
+    class CollectionWithMalformedQueryIds(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::segment-a_text",
+                            "demo.mp4::wrong-visual-id_visual",
+                            123,
+                        ]
+                    ]
+                }
+            return {
+                "ids": [
+                    [
+                        "demo.mp4::segment-b_visual",
+                        "demo.mp4::wrong-text-id_text",
+                        None,
+                    ]
+                ]
+            }
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ["demo.mp4::segment-a_text", "demo.mp4::segment-b_text"],
+                "metadatas": [
+                    _metadata(title="A", summary="valid text result"),
+                    _metadata(title="B", summary="valid visual result"),
+                ],
+            }
+
+    collection = CollectionWithMalformedQueryIds()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    results = service.search("find highlights", top_k=3, video_filename="demo.mp4")
+
+    assert [result["id"] for result in results] == [
+        "demo.mp4::segment-a",
+        "demo.mp4::segment-b",
+    ]
+    assert collection.get_call == {
+        "ids": ["demo.mp4::segment-a_text", "demo.mp4::segment-b_text"],
+        "include": ["metadatas"],
+    }
+
+
 def test_hybrid_search_service_omits_video_filter_when_not_requested():
     collection = FakeCollection()
     service = HybridSearchService(FakeEmbeddingModel(), collection)

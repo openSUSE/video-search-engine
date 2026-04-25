@@ -52,15 +52,43 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
     return float_vector
 
 
-def _first_id_list(results: Dict[str, Any]) -> List[str]:
-    ids = results.get("ids") or [[]]
+def _first_id_list(results: Dict[str, Any]) -> List[Any]:
+    if not isinstance(results, dict):
+        logger.warning("Skipping malformed search query results: expected a mapping.")
+        return []
+
+    ids = results.get("ids") or []
     if not ids:
         return []
-    return ids[0] or []
+    if not isinstance(ids, list):
+        logger.warning("Skipping malformed search query results: ids must be a list.")
+        return []
+
+    first_ids = ids[0] or []
+    if not isinstance(first_ids, (list, tuple)):
+        logger.warning(
+            "Skipping malformed search query results: first ids row must be a list."
+        )
+        return []
+    return list(first_ids)
 
 
 def _segment_id(doc_id: str, suffix: str) -> str:
     return doc_id.removesuffix(suffix)
+
+
+def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
+    segment_ids = []
+    for doc_id in _first_id_list(results):
+        if not isinstance(doc_id, str) or not doc_id.endswith(suffix):
+            logger.warning(
+                "Skipping malformed search query result id %r; expected suffix %s.",
+                doc_id,
+                suffix,
+            )
+            continue
+        segment_ids.append(_segment_id(doc_id, suffix))
+    return segment_ids
 
 
 def _metadata_string(metadata: Dict[str, Any], field_name: str) -> Optional[str]:
@@ -147,12 +175,10 @@ class HybridSearchService:
         )
 
         fused_scores: Dict[str, float] = {}
-        for rank, doc_id in enumerate(_first_id_list(text_results)):
-            segment_id = _segment_id(doc_id, "_text")
+        for rank, segment_id in enumerate(_query_segment_ids(text_results, "_text")):
             fused_scores[segment_id] = fused_scores.get(segment_id, 0) + 1 / (rank + RRF_K)
 
-        for rank, doc_id in enumerate(_first_id_list(visual_results)):
-            segment_id = _segment_id(doc_id, "_visual")
+        for rank, segment_id in enumerate(_query_segment_ids(visual_results, "_visual")):
             fused_scores[segment_id] = fused_scores.get(segment_id, 0) + 1 / (rank + RRF_K)
 
         top_segment_ids = sorted(
