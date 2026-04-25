@@ -268,6 +268,69 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
     }
 
 
+def test_run_pipeline_uses_injected_config_without_reloading(monkeypatch, tmp_path):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = {}
+
+    def fail_load_config():
+        raise AssertionError("injected config should be reused")
+
+    def fake_run_extraction(*args, **kwargs):
+        calls["extraction_config"] = kwargs.get("config")
+
+    def fake_run_segmentation(**kwargs):
+        calls["segmentation_config"] = kwargs.get("config")
+        return str(tmp_path / "segments.json")
+
+    def fake_run_enrichment(_segments_path, received_config):
+        calls["enrichment_config"] = received_config
+        return str(tmp_path / "enriched.json")
+
+    def fake_run_indexing(**kwargs):
+        calls["indexing_config"] = kwargs.get("config")
+
+    def fake_wait_for_speaker_identification(_video_path, _output_dir, config=None):
+        calls["speaker_wait_config"] = config
+        return str(tmp_path / "speaker_map.json")
+
+    monkeypatch.setattr(run_pipeline, "_load_config", fail_load_config)
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fake_run_segmentation,
+            fake_run_enrichment,
+            fake_run_indexing,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        fake_wait_for_speaker_identification,
+    )
+
+    assert run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == {
+        "extraction_config": config,
+        "speaker_wait_config": config,
+        "segmentation_config": config,
+        "enrichment_config": config,
+        "indexing_config": config,
+    }
+
+
 def test_run_pipeline_rejects_blank_video_path_before_loading_runtime(monkeypatch, tmp_path):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
 
@@ -301,6 +364,7 @@ def test_run_pipeline_main_rejects_blank_video_before_config_and_logging(monkeyp
 def test_run_pipeline_main_normalizes_string_arguments(monkeypatch, tmp_path):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     default_output_dir = str(tmp_path / "processed")
+    loaded_config = {"general": {"default_output_dir": default_output_dir}}
     monkeypatch.setattr(sys, "argv", [
         "run_pipeline",
         "--video",
@@ -314,18 +378,19 @@ def test_run_pipeline_main_normalizes_string_arguments(monkeypatch, tmp_path):
     monkeypatch.setattr(
         run_pipeline,
         "_load_config",
-        lambda: {"general": {"default_output_dir": default_output_dir}},
+        lambda: loaded_config,
     )
 
     calls = {}
 
-    def fake_run_pipeline(video_path, output_dir, title=None, year=None):
+    def fake_run_pipeline(video_path, output_dir, title=None, year=None, config=None):
         calls.update(
             {
                 "video_path": video_path,
                 "output_dir": output_dir,
                 "title": title,
                 "year": year,
+                "config": config,
             }
         )
         return True
@@ -339,4 +404,5 @@ def test_run_pipeline_main_normalizes_string_arguments(monkeypatch, tmp_path):
         "output_dir": default_output_dir,
         "title": "Demo Title",
         "year": None,
+        "config": loaded_config,
     }

@@ -240,7 +240,13 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         return None
 
 
-def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int = None) -> bool:
+def run_pipeline(
+    video_path: str,
+    output_dir: str,
+    title: str = None,
+    year: int = None,
+    config=None,
+) -> bool:
     try:
         video_path = _normalize_required_string(video_path, "video_path")
         output_dir = _normalize_required_string(output_dir, "output_dir")
@@ -249,7 +255,8 @@ def run_pipeline(video_path: str, output_dir: str, title: str = None, year: int 
         logger.critical("Invalid pipeline input: %s", e)
         return False
 
-    config = _load_config()
+    if config is None:
+        config = _load_config()
     run_extraction, run_segmentation, run_enrichment, run_indexing = _load_pipeline_steps()
 
     logger.info(f"Starting ingestion pipeline for video: {video_path}")
@@ -331,6 +338,7 @@ def main():
         output_dir or config['general']['default_output_dir'],
         title,
         args.year,
+        config=config,
     )
     if not succeeded:
         sys.exit(1)
