@@ -184,8 +184,8 @@ def test_save_speaker_map_rejects_missing_transcript_speakers(monkeypatch, tmp_p
     transcript_path.write_text(
         json.dumps(
             [
-                {"speaker": "SPEAKER_00", "text": "hello"},
-                {"speaker": "SPEAKER_01", "text": "reply"},
+                {"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"},
+                {"start": 1, "end": 2, "speaker": "SPEAKER_01", "text": "reply"},
             ]
         )
     )
@@ -218,7 +218,7 @@ def test_save_speaker_map_rejects_malformed_transcript(monkeypatch, tmp_path):
     video_path.parent.mkdir()
     video_path.write_bytes(b"")
     transcript_path = tmp_path / "transcript.json"
-    transcript_path.write_text(json.dumps({"speaker": "SPEAKER_00"}))
+    transcript_path.write_text(json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}]))
 
     output_dir = tmp_path / "processed"
     monkeypatch.setattr(speaker_app, "VIDEO_PATH", str(video_path))
@@ -248,7 +248,7 @@ def test_save_speaker_map_allows_empty_map_when_transcript_has_no_speakers(monke
     video_path.parent.mkdir()
     video_path.write_bytes(b"")
     transcript_path = tmp_path / "transcript.json"
-    transcript_path.write_text(json.dumps([{"text": "music"}]))
+    transcript_path.write_text(json.dumps([{"start": 0, "end": 1, "text": "music"}]))
 
     output_dir = tmp_path / "processed"
     monkeypatch.setattr(speaker_app, "VIDEO_PATH", str(video_path))

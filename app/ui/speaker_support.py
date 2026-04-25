@@ -168,6 +168,10 @@ def load_transcript_segments(path: str | Path) -> list[dict[str, Any]]:
     return validate_transcript_segments_for_display(transcript_segments)
 
 
+def load_transcript_speaker_ids(path: str | Path) -> list[str]:
+    return validate_speaker_ids_from_transcript(load_transcript_segments(path))
+
+
 def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
     if not isinstance(raw_speaker_map, dict):
         return None

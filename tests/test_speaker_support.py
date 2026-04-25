@@ -4,6 +4,7 @@ import pytest
 
 from app.ui.speaker_support import (
     load_transcript_segments,
+    load_transcript_speaker_ids,
     load_speaker_map,
     normalize_speaker_map,
     processed_video_folders,
@@ -126,6 +127,28 @@ def test_load_transcript_segments_validates_display_fields(tmp_path):
     assert load_transcript_segments(transcript_path) == [
         {"start": 1.0, "end": 2.0, "text": " hello ", "speaker": "SPEAKER_00"}
     ]
+
+
+def test_load_transcript_speaker_ids_requires_display_valid_transcript(tmp_path):
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            [
+                {"start": 0, "end": 1, "text": "hello", "speaker": " SPEAKER_01 "},
+                {"start": 2, "end": 3, "text": "reply", "speaker": "SPEAKER_00"},
+            ]
+        )
+    )
+
+    assert load_transcript_speaker_ids(transcript_path) == [
+        "SPEAKER_00",
+        "SPEAKER_01",
+    ]
+
+    transcript_path.write_text(json.dumps([{"speaker": "SPEAKER_00"}]))
+
+    with pytest.raises(ValueError, match="start"):
+        load_transcript_speaker_ids(transcript_path)
 
 
 @pytest.mark.parametrize(

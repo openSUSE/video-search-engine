@@ -6,8 +6,8 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 
 from app.ui.speaker_support import (
     load_transcript_segments,
+    load_transcript_speaker_ids,
     normalize_speaker_map,
-    validate_speaker_ids_from_transcript,
 )
 from app.ui.url_settings import local_http_url
 
@@ -80,9 +80,7 @@ def _required_speaker_ids():
     if not TRANSCRIPT_PATH:
         return []
 
-    with open(TRANSCRIPT_PATH, 'r') as f:
-        transcript = json.load(f)
-    return validate_speaker_ids_from_transcript(transcript)
+    return load_transcript_speaker_ids(TRANSCRIPT_PATH)
 
 
 @app.route('/api/save_map', methods=['POST'])

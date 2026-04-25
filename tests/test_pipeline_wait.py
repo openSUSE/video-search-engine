@@ -42,7 +42,7 @@ def test_external_speaker_map_wait_returns_existing_file(monkeypatch, tmp_path):
     speaker_dir = tmp_path / "processed" / "demo"
     speaker_dir.mkdir(parents=True)
     (speaker_dir / "transcript_raw.json").write_text(
-        json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}])
+        json.dumps([{"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"}])
     )
     speaker_map = speaker_dir / "speaker_map.json"
     speaker_map.write_text(json.dumps({"SPEAKER_00": "Alice"}))
@@ -80,8 +80,8 @@ def test_external_speaker_map_wait_requires_all_transcript_speakers(monkeypatch,
     (speaker_dir / "transcript_raw.json").write_text(
         json.dumps(
             [
-                {"speaker": "SPEAKER_00", "text": "hello"},
-                {"speaker": "SPEAKER_01", "text": "reply"},
+                {"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"},
+                {"start": 1, "end": 2, "speaker": "SPEAKER_01", "text": "reply"},
             ]
         )
     )
@@ -104,7 +104,7 @@ def test_speaker_map_readiness_allows_empty_map_for_transcript_without_speakers(
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     transcript_path = tmp_path / "transcript_raw.json"
     speaker_map_path = tmp_path / "speaker_map.json"
-    transcript_path.write_text(json.dumps([{"text": "music"}]))
+    transcript_path.write_text(json.dumps([{"start": 0, "end": 1, "text": "music"}]))
     speaker_map_path.write_text("{}")
 
     assert run_pipeline._speaker_map_readiness(
@@ -120,8 +120,8 @@ def test_speaker_map_readiness_rejects_malformed_transcript(
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     transcript_path = tmp_path / "transcript_raw.json"
     speaker_map_path = tmp_path / "speaker_map.json"
-    transcript_path.write_text(json.dumps({"speaker": "SPEAKER_00"}))
-    speaker_map_path.write_text("{}")
+    transcript_path.write_text(json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}]))
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
 
     is_ready, wait_reason = run_pipeline._speaker_map_readiness(
         str(speaker_map_path),
@@ -129,7 +129,7 @@ def test_speaker_map_readiness_rejects_malformed_transcript(
     )
 
     assert is_ready is False
-    assert "JSON array" in wait_reason
+    assert "start" in wait_reason
 
 
 def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_path):
@@ -141,8 +141,8 @@ def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_
     (speaker_dir / "transcript_raw.json").write_text(
         json.dumps(
             [
-                {"speaker": "SPEAKER_00", "text": "hello"},
-                {"speaker": "SPEAKER_01", "text": "reply"},
+                {"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"},
+                {"start": 1, "end": 2, "speaker": "SPEAKER_01", "text": "reply"},
             ]
         )
     )
@@ -275,7 +275,9 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
     output_dir = tmp_path / "processed"
     speaker_dir = output_dir / "demo"
     speaker_dir.mkdir(parents=True)
-    (speaker_dir / "transcript_raw.json").write_text(json.dumps([{"text": "music"}]))
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps([{"start": 0, "end": 1, "text": "music"}])
+    )
     (speaker_dir / "speaker_map.json").write_text("{}")
 
     assert run_pipeline.run_pipeline(str(tmp_path / "demo.mp4"), str(output_dir))

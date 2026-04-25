@@ -8,8 +8,8 @@ import time
 
 from core.logger import setup_logging
 from app.ui.speaker_support import (
+    load_transcript_speaker_ids,
     normalize_speaker_map,
-    validate_speaker_ids_from_transcript,
 )
 from app.ui.url_settings import local_http_url
 
@@ -89,11 +89,9 @@ def _speaker_map_readiness(
         return False, f"{speaker_map_path} does not exist yet"
 
     try:
-        with open(raw_transcript_path, "r") as f:
-            transcript = json.load(f)
         with open(speaker_map_path, "r") as f:
             speaker_map_data = json.load(f)
-        required_speaker_ids = validate_speaker_ids_from_transcript(transcript)
+        required_speaker_ids = load_transcript_speaker_ids(raw_transcript_path)
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
         return False, f"speaker map or transcript is not readable: {exc}"
 
