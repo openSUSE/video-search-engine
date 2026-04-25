@@ -13,6 +13,8 @@ def test_run_enrichment_uses_injected_provider_and_preserves_completed_segments(
             [
                 {
                     "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
                     "full_transcript": "important dialogue",
                     "speakers": ["Alice"],
                     "consolidated_visual_captions": ["a train platform"],
@@ -21,6 +23,8 @@ def test_run_enrichment_uses_injected_provider_and_preserves_completed_segments(
                 },
                 {
                     "segment_id": "segment_0002",
+                    "start_time": 5.0,
+                    "end_time": 10.0,
                     "title": "Already Done",
                     "summary": "Existing summary",
                     "keywords": ["existing"],
@@ -71,6 +75,8 @@ def test_run_enrichment_normalizes_provider_name(tmp_path):
             [
                 {
                     "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
                     "full_transcript": "dialogue",
                     "speakers": [],
                     "consolidated_visual_captions": [],
@@ -106,6 +112,8 @@ def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
             [
                 {
                     "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
                     "full_transcript": "dialogue",
                     "speakers": [],
                     "consolidated_visual_captions": [],
@@ -143,6 +151,8 @@ def test_run_enrichment_ignores_non_object_video_metadata(tmp_path):
             [
                 {
                     "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
                     "full_transcript": "dialogue",
                     "speakers": [],
                     "consolidated_visual_captions": [],
@@ -180,6 +190,8 @@ def test_run_enrichment_retries_partially_enriched_segments(tmp_path):
             [
                 {
                     "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
                     "title": "Only Title Exists",
                     "full_transcript": "dialogue",
                     "speakers": [],
@@ -319,6 +331,10 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
         [{"segment_id": "segment_0001", "consolidated_visual_captions": [42]}],
         [{"segment_id": "segment_0001", "consolidated_actions": [None]}],
         [{"segment_id": "segment_0001", "consolidated_audio_events": ["music", 7]}],
+        [{"segment_id": "segment_0001", "end_time": 1.0}],
+        [{"segment_id": "segment_0001", "start_time": 0.0}],
+        [{"segment_id": "segment_0001", "start_time": True, "end_time": 1.0}],
+        [{"segment_id": "segment_0001", "start_time": 2.0, "end_time": 1.0}],
     ],
 )
 def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_calling_provider(
@@ -345,7 +361,17 @@ def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_callin
 
 def test_run_enrichment_rejects_invalid_resume_state_before_calling_provider(tmp_path):
     segments_path = tmp_path / "final_segments.json"
-    segments_path.write_text(json.dumps([{"segment_id": "segment_0001"}]))
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                }
+            ]
+        )
+    )
     (tmp_path / "enriched.json").write_text(
         json.dumps([{"segment_id": "segment_0001", "speakers": "Alice"}])
     )

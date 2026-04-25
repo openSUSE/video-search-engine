@@ -191,6 +191,31 @@ def _validate_optional_string_list_field(
             )
 
 
+def _segment_time_value(segment: Dict[str, Any], index: int, field_name: str) -> float:
+    if field_name not in segment:
+        raise ValueError(f"segment at index {index} must have {field_name}")
+
+    value = segment[field_name]
+    if isinstance(value, bool):
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be a number"
+        )
+
+    try:
+        time_value = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be a number"
+        ) from exc
+
+    if time_value < 0:
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be non-negative"
+        )
+
+    return time_value
+
+
 def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
     if not isinstance(segments, list):
         raise ValueError("segments file must contain a JSON array")
@@ -211,6 +236,16 @@ def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
             "consolidated_audio_events",
         ):
             _validate_optional_string_list_field(segment, index, field_name)
+
+        start_time = _segment_time_value(segment, index, "start_time")
+        end_time = _segment_time_value(segment, index, "end_time")
+        if end_time < start_time:
+            raise ValueError(
+                f"segment at index {index} "
+                "end_time must be greater than or equal to start_time"
+            )
+        segment["start_time"] = start_time
+        segment["end_time"] = end_time
 
     return segments
 
