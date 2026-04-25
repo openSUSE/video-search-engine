@@ -292,9 +292,18 @@ def _safe_llm_updates(llm_data: Any) -> Optional[Dict[str, Any]]:
 
 
 def _has_complete_enrichment(segment: Dict[str, Any]) -> bool:
+    if not isinstance(segment.get("title"), str):
+        return False
+    if not isinstance(segment.get("summary"), str):
+        return False
+
     title = _clean_llm_string(segment.get("title"))
     summary = _clean_llm_string(segment.get("summary"))
     keywords = segment.get("keywords")
+    if not isinstance(keywords, list) or any(
+        not isinstance(keyword, str) for keyword in keywords
+    ):
+        return False
 
     return bool(
         title

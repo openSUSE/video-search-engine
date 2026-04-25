@@ -228,6 +228,65 @@ def test_run_enrichment_retries_partially_enriched_segments(tmp_path):
     assert segment["keywords"] == ["complete"]
 
 
+@pytest.mark.parametrize(
+    "resume_updates",
+    [
+        {"title": {"bad": "shape"}},
+        {"summary": ["bad", "shape"]},
+        {"keywords": ["existing", 42]},
+    ],
+)
+def test_run_enrichment_retries_malformed_enrichment_fields(tmp_path, resume_updates):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "dialogue",
+                }
+            ]
+        )
+    )
+    resume_segment = {
+        "segment_id": "segment_0001",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "full_transcript": "dialogue",
+        "title": "Existing Title",
+        "summary": "Existing summary.",
+        "keywords": ["existing"],
+    }
+    resume_segment.update(resume_updates)
+    (tmp_path / "enriched.json").write_text(json.dumps([resume_segment]))
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {
+            "title": "Regenerated Title",
+            "summary": "Regenerated summary.",
+            "keywords": ["complete"],
+        }
+
+    run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert len(calls) == 1
+    assert segment["title"] == "Regenerated Title"
+    assert segment["summary"] == "Regenerated summary."
+    assert segment["keywords"] == ["complete"]
+
+
 def test_run_enrichment_does_not_apply_structural_llm_fields(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(
