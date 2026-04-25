@@ -41,6 +41,21 @@ def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
     return f"{video_filename}::{segment_id}{suffix}"
 
 
+def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
+    if not isinstance(segments, list):
+        raise ValueError("enriched segments file must contain a JSON array")
+
+    for index, segment in enumerate(segments):
+        if not isinstance(segment, dict):
+            raise ValueError(f"enriched segment at index {index} must be a JSON object")
+
+        segment_id = segment.get("segment_id")
+        if not isinstance(segment_id, str) or not segment_id.strip():
+            raise ValueError(f"enriched segment at index {index} must have a segment_id")
+
+    return segments
+
+
 def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Dict[str, Any]:
     """
     Prepares a clean metadata dictionary for ChromaDB.
@@ -101,7 +116,7 @@ def run_indexing(
     # 1. Load the enriched segments data
     logger.info(f"1/4: Loading enriched segments from {enriched_segments_path}...")
     with open(enriched_segments_path, "r") as f:
-        segments = json.load(f)
+        segments = _validate_segments(json.load(f))
 
     if not segments:
         logger.warning("No segments found in the input file. Skipping indexing.")

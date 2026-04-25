@@ -1,5 +1,8 @@
 import json
 
+import pytest
+
+from ingestion_pipeline.steps import step_04_indexing as indexing_step
 from ingestion_pipeline.steps.step_04_indexing import run_indexing
 
 
@@ -149,3 +152,35 @@ def test_run_indexing_skips_empty_segment_files_without_creating_dependencies(tm
         "demo-video",
         {},
     )
+
+
+@pytest.mark.parametrize(
+    ("segments", "message"),
+    [
+        ({"segment_id": "segment-1"}, "JSON array"),
+        (["not a segment"], "index 0"),
+        ([{"summary": "missing id"}], "segment_id"),
+        ([{"segment_id": " "}], "segment_id"),
+    ],
+)
+def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+    segments,
+    message,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(json.dumps(segments))
+
+    def fail_create_dependency(_config):
+        raise AssertionError("indexing dependencies should not load for invalid segment data")
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
