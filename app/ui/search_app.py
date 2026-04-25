@@ -13,6 +13,7 @@ from app.ui.search_client import (
     post_search,
     search_api_url,
     search_payload,
+    search_results_from_response,
 )
 from app.ui.search_state import (
     ensure_search_session_state,
@@ -86,8 +87,13 @@ with col1:
                     response = post_search(API_URL, payload)
                     
                     if response.status_code == 200:
-                        results = response.json().get('results', [])
-                        st.session_state.search_results = results
+                        try:
+                            st.session_state.search_results = search_results_from_response(
+                                response
+                            )
+                        except ValueError as e:
+                            st.error(f"Search API returned an unusable response: {e}")
+                            st.session_state.search_results = []
                     else:
                         st.error(f"Failed to get results from API. Status code: {response.status_code}")
                         st.error(f"Response: {response.text}")

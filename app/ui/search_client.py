@@ -12,6 +12,58 @@ DEFAULT_API_PORT = "1234"
 RequestException = requests.exceptions.RequestException
 
 
+def _response_string(result: Mapping[str, Any], field_name: str, result_index: int) -> str:
+    value = result.get(field_name)
+    if not isinstance(value, str):
+        raise ValueError(
+            f"search result at index {result_index} must have string {field_name}"
+        )
+    return value
+
+
+def _response_number(
+    result: Mapping[str, Any],
+    field_name: str,
+    result_index: int,
+) -> float:
+    value = result.get(field_name)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"search result at index {result_index} must have numeric {field_name}"
+        )
+
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise ValueError(
+            f"search result at index {result_index} must have usable {field_name}"
+        )
+    return number
+
+
+def _search_result_from_payload(result: Any, result_index: int) -> dict[str, Any]:
+    if not isinstance(result, Mapping):
+        raise ValueError(f"search result at index {result_index} must be a JSON object")
+
+    start_time = _response_number(result, "start_time", result_index)
+    end_time = _response_number(result, "end_time", result_index)
+    if end_time < start_time:
+        raise ValueError(
+            f"search result at index {result_index} end_time must be "
+            "greater than or equal to start_time"
+        )
+
+    return {
+        "id": _response_string(result, "id", result_index),
+        "score": _response_number(result, "score", result_index),
+        "start_time": start_time,
+        "end_time": end_time,
+        "title": _response_string(result, "title", result_index),
+        "summary": _response_string(result, "summary", result_index),
+        "video_filename": _response_string(result, "video_filename", result_index),
+        "speakers": _response_string(result, "speakers", result_index),
+    }
+
+
 def _url_component(value: Any, default: str) -> str:
     if value is None:
         return default
@@ -78,3 +130,22 @@ def search_timeout_seconds(raw_value: str | None = None) -> float:
 def post_search(api_url: str, payload: Mapping[str, Any], timeout_seconds: float | None = None):
     timeout = search_timeout_seconds() if timeout_seconds is None else timeout_seconds
     return requests.post(api_url, json=dict(payload), timeout=timeout)
+
+
+def search_results_from_response(response: Any) -> list[dict[str, Any]]:
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ValueError("Search API response must be valid JSON") from exc
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("Search API response must be a JSON object")
+
+    results = payload.get("results")
+    if not isinstance(results, list):
+        raise ValueError("Search API response must include a results list")
+
+    return [
+        _search_result_from_payload(result, result_index)
+        for result_index, result in enumerate(results)
+    ]

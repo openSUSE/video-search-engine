@@ -3,6 +3,31 @@ import pytest
 from app.ui import search_client
 
 
+def _search_result(**updates):
+    result = {
+        "id": "segment-a",
+        "score": 0.5,
+        "start_time": 1,
+        "end_time": 2.5,
+        "title": "Opening",
+        "summary": "A calm opening scene.",
+        "video_filename": "demo.mp4",
+        "speakers": "Alice",
+    }
+    result.update(updates)
+    return result
+
+
+class FakeSearchResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def json(self):
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return self.payload
+
+
 def test_search_api_url_uses_config_host_and_port():
     config = {"api_server": {"host": "api", "port": 1234}}
 
@@ -113,3 +138,42 @@ def test_search_timeout_falls_back_to_default_for_unusable_values(raw_value):
         search_client.search_timeout_seconds(raw_value)
         == search_client.DEFAULT_SEARCH_TIMEOUT_SECONDS
     )
+
+
+def test_search_results_from_response_validates_and_normalizes_results():
+    response = FakeSearchResponse({"results": [_search_result()]})
+
+    assert search_client.search_results_from_response(response) == [
+        {
+            "id": "segment-a",
+            "score": 0.5,
+            "start_time": 1.0,
+            "end_time": 2.5,
+            "title": "Opening",
+            "summary": "A calm opening scene.",
+            "video_filename": "demo.mp4",
+            "speakers": "Alice",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (ValueError("bad json"), "valid JSON"),
+        ([], "JSON object"),
+        ({}, "results list"),
+        ({"results": "not a list"}, "results list"),
+        ({"results": ["not an object"]}, "result at index 0"),
+        ({"results": [_search_result(title=123)]}, "title"),
+        ({"results": [_search_result(score=-0.1)]}, "score"),
+        ({"results": [_search_result(start_time=True)]}, "start_time"),
+        ({"results": [_search_result(start_time=float("nan"))]}, "start_time"),
+        ({"results": [_search_result(start_time=3, end_time=2)]}, "end_time"),
+    ],
+)
+def test_search_results_from_response_rejects_malformed_payloads(payload, message):
+    response = FakeSearchResponse(payload)
+
+    with pytest.raises(ValueError, match=message):
+        search_client.search_results_from_response(response)
