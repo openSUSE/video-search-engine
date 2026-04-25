@@ -157,6 +157,12 @@ def test_validate_compiles_source_trees_instead_of_fixed_file_list():
     assert "-m compileall -q api app core ingestion_pipeline inspect_db.py" in makefile
 
 
+def test_publish_ingest_quotes_video_path_argument():
+    makefile = Path("Makefile").read_text()
+
+    assert "--video \"$(VIDEO)\"" in makefile
+
+
 def test_api_main_defers_heavy_search_dependency_imports():
     imported_modules = _top_level_import_modules("api/main.py")
 

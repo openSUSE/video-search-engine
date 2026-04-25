@@ -22,7 +22,7 @@ validate: test
 
 publish-ingest:
 	@test -n "$(VIDEO)" || (echo "Set VIDEO=/data/videos/your_video.mp4" && exit 1)
-	$(VENV)/bin/python -m ingestion_pipeline.publisher --video $(VIDEO)
+	$(VENV)/bin/python -m ingestion_pipeline.publisher --video "$(VIDEO)"
 
 compose-up:
 	$(COMPOSE) up --build chroma rabbitmq api ui-search
