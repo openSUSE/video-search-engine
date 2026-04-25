@@ -681,3 +681,80 @@ def test_create_final_analysis_file_rejects_artifacts_for_unknown_shots(tmp_path
         create_final_analysis_file(paths)
 
     assert not Path(paths["final_analysis"]).exists()
+
+
+@pytest.mark.parametrize(
+    ("artifact_name", "missing_artifact_data", "message"),
+    [
+        (
+            "visual_details",
+            [{"shot_id": "shot_0001", "caption": "a station platform"}],
+            "visual details is missing shot_id: shot_0002",
+        ),
+        (
+            "audio_events",
+            [{"shot_id": "shot_0001", "events": [{"event": "speech"}]}],
+            "audio events is missing shot_id: shot_0002",
+        ),
+        (
+            "actions",
+            [{"shot_id": "shot_0001", "actions": [{"action": "standing"}]}],
+            "actions is missing shot_id: shot_0002",
+        ),
+    ],
+)
+def test_create_final_analysis_file_rejects_per_shot_artifacts_missing_known_shots(
+    tmp_path,
+    artifact_name,
+    missing_artifact_data,
+    message,
+):
+    paths = {
+        "shots": str(tmp_path / "shots.json"),
+        "visual_details": str(tmp_path / "visual_details.json"),
+        "audio_events": str(tmp_path / "audio_events.json"),
+        "transcript_aligned": str(tmp_path / "aligned.json"),
+        "actions": str(tmp_path / "actions.json"),
+        "final_analysis": str(tmp_path / "final_analysis.json"),
+    }
+    valid_artifacts = {
+        "shots": [
+            {
+                "shot_id": "shot_0001",
+                "shot_index": 1,
+                "start_time_sec": 0.0,
+                "end_time_sec": 2.0,
+                "start_frame": 0,
+                "end_frame": 48,
+            },
+            {
+                "shot_id": "shot_0002",
+                "shot_index": 2,
+                "start_time_sec": 2.0,
+                "end_time_sec": 4.0,
+                "start_frame": 49,
+                "end_frame": 96,
+            },
+        ],
+        "visual_details": [
+            {"shot_id": "shot_0001", "caption": "a station platform"},
+            {"shot_id": "shot_0002", "caption": "a train"},
+        ],
+        "audio_events": [
+            {"shot_id": "shot_0001", "events": [{"event": "speech"}]},
+            {"shot_id": "shot_0002", "events": []},
+        ],
+        "transcript_aligned": [],
+        "actions": [
+            {"shot_id": "shot_0001", "actions": [{"action": "standing"}]},
+            {"shot_id": "shot_0002", "actions": []},
+        ],
+    }
+    valid_artifacts[artifact_name] = missing_artifact_data
+    for name, data in valid_artifacts.items():
+        Path(paths[name]).write_text(json.dumps(data))
+
+    with pytest.raises(ValueError, match=message):
+        create_final_analysis_file(paths)
+
+    assert not Path(paths["final_analysis"]).exists()

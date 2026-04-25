@@ -405,6 +405,20 @@ def _validate_known_shot_references(
         )
 
 
+def _validate_required_shot_coverage(
+    items: List[Dict[str, Any]],
+    known_shot_ids: set[str],
+    artifact_name: str,
+) -> None:
+    present_shot_ids = {item["shot_id"] for item in items}
+    missing_shot_ids = sorted(known_shot_ids - present_shot_ids)
+    if missing_shot_ids:
+        raise ValueError(
+            f"{artifact_name} is missing shot_id: "
+            + ", ".join(missing_shot_ids)
+        )
+
+
 def _write_empty_per_shot_output_if_needed(
     scenes: List[Dict[str, Any]],
     output_path: str,
@@ -711,6 +725,9 @@ def create_final_analysis_file(paths: Dict[str, str]):
     _validate_known_shot_references(audio_data, shot_ids, "audio events")
     _validate_known_shot_references(transcript_data, shot_ids, "aligned transcript")
     _validate_known_shot_references(actions_data, shot_ids, "actions")
+    _validate_required_shot_coverage(visual_data, shot_ids, "visual details")
+    _validate_required_shot_coverage(audio_data, shot_ids, "audio events")
+    _validate_required_shot_coverage(actions_data, shot_ids, "actions")
 
     # Create maps for efficient lookup by shot_id
     captions_map = {item['shot_id']: item['caption'] for item in visual_data}
