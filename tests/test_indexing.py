@@ -308,10 +308,12 @@ def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
 @pytest.mark.parametrize(
     ("segments", "message"),
     [
+        ([{"segment_id": "segment-1", "end_time": 1}], "start_time"),
+        ([{"segment_id": "segment-1", "start_time": 0}], "end_time"),
         ([{"segment_id": "segment-1", "start_time": "bad"}], "start_time"),
         ([{"segment_id": "segment-1", "start_time": True}], "start_time"),
         ([{"segment_id": "segment-1", "start_time": -1}], "start_time"),
-        ([{"segment_id": "segment-1", "end_time": None}], "end_time"),
+        ([{"segment_id": "segment-1", "start_time": 0, "end_time": None}], "end_time"),
         ([{"segment_id": "segment-1", "start_time": 4, "end_time": 3}], "end_time"),
     ],
 )

@@ -63,7 +63,12 @@ def _normalize_video_filename(video_filename: Any) -> str:
 
 
 def _segment_time_value(segment: Dict[str, Any], field_name: str, index: int) -> float:
-    value = segment.get(field_name, 0.0)
+    if field_name not in segment:
+        raise ValueError(
+            f"enriched segment at index {index} must have {field_name}"
+        )
+
+    value = segment[field_name]
     if isinstance(value, bool):
         raise ValueError(
             f"enriched segment at index {index} {field_name} must be a number"
@@ -141,11 +146,13 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
 
         start_time = _segment_time_value(segment, "start_time", index)
         end_time = _segment_time_value(segment, "end_time", index)
-        if "start_time" in segment and "end_time" in segment and end_time < start_time:
+        if end_time < start_time:
             raise ValueError(
                 f"enriched segment at index {index} "
                 "end_time must be greater than or equal to start_time"
             )
+        segment["start_time"] = start_time
+        segment["end_time"] = end_time
 
     return segments
 
@@ -169,8 +176,8 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
         "keywords": keywords_str,
         "actions": actions_str,
         # Essential data for displaying results
-        "start_time": float(segment.get("start_time", 0.0)),
-        "end_time": float(segment.get("end_time", 0.0)),
+        "start_time": segment["start_time"],
+        "end_time": segment["end_time"],
         "video_filename": video_filename,
     }
 
