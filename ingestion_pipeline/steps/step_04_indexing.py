@@ -148,6 +148,7 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
     if not isinstance(segments, list):
         raise ValueError("enriched segments file must contain a JSON array")
 
+    seen_segment_ids = set()
     for index, segment in enumerate(segments):
         if not isinstance(segment, dict):
             raise ValueError(f"enriched segment at index {index} must be a JSON object")
@@ -155,6 +156,13 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
         segment_id = segment.get("segment_id")
         if not isinstance(segment_id, str) or not segment_id.strip():
             raise ValueError(f"enriched segment at index {index} must have a segment_id")
+        normalized_segment_id = segment_id.strip()
+        if normalized_segment_id in seen_segment_ids:
+            raise ValueError(
+                f"enriched segment at index {index} has duplicate segment_id"
+            )
+        seen_segment_ids.add(normalized_segment_id)
+        segment["segment_id"] = normalized_segment_id
 
         for field_name in ("full_transcript", "summary", "title"):
             _validate_optional_string_field(segment, index, field_name)

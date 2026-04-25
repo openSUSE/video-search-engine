@@ -184,6 +184,36 @@ def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp
     ]
 
 
+def test_run_indexing_normalizes_segment_ids_before_building_document_ids(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "  segment-1  ",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=FakeEmbeddingModel(),
+        collection=collection,
+    )
+
+    assert collection.upsert_call["ids"] == [
+        "demo-video::segment-1_text",
+        "demo-video::segment-1_visual",
+    ]
+
+
 @pytest.mark.parametrize(
     ("bad_call_index", "message"),
     [
@@ -436,6 +466,46 @@ def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
     monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
 
     with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
+
+
+def test_run_indexing_rejects_duplicate_segment_ids_after_normalization(
+    monkeypatch,
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.0,
+                    "end_time": 2.0,
+                },
+                {
+                    "segment_id": " segment-1 ",
+                    "summary": "person exits",
+                    "start_time": 3.0,
+                    "end_time": 4.0,
+                },
+            ]
+        )
+    )
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for duplicate segment IDs"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match="duplicate segment_id"):
         run_indexing(
             str(enriched_segments_path),
             "demo-video",
