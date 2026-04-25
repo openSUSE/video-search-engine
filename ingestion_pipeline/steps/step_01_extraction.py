@@ -105,16 +105,44 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
             raise ValueError(f"shot boundary at index {index} must have a shot_id")
 
         for field_name in ("shot_index", "start_frame", "end_frame"):
-            if not _is_integer(shot.get(field_name)):
+            field_value = shot.get(field_name)
+            if not _is_integer(field_value):
                 raise ValueError(
                     f"shot boundary at index {index} must have integer {field_name}"
                 )
 
+            if field_name == "shot_index":
+                if field_value <= 0:
+                    raise ValueError(
+                        f"shot boundary at index {index} must have positive {field_name}"
+                    )
+            elif field_value < 0:
+                raise ValueError(
+                    f"shot boundary at index {index} must have non-negative {field_name}"
+                )
+
         for field_name in ("start_time_sec", "end_time_sec"):
-            if not _is_number(shot.get(field_name)):
+            field_value = shot.get(field_name)
+            if not _is_number(field_value):
                 raise ValueError(
                     f"shot boundary at index {index} must have numeric {field_name}"
                 )
+            if field_value < 0:
+                raise ValueError(
+                    f"shot boundary at index {index} must have non-negative {field_name}"
+                )
+
+        if shot["end_frame"] < shot["start_frame"]:
+            raise ValueError(
+                f"shot boundary at index {index} end_frame "
+                "must be greater than or equal to start_frame"
+            )
+
+        if shot["end_time_sec"] < shot["start_time_sec"]:
+            raise ValueError(
+                f"shot boundary at index {index} end_time_sec "
+                "must be greater than or equal to start_time_sec"
+            )
 
     return raw_scenes
 
