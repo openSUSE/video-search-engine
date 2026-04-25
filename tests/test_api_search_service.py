@@ -107,6 +107,38 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
     assert results[0]["summary"] == "valid result"
 
 
+def test_hybrid_search_service_skips_malformed_fetched_metadata_ids():
+    class CollectionWithMalformedFetchedMetadataIds(FakeCollection):
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": [
+                    "demo.mp4::segment-b_text",
+                    "demo.mp4::segment-a_visual",
+                    123,
+                    None,
+                    "demo.mp4::segment-a_text",
+                ],
+                "metadatas": [
+                    _metadata(title="B", summary="valid fetched result"),
+                    _metadata(title="A visual", summary="wrong document type"),
+                    _metadata(title="numeric id"),
+                    _metadata(title="missing id"),
+                    "not metadata",
+                ],
+            }
+
+    service = HybridSearchService(
+        FakeEmbeddingModel(),
+        CollectionWithMalformedFetchedMetadataIds(),
+    )
+
+    results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
+    assert results[0]["summary"] == "valid fetched result"
+
+
 def test_hybrid_search_service_skips_malformed_query_result_ids_before_fusion():
     class CollectionWithMalformedQueryIds(FakeCollection):
         def query(self, *, query_embeddings, n_results, where):

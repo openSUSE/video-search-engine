@@ -1,11 +1,18 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 def text_metadata_by_segment_id(
-    ids: List[str], metadatas: List[Dict[str, Any]]
+    ids: Any, metadatas: Any
 ) -> Dict[str, Dict[str, Any]]:
-    return {
-        doc_id.removesuffix("_text"): metadata
-        for doc_id, metadata in zip(ids, metadatas)
-        if doc_id.endswith("_text")
-    }
+    if not isinstance(ids, list) or not isinstance(metadatas, list):
+        return {}
+
+    metadata_by_segment_id = {}
+    for doc_id, metadata in zip(ids, metadatas):
+        if not isinstance(doc_id, str) or not doc_id.endswith("_text"):
+            continue
+        if not isinstance(metadata, dict):
+            continue
+        metadata_by_segment_id[doc_id.removesuffix("_text")] = metadata
+
+    return metadata_by_segment_id
