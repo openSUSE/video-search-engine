@@ -12,7 +12,6 @@ transformers
 sentence-transformers
 timm
 colorlog
-pandas
 scikit-learn
 ffmpeg-python
 requests

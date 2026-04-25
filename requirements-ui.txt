@@ -2,4 +2,3 @@ streamlit
 requests
 PyYAML
 python-dotenv
-pandas
