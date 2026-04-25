@@ -123,7 +123,39 @@ def _resolve_llm_client(
 
 
 def _video_synopsis(video_metadata: Dict[str, Any]) -> str:
-    return video_metadata.get('synopsis') or video_metadata.get('logline') or 'N/A'
+    return (
+        _clean_metadata_string(video_metadata.get('synopsis'))
+        or _clean_metadata_string(video_metadata.get('logline'))
+        or 'N/A'
+    )
+
+
+def _clean_metadata_string(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+
+    value = value.strip()
+    return value or None
+
+
+def _load_video_metadata(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        logger.warning(f"{path} not found. Proceeding without video context.")
+        return {}
+
+    try:
+        with open(path, 'r') as f:
+            video_metadata = json.load(f)
+    except json.JSONDecodeError:
+        logger.warning(f"Could not parse {path}. Proceeding without it.")
+        return {}
+
+    if not isinstance(video_metadata, dict):
+        logger.warning(f"{path} must contain a JSON object. Proceeding without it.")
+        return {}
+
+    logger.info(f"Loaded video metadata from {path}")
+    return video_metadata
 
 
 def _validate_optional_string_field(
@@ -279,18 +311,9 @@ def run_enrichment(
         return None
 
     video_metadata_path = os.path.join(processed_dir, 'video_metadata.json')
-    video_metadata = {}
-    if os.path.exists(video_metadata_path):
-        try:
-            with open(video_metadata_path, 'r') as f:
-                video_metadata = json.load(f)
-            logger.info(f"Loaded video metadata from {video_metadata_path}")
-        except json.JSONDecodeError:
-            logger.warning(f"Could not parse {video_metadata_path}. Proceeding without it.")
-    else:
-        logger.warning(f"{video_metadata_path} not found. Proceeding without video context.")
-    
-    video_title = video_metadata.get('title', 'N/A')
+    video_metadata = _load_video_metadata(video_metadata_path)
+
+    video_title = _clean_metadata_string(video_metadata.get('title')) or 'N/A'
     video_synopsis = _video_synopsis(video_metadata)
 
     total_segments = len(segments)

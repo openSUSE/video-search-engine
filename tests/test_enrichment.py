@@ -136,6 +136,43 @@ def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
     assert "A legacy overview." in calls[0]
 
 
+def test_run_enrichment_ignores_non_object_video_metadata(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "full_transcript": "dialogue",
+                    "speakers": [],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+    (tmp_path / "video_metadata.json").write_text(json.dumps(["not", "metadata"]))
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {"title": "Generated", "summary": "Summary.", "keywords": ["demo"]}
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    assert "- Title: N/A" in calls[0]
+    assert "- Synopsis: N/A" in calls[0]
+
+
 def test_run_enrichment_retries_partially_enriched_segments(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(
