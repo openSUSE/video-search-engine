@@ -45,6 +45,65 @@ def _segment_id(doc_id: str, suffix: str) -> str:
     return doc_id.removesuffix(suffix)
 
 
+def _metadata_string(metadata: Dict[str, Any], field_name: str) -> Optional[str]:
+    value = metadata.get(field_name)
+    if not isinstance(value, str):
+        return None
+    return value
+
+
+def _metadata_time(metadata: Dict[str, Any], field_name: str) -> Optional[float]:
+    value = metadata.get(field_name)
+    if isinstance(value, bool):
+        return None
+    try:
+        time_value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if time_value < 0:
+        return None
+    return time_value
+
+
+def _format_search_result(
+    segment_id: str,
+    score: float,
+    metadata: Any,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(metadata, dict):
+        return None
+
+    title = _metadata_string(metadata, "title")
+    summary = _metadata_string(metadata, "summary")
+    video_filename = _metadata_string(metadata, "video_filename")
+    speakers = _metadata_string(metadata, "speakers")
+    start_time = _metadata_time(metadata, "start_time")
+    end_time = _metadata_time(metadata, "end_time")
+
+    if (
+        title is None
+        or summary is None
+        or video_filename is None
+        or not video_filename.strip()
+        or speakers is None
+        or start_time is None
+        or end_time is None
+        or end_time < start_time
+    ):
+        return None
+
+    return {
+        "id": segment_id,
+        "score": score,
+        "title": title,
+        "summary": summary,
+        "start_time": start_time,
+        "end_time": end_time,
+        "video_filename": video_filename,
+        "speakers": speakers,
+    }
+
+
 class HybridSearchService:
     def __init__(self, embedding_model: EmbeddingModel, collection: VectorCollection):
         self.embedding_model = embedding_model
@@ -98,14 +157,18 @@ class HybridSearchService:
         formatted_results = []
         for segment_id in top_segment_ids:
             metadata = metadata_by_segment_id.get(segment_id)
-            if metadata:
-                formatted_results.append(
-                    {
-                        "id": segment_id,
-                        "score": fused_scores[segment_id],
-                        **metadata,
-                    }
+            result = _format_search_result(
+                segment_id,
+                fused_scores[segment_id],
+                metadata,
+            )
+            if result is None:
+                logger.warning(
+                    "Skipping search result for %s with malformed text metadata.",
+                    segment_id,
                 )
+                continue
+            formatted_results.append(result)
 
         return formatted_results
 

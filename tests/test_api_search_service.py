@@ -1,6 +1,19 @@
 from api.search_service import HybridSearchService
 
 
+def _metadata(**updates):
+    metadata = {
+        "title": "Title",
+        "summary": "Summary",
+        "start_time": 1.0,
+        "end_time": 2.0,
+        "video_filename": "demo.mp4",
+        "speakers": "Alice",
+    }
+    metadata.update(updates)
+    return metadata
+
+
 class FakeEmbeddingModel:
     def __init__(self):
         self.queries = []
@@ -23,7 +36,7 @@ class FakeCollection:
                 "where": where,
             }
         )
-        doc_type = where["$and"][0]["type"]
+        doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
         if doc_type == "text":
             return {"ids": [["demo.mp4::segment-a_text", "demo.mp4::segment-b_text"]]}
         return {"ids": [["demo.mp4::segment-b_visual", "demo.mp4::segment-c_visual"]]}
@@ -33,8 +46,8 @@ class FakeCollection:
         return {
             "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
             "metadatas": [
-                {"title": "B", "summary": "shared text and visual match"},
-                {"title": "A", "summary": "text-only match"},
+                _metadata(title="B", summary="shared text and visual match"),
+                _metadata(title="A", summary="text-only match"),
             ],
         }
 
@@ -70,3 +83,35 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
         "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
         "include": ["metadatas"],
     }
+
+
+def test_hybrid_search_service_skips_malformed_text_metadata():
+    class CollectionWithStaleMetadata(FakeCollection):
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
+                "metadatas": [
+                    _metadata(title="B", summary="valid result"),
+                    _metadata(title="A", start_time="bad"),
+                ],
+            }
+
+    service = HybridSearchService(FakeEmbeddingModel(), CollectionWithStaleMetadata())
+
+    results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
+    assert results[0]["summary"] == "valid result"
+
+
+def test_hybrid_search_service_omits_video_filter_when_not_requested():
+    collection = FakeCollection()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    service.search("find highlights", top_k=1)
+
+    assert [call["where"] for call in collection.query_calls] == [
+        {"type": "text"},
+        {"type": "visual"},
+    ]
