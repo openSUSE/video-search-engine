@@ -147,6 +147,59 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
     return raw_scenes
 
 
+def _validate_transcript_time(
+    segment: Dict[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> float:
+    field_value = segment.get(field_name)
+    if not _is_number(field_value):
+        raise ValueError(
+            f"raw transcript segment at index {segment_index} "
+            f"must have numeric {field_name}"
+        )
+    if field_value < 0:
+        raise ValueError(
+            f"raw transcript segment at index {segment_index} "
+            f"must have non-negative {field_name}"
+        )
+
+    return float(field_value)
+
+
+def _validate_raw_transcript_segments(raw_segments: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_segments, list):
+        raise ValueError("raw transcript file must contain a JSON array")
+
+    for segment_index, segment in enumerate(raw_segments):
+        if not isinstance(segment, dict):
+            raise ValueError(
+                f"raw transcript segment at index {segment_index} must be a JSON object"
+            )
+
+        start = _validate_transcript_time(segment, segment_index, "start")
+        end = _validate_transcript_time(segment, segment_index, "end")
+        if end < start:
+            raise ValueError(
+                f"raw transcript segment at index {segment_index} "
+                "end must be greater than or equal to start"
+            )
+
+        if not isinstance(segment.get("text"), str):
+            raise ValueError(
+                f"raw transcript segment at index {segment_index} must have string text"
+            )
+
+        speaker = segment.get("speaker")
+        if speaker is not None and not isinstance(speaker, str):
+            raise ValueError(
+                f"raw transcript segment at index {segment_index} "
+                "must have string speaker"
+            )
+
+    return raw_segments
+
+
 def _write_empty_per_shot_output_if_needed(
     scenes: List[Dict[str, Any]],
     output_path: str,
@@ -235,11 +288,10 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
     """Aligns transcript segments to shots and saves the new transcript."""
     logger.info("    -> Aligning transcript to shots...")
     with open(raw_transcript_path, 'r') as f:
-        transcript_segments = json.load(f)
+        transcript_segments = _validate_raw_transcript_segments(json.load(f))
 
     aligned_segments = []
     for segment in transcript_segments:
-        if 'start' not in segment or 'end' not in segment: continue
         segment_midpoint = (segment['start'] + segment['end']) / 2
         assigned_shot_id = None
         for shot in scenes:

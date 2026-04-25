@@ -8,6 +8,7 @@ import pytest
 from ingestion_pipeline.steps import step_01_extraction as extraction_step
 from ingestion_pipeline.steps.step_01_extraction import (
     _get_paths,
+    align_transcript_to_shots,
     create_final_analysis_file,
     detect_audio_events_per_shot,
     detect_shot_boundaries,
@@ -410,6 +411,83 @@ def test_run_extraction_rejects_inconsistent_cached_shot_boundaries(
             base_output_dir=str(output_dir),
             config=config,
         )
+
+
+def test_align_transcript_to_shots_writes_valid_aligned_segments(tmp_path):
+    raw_transcript_path = tmp_path / "transcript_raw.json"
+    aligned_transcript_path = tmp_path / "aligned.json"
+    raw_transcript_path.write_text(
+        json.dumps(
+            [
+                {
+                    "start": 0.25,
+                    "end": 0.75,
+                    "text": "hello",
+                    "speaker": "SPEAKER_00",
+                }
+            ]
+        )
+    )
+
+    align_transcript_to_shots(
+        str(raw_transcript_path),
+        [
+            {
+                "shot_id": "shot_0001",
+                "start_time_sec": 0.0,
+                "end_time_sec": 1.0,
+            }
+        ],
+        str(aligned_transcript_path),
+    )
+
+    assert json.loads(aligned_transcript_path.read_text()) == [
+        {
+            "start": 0.25,
+            "end": 0.75,
+            "text": "hello",
+            "speaker": "SPEAKER_00",
+            "shot_id": "shot_0001",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw_transcript", "message"),
+    [
+        ({"start": 0.0, "end": 1.0}, "JSON array"),
+        (["not a segment"], "index 0"),
+        ([{"end": 1.0, "text": "hello"}], "start"),
+        ([{"start": True, "end": 1.0, "text": "hello"}], "start"),
+        ([{"start": -0.1, "end": 1.0, "text": "hello"}], "start"),
+        ([{"start": 2.0, "end": 1.0, "text": "hello"}], "end"),
+        ([{"start": 0.0, "end": 1.0}], "text"),
+        ([{"start": 0.0, "end": 1.0, "text": "hello", "speaker": 7}], "speaker"),
+    ],
+)
+def test_align_transcript_to_shots_rejects_invalid_raw_transcript_before_writing(
+    tmp_path,
+    raw_transcript,
+    message,
+):
+    raw_transcript_path = tmp_path / "transcript_raw.json"
+    aligned_transcript_path = tmp_path / "aligned.json"
+    raw_transcript_path.write_text(json.dumps(raw_transcript))
+
+    with pytest.raises(ValueError, match=message):
+        align_transcript_to_shots(
+            str(raw_transcript_path),
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 1.0,
+                }
+            ],
+            str(aligned_transcript_path),
+        )
+
+    assert not aligned_transcript_path.exists()
 
 
 def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
