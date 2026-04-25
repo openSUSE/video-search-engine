@@ -23,6 +23,11 @@ def _payload_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _optional_payload_text(value: Any) -> str | None:
+    normalized_value = _payload_text(value)
+    return normalized_value or None
+
+
 def search_api_url(config: Mapping[str, Any] | None = None) -> str:
     if config is None:
         host = _url_component(os.getenv("API_HOST"), DEFAULT_API_HOST)
@@ -35,11 +40,15 @@ def search_api_url(config: Mapping[str, Any] | None = None) -> str:
     return f"http://{host}:{port}/search"
 
 
-def search_payload(query: str, video_filename: str, top_k: int = 5) -> dict[str, Any]:
+def search_payload(
+    query: str,
+    video_filename: str | None,
+    top_k: int = 5,
+) -> dict[str, Any]:
     return {
         "query": _payload_text(query),
         "top_k": top_k,
-        "video_filename": _payload_text(video_filename),
+        "video_filename": _optional_payload_text(video_filename),
     }
 
 

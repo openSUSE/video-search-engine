@@ -56,6 +56,17 @@ def test_search_payload_strips_query_and_video_filter():
     }
 
 
+@pytest.mark.parametrize("video_filename", [None, "", "  "])
+def test_search_payload_uses_null_for_omitted_video_filter(video_filename):
+    payload = search_client.search_payload("opening scene", video_filename)
+
+    assert payload == {
+        "query": "opening scene",
+        "top_k": 5,
+        "video_filename": None,
+    }
+
+
 def test_request_exception_is_exposed_by_client_boundary():
     assert search_client.RequestException is search_client.requests.exceptions.RequestException
 
