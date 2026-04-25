@@ -1,6 +1,9 @@
+import json
+
 import pytest
 
 from app.ui.speaker_support import (
+    load_transcript_segments,
     load_speaker_map,
     normalize_speaker_map,
     processed_video_folders,
@@ -112,6 +115,41 @@ def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
     speaker_map_path.write_text('{"SPEAKER_00": "   "}')
 
     assert load_speaker_map(speaker_map_path) == {}
+
+
+def test_load_transcript_segments_validates_display_fields(tmp_path):
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        '[{"start": 1, "text": " hello ", "speaker": " SPEAKER_00 "}]'
+    )
+
+    assert load_transcript_segments(transcript_path) == [
+        {"start": 1.0, "text": " hello ", "speaker": "SPEAKER_00"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("transcript", "message"),
+    [
+        ({"speaker": "SPEAKER_00"}, "JSON array"),
+        (["not a segment"], "index 0"),
+        ([{"text": "hello"}], "start"),
+        ([{"start": True, "text": "hello"}], "start"),
+        ([{"start": -1, "text": "hello"}], "start"),
+        ([{"start": 0}], "text"),
+        ([{"start": 0, "text": "hello", "speaker": 7}], "speaker"),
+    ],
+)
+def test_load_transcript_segments_rejects_malformed_display_data(
+    tmp_path,
+    transcript,
+    message,
+):
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps(transcript))
+
+    with pytest.raises(ValueError, match=message):
+        load_transcript_segments(transcript_path)
 
 
 def test_save_speaker_map_if_complete_writes_empty_map_for_no_transcript_speakers(tmp_path):

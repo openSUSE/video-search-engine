@@ -92,6 +92,61 @@ def validate_speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
     return sorted(speaker_ids)
 
 
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def validate_transcript_segments_for_display(
+    transcript_segments: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(transcript_segments, list):
+        raise ValueError("transcript must be a JSON array")
+
+    normalized_segments = []
+    for segment_index, segment in enumerate(transcript_segments):
+        if not isinstance(segment, Mapping):
+            raise ValueError(
+                f"transcript segment at index {segment_index} must be a JSON object"
+            )
+
+        start = segment.get("start")
+        if not _is_number(start):
+            raise ValueError(
+                f"transcript segment at index {segment_index} must have numeric start"
+            )
+        if start < 0:
+            raise ValueError(
+                f"transcript segment at index {segment_index} must have non-negative start"
+            )
+
+        if not isinstance(segment.get("text"), str):
+            raise ValueError(
+                f"transcript segment at index {segment_index} must have string text"
+            )
+
+        normalized_segment = dict(segment)
+        normalized_segment["start"] = float(start)
+
+        speaker = segment.get("speaker")
+        if speaker is not None:
+            if not isinstance(speaker, str):
+                raise ValueError(
+                    f"transcript segment at index {segment_index} "
+                    "must have string speaker"
+                )
+            normalized_segment["speaker"] = speaker.strip()
+
+        normalized_segments.append(normalized_segment)
+
+    return normalized_segments
+
+
+def load_transcript_segments(path: str | Path) -> list[dict[str, Any]]:
+    with Path(path).open("r") as f:
+        transcript_segments = json.load(f)
+    return validate_transcript_segments_for_display(transcript_segments)
+
+
 def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
     if not isinstance(raw_speaker_map, dict):
         return None

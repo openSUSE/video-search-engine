@@ -6,6 +6,7 @@ import streamlit as st
 from app.ui.path_settings import env_path_setting
 from app.ui.speaker_support import (
     ensure_speaker_session_state,
+    load_transcript_segments,
     load_speaker_map,
     normalize_speaker_map,
     processed_video_folders,
@@ -73,8 +74,13 @@ else:
             st.error(f"Original video file not found: {paths.video}")
         else:
             # Load transcript data
-            with paths.transcript.open("r") as f:
-                st.session_state.current_transcript_data = json.load(f)
+            try:
+                st.session_state.current_transcript_data = load_transcript_segments(
+                    paths.transcript
+                )
+            except (json.JSONDecodeError, ValueError) as exc:
+                st.error(f"Transcript file is not usable: {exc}")
+                st.stop()
             
             # Load existing speaker map if it exists
             if paths.speaker_map.exists():
