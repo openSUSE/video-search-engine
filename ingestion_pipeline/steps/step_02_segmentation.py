@@ -46,6 +46,15 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _validate_shot_time(shot: Dict[str, Any], shot_index: int, field_name: str) -> float:
+    value = shot.get(field_name)
+    if not _is_number(value):
+        raise ValueError(f"shot at index {shot_index} must have numeric {field_name}")
+    if value < 0:
+        raise ValueError(f"shot at index {shot_index} must have non-negative {field_name}")
+    return float(value)
+
+
 def _validate_speaker_map(raw_speaker_map: Any) -> Dict[str, str]:
     speaker_map = normalize_speaker_map(raw_speaker_map)
     if speaker_map is None:
@@ -91,9 +100,13 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
         if not isinstance(shot_id, str) or not shot_id.strip():
             raise ValueError(f"shot at index {shot_index} must have a shot_id")
 
-        for field_name in ("time_start_sec", "time_end_sec"):
-            if not _is_number(shot.get(field_name)):
-                raise ValueError(f"shot at index {shot_index} must have numeric {field_name}")
+        time_start_sec = _validate_shot_time(shot, shot_index, "time_start_sec")
+        time_end_sec = _validate_shot_time(shot, shot_index, "time_end_sec")
+        if time_end_sec < time_start_sec:
+            raise ValueError(
+                f"shot at index {shot_index} "
+                "time_end_sec must be greater than or equal to time_start_sec"
+            )
 
         visual_caption = shot.get("visual_caption")
         if not isinstance(visual_caption, str):

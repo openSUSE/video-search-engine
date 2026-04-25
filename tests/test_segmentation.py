@@ -158,6 +158,30 @@ def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_pat
             [
                 {
                     "shot_id": "shot_0001",
+                    "time_start_sec": -0.1,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                }
+            ],
+            "time_start_sec",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 2.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                }
+            ],
+            "time_end_sec",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
                     "time_start_sec": 0.0,
                     "time_end_sec": 1.0,
                     "visual_caption": "quiet room",
