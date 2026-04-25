@@ -279,3 +279,49 @@ def test_run_segmentation_rejects_invalid_speaker_map_before_embedding_setup(
             speaker_map_path=str(speaker_map_path),
             config={"filenames": {"final_segments": "segments.json"}},
         )
+
+
+def test_run_segmentation_rejects_incomplete_speaker_map_before_embedding_setup(
+    monkeypatch,
+    tmp_path,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "hello there",
+                            "speaker": "SPEAKER_00",
+                        },
+                        {
+                            "text": "reply",
+                            "speaker": "SPEAKER_01",
+                        },
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("embedding model should not load for incomplete speaker maps")
+
+    monkeypatch.setattr(segmentation_step, "create_embedding_model", fail_create_embedding_model)
+
+    with pytest.raises(ValueError, match="SPEAKER_01"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": "segments.json"}},
+        )

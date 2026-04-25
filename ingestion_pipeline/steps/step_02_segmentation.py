@@ -5,7 +5,7 @@ import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
-from app.ui.speaker_support import normalize_speaker_map
+from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
 
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
@@ -62,6 +62,24 @@ def _validate_speaker_map(raw_speaker_map: Any) -> Dict[str, str]:
             "speaker map must be a JSON object with non-empty string speaker IDs and names"
         )
     return speaker_map
+
+
+def _validate_speaker_map_coverage(
+    analysis_data: List[Dict[str, Any]],
+    speaker_map: Dict[str, str],
+) -> None:
+    transcript_segments = [
+        segment
+        for shot in analysis_data
+        for segment in shot.get("transcript_segments", [])
+    ]
+    missing_speaker_ids = sorted(
+        set(speaker_ids_from_transcript(transcript_segments)) - set(speaker_map)
+    )
+    if missing_speaker_ids:
+        raise ValueError(
+            "speaker map is missing names for: " + ", ".join(missing_speaker_ids)
+        )
 
 
 def _validate_labeled_items(
@@ -224,6 +242,7 @@ def run_segmentation(
         analysis_data = _validate_analysis_data(json.load(f))
     with open(speaker_map_path, 'r') as f:
         speaker_map = _validate_speaker_map(json.load(f))
+    _validate_speaker_map_coverage(analysis_data, speaker_map)
 
     if not analysis_data:
         logger.warning("The 'final_analysis.json' file is empty. Cannot perform segmentation.")
