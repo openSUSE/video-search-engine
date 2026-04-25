@@ -185,6 +185,28 @@ def _vector_to_floats(vector: Any) -> List[float]:
     return [float(value) for value in vector]
 
 
+def _encoded_vectors_to_lists(
+    encoded_vectors: Any,
+    expected_count: int,
+    embedding_type: str,
+) -> List[List[float]]:
+    if hasattr(encoded_vectors, "tolist"):
+        encoded_vectors = encoded_vectors.tolist()
+
+    try:
+        vectors = [_vector_to_floats(vector) for vector in encoded_vectors]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{embedding_type} embeddings must be numeric vectors") from exc
+
+    if len(vectors) != expected_count:
+        raise ValueError(
+            f"{embedding_type} embedding count {len(vectors)} "
+            f"does not match shot count {expected_count}"
+        )
+
+    return vectors
+
+
 def _cosine_similarity(left: Any, right: Any) -> float:
     left_values = _vector_to_floats(left)
     right_values = _vector_to_floats(right)
@@ -311,15 +333,23 @@ def _perform_boundary_scoring(
     dialogue_texts = [shot['dialogue_text'] for shot in rich_shots]
     visual_captions = [shot['visual_caption'] for shot in rich_shots]
     
-    dialogue_embeddings = embedding_model.encode(
-        dialogue_texts,
-        show_progress_bar=True,
-        normalize_embeddings=True,
+    dialogue_embeddings = _encoded_vectors_to_lists(
+        embedding_model.encode(
+            dialogue_texts,
+            show_progress_bar=True,
+            normalize_embeddings=True,
+        ),
+        len(rich_shots),
+        "dialogue",
     )
-    visual_embeddings = embedding_model.encode(
-        visual_captions,
-        show_progress_bar=True,
-        normalize_embeddings=True,
+    visual_embeddings = _encoded_vectors_to_lists(
+        embedding_model.encode(
+            visual_captions,
+            show_progress_bar=True,
+            normalize_embeddings=True,
+        ),
+        len(rich_shots),
+        "visual",
     )
 
     final_segments = []
