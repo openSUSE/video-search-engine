@@ -174,3 +174,33 @@ llm_enrichment:
         "model": "configured-ollama-model",
     }
     assert config["llm_enrichment"]["gemini"]["model"] == "configured-gemini-model"
+
+
+@pytest.mark.parametrize("config_text", ["[]", "not-a-mapping"])
+def test_config_file_root_must_be_mapping(monkeypatch, tmp_path, config_text):
+    with pytest.raises(ValueError, match="YAML mapping"):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
+@pytest.mark.parametrize("section_value", ["[]", "not-a-mapping"])
+def test_config_sections_must_be_mappings(monkeypatch, tmp_path, section_value):
+    with pytest.raises(ValueError, match="general"):
+        _load_config_module(
+            monkeypatch,
+            tmp_path,
+            f"""
+general: {section_value}
+""",
+        )
+
+
+def test_null_config_sections_are_treated_as_empty_mappings(monkeypatch, tmp_path):
+    config_module = _load_config_module(
+        monkeypatch,
+        tmp_path,
+        """
+general:
+""",
+    )
+
+    assert config_module.CONFIG["general"]["default_output_dir"] == "data/processed"

@@ -8,12 +8,38 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+CONFIG_SECTIONS = [
+    "general",
+    "ui",
+    "api_server",
+    "database",
+    "filenames",
+    "models",
+    "parameters",
+    "llm_enrichment",
+]
+
 
 def _yaml(path: str) -> Dict[str, Any]:
     if os.path.exists(path):
         with open(path, "r") as f:
-            return yaml.safe_load(f) or {}
+            loaded_config = yaml.safe_load(f)
+        if loaded_config is None:
+            return {}
+        if not isinstance(loaded_config, dict):
+            raise ValueError(f"config file {path} must contain a YAML mapping")
+        return loaded_config
     return {}
+
+
+def _ensure_config_sections(cfg: Dict[str, Any]) -> None:
+    for section_name in CONFIG_SECTIONS:
+        section = cfg.setdefault(section_name, {})
+        if section is None:
+            cfg[section_name] = {}
+            continue
+        if not isinstance(section, dict):
+            raise ValueError(f"config section '{section_name}' must be a mapping")
 
 
 def _clean_string(value: Any) -> str | None:
@@ -61,18 +87,7 @@ def load_config() -> Dict[str, Any]:
 
     cfg = _yaml(_clean_string(os.getenv("CONFIG_PATH")) or "config.yaml")
 
-    # ensure required sections exist
-    for k in [
-        "general",
-        "ui",
-        "api_server",
-        "database",
-        "filenames",
-        "models",
-        "parameters",
-        "llm_enrichment",
-    ]:
-        cfg.setdefault(k, {})
+    _ensure_config_sections(cfg)
 
     # ------- device selection -------
     ml_dev = _string_setting("ML_DEVICE", cfg["general"].get("device"), "auto")
