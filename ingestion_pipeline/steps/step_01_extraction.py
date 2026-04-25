@@ -78,6 +78,25 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
         "final_analysis": os.path.join(processed_dir, f_names['final_analysis']),
     }
 
+
+def _write_json(path: str, data: Any) -> None:
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def _write_empty_per_shot_output_if_needed(
+    scenes: List[Dict[str, Any]],
+    output_path: str,
+    label: str,
+) -> bool:
+    if scenes:
+        return False
+
+    _write_json(output_path, [])
+    logger.info("    -> No shots found. Saved empty %s to %s.", label, output_path)
+    return True
+
+
 def extract_audio(video_path: str, audio_path: str):
     """Extracts and normalizes audio from a video file."""
     logger.info("    -> Extracting and normalizing audio...")
@@ -179,20 +198,24 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
 def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Detects audio events for each shot."""
     logger.info("    -> Detecting audio events per shot...")
-    import torch
+    if _write_empty_per_shot_output_if_needed(scenes, output_path, "audio events"):
+        return
 
     device = config['general']['device']
     model_cfg = config['models']['audio_events']
     audio_params = config['parameters']['audio']
     event_params = config['parameters']['audio_events']
+    sr = audio_params['sample_rate']
 
-    from transformers import AutoProcessor, AutoModelForAudioClassification
     import librosa
+
+    y, _ = librosa.load(audio_path, sr=sr, mono=True)
+
+    import torch
+    from transformers import AutoProcessor, AutoModelForAudioClassification
 
     processor = AutoProcessor.from_pretrained(model_cfg['name'])
     model = AutoModelForAudioClassification.from_pretrained(model_cfg['name']).to(device)
-    sr = audio_params['sample_rate']
-    y, _ = librosa.load(audio_path, sr=sr, mono=True)
     
     all_shot_events = []
     for shot in scenes:
@@ -219,6 +242,9 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
 def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
     """Generates captions for each shot."""
     logger.info("    -> Generating visual captions for shots...")
+    if _write_empty_per_shot_output_if_needed(scenes, output_path, "visual details"):
+        return
+
     import cv2
 
     cap = cv2.VideoCapture(video_path)
@@ -260,6 +286,9 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     Detects actions and activities for each shot using a video classification model.
     """
     logger.info("    -> Detecting actions/activities per shot...")
+    if _write_empty_per_shot_output_if_needed(scenes, output_path, "detected actions"):
+        return
+
     import cv2
 
     cap = cv2.VideoCapture(video_path)

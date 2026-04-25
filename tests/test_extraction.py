@@ -8,6 +8,7 @@ import pytest
 from ingestion_pipeline.steps.step_01_extraction import (
     _get_paths,
     create_final_analysis_file,
+    detect_audio_events_per_shot,
     detect_shot_boundaries,
     detect_actions_per_shot,
     generate_visual_captions,
@@ -120,7 +121,7 @@ def test_generate_visual_captions_rejects_unreadable_video_before_model_load(
     with pytest.raises(IOError, match="Cannot open video file"):
         generate_visual_captions(
             "bad-video.mp4",
-            [],
+            [{"shot_id": "shot_0001", "start_frame": 0, "end_frame": 10}],
             str(tmp_path / "visual_details.json"),
             {
                 "general": {"device": "cpu"},
@@ -166,7 +167,7 @@ def test_detect_actions_rejects_unreadable_video_before_model_load(
     with pytest.raises(IOError, match="Cannot open video file"):
         detect_actions_per_shot(
             "bad-video.mp4",
-            [],
+            [{"shot_id": "shot_0001", "start_frame": 0, "end_frame": 20}],
             str(tmp_path / "actions.json"),
             {
                 "general": {"device": "cpu"},
@@ -176,6 +177,105 @@ def test_detect_actions_rejects_unreadable_video_before_model_load(
         )
 
     assert release_calls == ["bad-video.mp4"]
+
+
+def test_per_shot_extractors_skip_empty_scenes_without_model_load(
+    monkeypatch,
+    tmp_path,
+):
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("per-shot extractors should not load media or models for no scenes")
+
+    fake_librosa = types.ModuleType("librosa")
+    fake_librosa.load = fail_if_called
+
+    fake_cv2 = types.SimpleNamespace(VideoCapture=fail_if_called)
+
+    fake_transformers = types.ModuleType("transformers")
+
+    class FailingModelLoader:
+        @classmethod
+        def from_pretrained(cls, _name):
+            fail_if_called()
+
+    fake_transformers.AutoProcessor = FailingModelLoader
+    fake_transformers.AutoModelForAudioClassification = FailingModelLoader
+    fake_transformers.BlipProcessor = FailingModelLoader
+    fake_transformers.BlipForConditionalGeneration = FailingModelLoader
+    fake_transformers.VideoMAEImageProcessor = FailingModelLoader
+    fake_transformers.VideoMAEForVideoClassification = FailingModelLoader
+
+    monkeypatch.setitem(sys.modules, "librosa", fake_librosa)
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
+
+    config = {
+        "general": {"device": "cpu"},
+        "models": {
+            "audio_events": {"name": "ast"},
+            "visual_captioning": {"name": "blip"},
+            "action_recognition": {"name": "videomae"},
+        },
+        "parameters": {
+            "audio": {"sample_rate": 16000},
+            "audio_events": {"top_n": 3, "confidence_threshold": 0.1},
+            "visual_captioning": {"max_new_tokens": 50},
+            "action_recognition": {"num_frames": 16, "top_n": 3},
+        },
+    }
+
+    audio_events_path = tmp_path / "audio_events.json"
+    visual_details_path = tmp_path / "visual_details.json"
+    actions_path = tmp_path / "actions.json"
+
+    detect_audio_events_per_shot("missing.mp3", [], str(audio_events_path), config)
+    generate_visual_captions("missing.mp4", [], str(visual_details_path), config)
+    detect_actions_per_shot("missing.mp4", [], str(actions_path), config)
+
+    assert json.loads(audio_events_path.read_text()) == []
+    assert json.loads(visual_details_path.read_text()) == []
+    assert json.loads(actions_path.read_text()) == []
+
+
+def test_detect_audio_events_rejects_unreadable_audio_before_model_load(
+    monkeypatch,
+    tmp_path,
+):
+    fake_librosa = types.ModuleType("librosa")
+
+    def failing_load(*_args, **_kwargs):
+        raise OSError("bad audio")
+
+    fake_librosa.load = failing_load
+    fake_transformers = types.ModuleType("transformers")
+
+    class FailingAstLoader:
+        @classmethod
+        def from_pretrained(cls, _name):
+            raise AssertionError("AST should not load for unreadable audio")
+
+    fake_transformers.AutoProcessor = FailingAstLoader
+    fake_transformers.AutoModelForAudioClassification = FailingAstLoader
+    monkeypatch.setitem(sys.modules, "librosa", fake_librosa)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+
+    with pytest.raises(OSError, match="bad audio"):
+        detect_audio_events_per_shot(
+            "bad-audio.mp3",
+            [{"shot_id": "shot_0001", "start_time_sec": 0.0, "end_time_sec": 1.0}],
+            str(tmp_path / "audio_events.json"),
+            {
+                "general": {"device": "cpu"},
+                "models": {"audio_events": {"name": "ast"}},
+                "parameters": {
+                    "audio": {"sample_rate": 16000},
+                    "audio_events": {"top_n": 3, "confidence_threshold": 0.1},
+                },
+            },
+        )
 
 
 def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
