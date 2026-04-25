@@ -24,6 +24,25 @@ class FakeEmbeddingModel:
         return [vectors[text] for text in texts]
 
 
+def _cached_segment(**updates):
+    segment = {
+        "segment_id": "segment_0001",
+        "segment_index": 1,
+        "start_time": 0.0,
+        "end_time": 1.0,
+        "duration_sec": 1.0,
+        "speakers": ["Alice"],
+        "full_transcript": "hello",
+        "consolidated_visual_captions": ["room"],
+        "consolidated_audio_events": [],
+        "consolidated_actions": [],
+        "shot_count": 1,
+        "shot_ids": ["shot_0001"],
+    }
+    segment.update(updates)
+    return segment
+
+
 def test_create_embedding_model_uses_configured_name_and_device(monkeypatch):
     calls = {}
     fake_module = types.ModuleType("sentence_transformers")
@@ -136,6 +155,47 @@ def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_pat
             "kwargs": {"show_progress_bar": True, "normalize_embeddings": True},
         },
     ]
+
+
+def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
+    output_path = tmp_path / "custom_segments.json"
+    output_path.write_text(json.dumps([_cached_segment()]))
+
+    assert run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(tmp_path / "missing_analysis.json"),
+        speaker_map_path=str(tmp_path / "missing_speaker_map.json"),
+        config={"filenames": {"final_segments": output_path.name}},
+    ) == str(output_path)
+
+
+@pytest.mark.parametrize(
+    ("cached_segments", "message"),
+    [
+        ({"segment_id": "segment_0001"}, "JSON array"),
+        (["not a segment"], "index 0"),
+        ([_cached_segment(segment_id=" ")], "segment_id"),
+        ([_cached_segment(start_time=-1)], "start_time"),
+        ([_cached_segment(start_time=2, end_time=1)], "end_time"),
+        ([_cached_segment(speakers="Alice")], "speakers"),
+        ([_cached_segment(shot_ids=[7])], "shot_ids"),
+    ],
+)
+def test_run_segmentation_rejects_malformed_cached_output_before_skipping(
+    tmp_path,
+    cached_segments,
+    message,
+):
+    output_path = tmp_path / "custom_segments.json"
+    output_path.write_text(json.dumps(cached_segments))
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(tmp_path / "missing_analysis.json"),
+            speaker_map_path=str(tmp_path / "missing_speaker_map.json"),
+            config={"filenames": {"final_segments": output_path.name}},
+        )
 
 
 @pytest.mark.parametrize(

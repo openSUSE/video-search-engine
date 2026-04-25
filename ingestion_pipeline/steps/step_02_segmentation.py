@@ -160,6 +160,116 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
     return raw_analysis_data
 
 
+def _validate_cached_segment_time(
+    segment: Dict[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> float:
+    value = segment.get(field_name)
+    if not _is_number(value):
+        raise ValueError(
+            f"cached segment at index {segment_index} must have numeric {field_name}"
+        )
+    if value < 0:
+        raise ValueError(
+            f"cached segment at index {segment_index} must have non-negative {field_name}"
+        )
+    return float(value)
+
+
+def _validate_cached_positive_int(
+    segment: Dict[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> int:
+    value = segment.get(field_name)
+    if type(value) is not int or value <= 0:
+        raise ValueError(
+            f"cached segment at index {segment_index} must have positive integer {field_name}"
+        )
+    return value
+
+
+def _validate_cached_string_list(
+    segment: Dict[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> List[str]:
+    value = segment.get(field_name)
+    if not isinstance(value, list):
+        raise ValueError(
+            f"cached segment at index {segment_index} field {field_name} must be a JSON array"
+        )
+
+    for item_index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(
+                f"cached segment at index {segment_index} field {field_name} item "
+                f"at index {item_index} must be a string"
+            )
+
+    return value
+
+
+def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_segments, list):
+        raise ValueError("cached segments file must contain a JSON array")
+
+    for segment_index, segment in enumerate(raw_segments):
+        if not isinstance(segment, dict):
+            raise ValueError(
+                f"cached segment at index {segment_index} must be a JSON object"
+            )
+
+        segment_id = segment.get("segment_id")
+        if not isinstance(segment_id, str) or not segment_id.strip():
+            raise ValueError(
+                f"cached segment at index {segment_index} must have a segment_id"
+            )
+
+        _validate_cached_positive_int(segment, segment_index, "segment_index")
+        shot_count = _validate_cached_positive_int(segment, segment_index, "shot_count")
+
+        start_time = _validate_cached_segment_time(segment, segment_index, "start_time")
+        end_time = _validate_cached_segment_time(segment, segment_index, "end_time")
+        _validate_cached_segment_time(segment, segment_index, "duration_sec")
+        if end_time < start_time:
+            raise ValueError(
+                f"cached segment at index {segment_index} "
+                "end_time must be greater than or equal to start_time"
+            )
+
+        if not isinstance(segment.get("full_transcript"), str):
+            raise ValueError(
+                f"cached segment at index {segment_index} must have string full_transcript"
+            )
+
+        for field_name in (
+            "speakers",
+            "consolidated_visual_captions",
+            "consolidated_audio_events",
+            "consolidated_actions",
+        ):
+            _validate_cached_string_list(segment, segment_index, field_name)
+
+        shot_ids = _validate_cached_string_list(segment, segment_index, "shot_ids")
+        if shot_count != len(shot_ids):
+            raise ValueError(
+                f"cached segment at index {segment_index} "
+                "shot_count must match shot_ids length"
+            )
+
+    return raw_segments
+
+
+def _load_cached_segments(path: str) -> List[Dict[str, Any]]:
+    try:
+        with open(path, 'r') as f:
+            return _validate_cached_segments(json.load(f))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"cached segments file at {path} must be valid JSON") from exc
+
+
 def _load_config() -> Dict[str, Any]:
     from core.config import CONFIG
 
@@ -254,6 +364,7 @@ def run_segmentation(
 
     # --- CHECK IF ALREADY COMPLETED ---
     if os.path.exists(output_path):
+        _load_cached_segments(output_path)
         logger.info(f"    -> Skipping segmentation. Output already exists at {output_path}")
         logger.info("--- Segmentation Step Complete (Skipped)! ---")
         return output_path
