@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from ingestion_pipeline.steps import step_01_extraction as extraction_step
 from ingestion_pipeline.steps.step_01_extraction import (
     _get_paths,
     create_final_analysis_file,
@@ -340,6 +341,30 @@ def test_run_extraction_preserves_existing_metadata_when_no_title_is_provided(tm
     )
 
     assert json.loads(metadata_path.read_text()) == existing_metadata
+
+
+def test_run_extraction_rejects_invalid_cached_shots_before_downstream_work(
+    monkeypatch,
+    tmp_path,
+):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+    Path(paths["shots"]).write_text(json.dumps({"shot_id": "shot_0001"}))
+
+    def fail_extract_audio(*_args, **_kwargs):
+        raise AssertionError("downstream extraction should not run for invalid cached shots")
+
+    monkeypatch.setattr(extraction_step, "extract_audio", fail_extract_audio)
+
+    with pytest.raises(ValueError, match="shot boundaries"):
+        run_extraction(
+            video_path=str(tmp_path / "demo.mp4"),
+            base_output_dir=str(output_dir),
+            config=config,
+        )
 
 
 def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):

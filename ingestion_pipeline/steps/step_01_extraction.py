@@ -84,6 +84,41 @@ def _write_json(path: str, data: Any) -> None:
         json.dump(data, f, indent=2)
 
 
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_scenes, list):
+        raise ValueError("shot boundaries file must contain a JSON array")
+
+    for index, shot in enumerate(raw_scenes):
+        if not isinstance(shot, dict):
+            raise ValueError(f"shot boundary at index {index} must be a JSON object")
+
+        shot_id = shot.get("shot_id")
+        if not isinstance(shot_id, str) or not shot_id.strip():
+            raise ValueError(f"shot boundary at index {index} must have a shot_id")
+
+        for field_name in ("shot_index", "start_frame", "end_frame"):
+            if not _is_integer(shot.get(field_name)):
+                raise ValueError(
+                    f"shot boundary at index {index} must have integer {field_name}"
+                )
+
+        for field_name in ("start_time_sec", "end_time_sec"):
+            if not _is_number(shot.get(field_name)):
+                raise ValueError(
+                    f"shot boundary at index {index} must have numeric {field_name}"
+                )
+
+    return raw_scenes
+
+
 def _write_empty_per_shot_output_if_needed(
     scenes: List[Dict[str, Any]],
     output_path: str,
@@ -166,7 +201,7 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
     with open(shots_path, 'w') as f:
         json.dump(scenes_data, f, indent=2)
     logger.info(f"    -> Shot boundaries saved to {shots_path}")
-    return scenes_data
+    return _validate_shot_boundaries(scenes_data)
 
 def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, Any]], aligned_transcript_path: str):
     """Aligns transcript segments to shots and saves the new transcript."""
@@ -444,7 +479,7 @@ def run_extraction(
     else:
         logger.info(f"    -> Skipping shot detection, loading from {paths['shots']}.")
         with open(paths["shots"], 'r') as f:
-            scenes = json.load(f)
+            scenes = _validate_shot_boundaries(json.load(f))
 
     # 2. Extract audio
     if not os.path.exists(paths["audio"]):
