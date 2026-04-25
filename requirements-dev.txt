@@ -1,4 +1,5 @@
 pytest
+packaging
 pydantic<2.10
 PyYAML
 python-dotenv
