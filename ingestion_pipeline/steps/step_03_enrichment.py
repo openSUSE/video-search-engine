@@ -150,6 +150,20 @@ def _safe_llm_updates(llm_data: Any) -> Optional[Dict[str, Any]]:
     return updates or None
 
 
+def _has_complete_enrichment(segment: Dict[str, Any]) -> bool:
+    title = _clean_llm_string(segment.get("title"))
+    summary = _clean_llm_string(segment.get("summary"))
+    keywords = segment.get("keywords")
+
+    return bool(
+        title
+        and title != "Error"
+        and summary
+        and isinstance(keywords, list)
+        and _normalize_llm_keywords(keywords)
+    )
+
+
 def run_enrichment(
     segments_path: str,
     config: Dict[str, Any],
@@ -207,8 +221,8 @@ def run_enrichment(
     for i, segment in enumerate(segments):
         logger.info(f"  -> Checking segment {i+1}/{total_segments} ({segment['segment_id']})...")
 
-        # Skip if the segment is already enriched (and wasn't an error).
-        if segment.get('title') and segment.get('title') != 'Error':
+        # Skip only complete prior enrichments; partial records are retried.
+        if _has_complete_enrichment(segment):
             logger.info(f"  -> Segment {segment['segment_id']} already enriched. Skipping.")
             continue
 

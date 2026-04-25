@@ -99,6 +99,49 @@ def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
     assert "A legacy overview." in calls[0]
 
 
+def test_run_enrichment_retries_partially_enriched_segments(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "title": "Only Title Exists",
+                    "full_transcript": "dialogue",
+                    "speakers": [],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {
+            "title": "Regenerated Title",
+            "summary": "Regenerated summary.",
+            "keywords": ["complete"],
+        }
+
+    run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert len(calls) == 1
+    assert segment["title"] == "Regenerated Title"
+    assert segment["summary"] == "Regenerated summary."
+    assert segment["keywords"] == ["complete"]
+
+
 def test_run_enrichment_does_not_apply_structural_llm_fields(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(
