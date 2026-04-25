@@ -126,6 +126,39 @@ def _video_synopsis(video_metadata: Dict[str, Any]) -> str:
     return video_metadata.get('synopsis') or video_metadata.get('logline') or 'N/A'
 
 
+def _validate_optional_string_field(
+    segment: Dict[str, Any],
+    index: int,
+    field_name: str,
+) -> None:
+    if field_name in segment and not isinstance(segment[field_name], str):
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be a string"
+        )
+
+
+def _validate_optional_string_list_field(
+    segment: Dict[str, Any],
+    index: int,
+    field_name: str,
+) -> None:
+    if field_name not in segment:
+        return
+
+    value = segment[field_name]
+    if not isinstance(value, list):
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be a JSON array"
+        )
+
+    for item_index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(
+                f"segment at index {index} field {field_name} item at index "
+                f"{item_index} must be a string"
+            )
+
+
 def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
     if not isinstance(segments, list):
         raise ValueError("segments file must contain a JSON array")
@@ -137,6 +170,15 @@ def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
         segment_id = segment.get("segment_id")
         if not isinstance(segment_id, str) or not segment_id.strip():
             raise ValueError(f"segment at index {index} must have a segment_id")
+
+        _validate_optional_string_field(segment, index, "full_transcript")
+        for field_name in (
+            "speakers",
+            "consolidated_visual_captions",
+            "consolidated_actions",
+            "consolidated_audio_events",
+        ):
+            _validate_optional_string_list_field(segment, index, field_name)
 
     return segments
 

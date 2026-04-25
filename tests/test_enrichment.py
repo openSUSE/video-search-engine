@@ -277,6 +277,11 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
         ["not a segment"],
         [{"summary": "missing id"}],
         [{"segment_id": " "}],
+        [{"segment_id": "segment_0001", "full_transcript": 42}],
+        [{"segment_id": "segment_0001", "speakers": "Alice"}],
+        [{"segment_id": "segment_0001", "consolidated_visual_captions": [42]}],
+        [{"segment_id": "segment_0001", "consolidated_actions": [None]}],
+        [{"segment_id": "segment_0001", "consolidated_audio_events": ["music", 7]}],
     ],
 )
 def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_calling_provider(
@@ -304,7 +309,9 @@ def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_callin
 def test_run_enrichment_rejects_invalid_resume_state_before_calling_provider(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(json.dumps([{"segment_id": "segment_0001"}]))
-    (tmp_path / "enriched.json").write_text(json.dumps([{"summary": "missing id"}]))
+    (tmp_path / "enriched.json").write_text(
+        json.dumps([{"segment_id": "segment_0001", "speakers": "Alice"}])
+    )
     calls = []
 
     result = run_enrichment(
