@@ -559,3 +559,121 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
             ],
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("artifact_name", "invalid_data", "message"),
+    [
+        ("visual_details", [{"shot_id": "shot_0001"}], "visual details"),
+        (
+            "audio_events",
+            [{"shot_id": "shot_0001", "events": "speech"}],
+            "audio events",
+        ),
+        (
+            "actions",
+            [{"shot_id": "shot_0001", "actions": [{"score": 0.8}]}],
+            "actions",
+        ),
+        (
+            "transcript_aligned",
+            [
+                {
+                    "start": 0.0,
+                    "end": 1.0,
+                    "text": "hello",
+                    "speaker": "Alice",
+                    "shot_id": 7,
+                }
+            ],
+            "aligned transcript",
+        ),
+        (
+            "transcript_aligned",
+            [{"start": 0.0, "end": 1.0, "text": "hello", "speaker": "Alice"}],
+            "aligned transcript",
+        ),
+    ],
+)
+def test_create_final_analysis_file_rejects_invalid_cached_artifacts_before_writing(
+    tmp_path,
+    artifact_name,
+    invalid_data,
+    message,
+):
+    paths = {
+        "shots": str(tmp_path / "shots.json"),
+        "visual_details": str(tmp_path / "visual_details.json"),
+        "audio_events": str(tmp_path / "audio_events.json"),
+        "transcript_aligned": str(tmp_path / "aligned.json"),
+        "actions": str(tmp_path / "actions.json"),
+        "final_analysis": str(tmp_path / "final_analysis.json"),
+    }
+    valid_artifacts = {
+        "shots": [
+            {
+                "shot_id": "shot_0001",
+                "shot_index": 1,
+                "start_time_sec": 0.0,
+                "end_time_sec": 2.0,
+                "start_frame": 0,
+                "end_frame": 48,
+            }
+        ],
+        "visual_details": [{"shot_id": "shot_0001", "caption": "a station platform"}],
+        "audio_events": [{"shot_id": "shot_0001", "events": [{"event": "speech"}]}],
+        "transcript_aligned": [
+            {
+                "start": 0.1,
+                "end": 1.2,
+                "text": "hello",
+                "speaker": "Alice",
+                "shot_id": "shot_0001",
+            }
+        ],
+        "actions": [{"shot_id": "shot_0001", "actions": [{"action": "standing"}]}],
+    }
+    valid_artifacts[artifact_name] = invalid_data
+    for name, data in valid_artifacts.items():
+        Path(paths[name]).write_text(json.dumps(data))
+
+    with pytest.raises(ValueError, match=message):
+        create_final_analysis_file(paths)
+
+    assert not Path(paths["final_analysis"]).exists()
+
+
+def test_create_final_analysis_file_rejects_artifacts_for_unknown_shots(tmp_path):
+    paths = {
+        "shots": str(tmp_path / "shots.json"),
+        "visual_details": str(tmp_path / "visual_details.json"),
+        "audio_events": str(tmp_path / "audio_events.json"),
+        "transcript_aligned": str(tmp_path / "aligned.json"),
+        "actions": str(tmp_path / "actions.json"),
+        "final_analysis": str(tmp_path / "final_analysis.json"),
+    }
+    Path(paths["shots"]).write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "shot_index": 1,
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 2.0,
+                    "start_frame": 0,
+                    "end_frame": 48,
+                }
+            ]
+        )
+    )
+    Path(paths["visual_details"]).write_text(
+        json.dumps([{"shot_id": "shot_9999", "caption": "stale caption"}])
+    )
+    Path(paths["audio_events"]).write_text(json.dumps([]))
+    Path(paths["transcript_aligned"]).write_text(json.dumps([]))
+    Path(paths["actions"]).write_text(json.dumps([]))
+
+    with pytest.raises(ValueError, match="unknown shot_id"):
+        create_final_analysis_file(paths)
+
+    assert not Path(paths["final_analysis"]).exists()

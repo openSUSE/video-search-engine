@@ -200,6 +200,206 @@ def _validate_raw_transcript_segments(raw_segments: Any) -> List[Dict[str, Any]]
     return raw_segments
 
 
+def _validate_artifact_object_array(
+    raw_items: Any,
+    artifact_name: str,
+) -> List[Dict[str, Any]]:
+    if not isinstance(raw_items, list):
+        raise ValueError(f"{artifact_name} file must contain a JSON array")
+
+    for item_index, item in enumerate(raw_items):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"{artifact_name} item at index {item_index} must be a JSON object"
+            )
+
+    return raw_items
+
+
+def _validate_artifact_shot_id(
+    item: Dict[str, Any],
+    artifact_name: str,
+    item_index: int,
+) -> str:
+    shot_id = item.get("shot_id")
+    if not isinstance(shot_id, str) or not shot_id.strip():
+        raise ValueError(
+            f"{artifact_name} item at index {item_index} must have a shot_id"
+        )
+    return shot_id.strip()
+
+
+def _reject_duplicate_artifact_shot_id(
+    seen_shot_ids: set[str],
+    shot_id: str,
+    artifact_name: str,
+) -> None:
+    if shot_id in seen_shot_ids:
+        raise ValueError(f"{artifact_name} contains duplicate shot_id: {shot_id}")
+    seen_shot_ids.add(shot_id)
+
+
+def _validate_visual_details(raw_visual_data: Any) -> List[Dict[str, Any]]:
+    visual_data = _validate_artifact_object_array(raw_visual_data, "visual details")
+    seen_shot_ids: set[str] = set()
+    normalized_visual_data = []
+
+    for item_index, item in enumerate(visual_data):
+        shot_id = _validate_artifact_shot_id(item, "visual details", item_index)
+        _reject_duplicate_artifact_shot_id(seen_shot_ids, shot_id, "visual details")
+
+        caption = item.get("caption")
+        if not isinstance(caption, str):
+            raise ValueError(
+                f"visual details item at index {item_index} must have string caption"
+            )
+
+        normalized_visual_data.append({"shot_id": shot_id, "caption": caption})
+
+    return normalized_visual_data
+
+
+def _validate_labeled_artifact_data(
+    raw_items: Any,
+    artifact_name: str,
+    collection_field: str,
+    label_field: str,
+) -> List[Dict[str, Any]]:
+    artifact_data = _validate_artifact_object_array(raw_items, artifact_name)
+    seen_shot_ids: set[str] = set()
+    normalized_artifact_data = []
+
+    for item_index, item in enumerate(artifact_data):
+        shot_id = _validate_artifact_shot_id(item, artifact_name, item_index)
+        _reject_duplicate_artifact_shot_id(seen_shot_ids, shot_id, artifact_name)
+
+        labeled_items = item.get(collection_field)
+        if not isinstance(labeled_items, list):
+            raise ValueError(
+                f"{artifact_name} item at index {item_index} field {collection_field} "
+                "must be a JSON array"
+            )
+
+        for label_index, labeled_item in enumerate(labeled_items):
+            if not isinstance(labeled_item, dict):
+                raise ValueError(
+                    f"{artifact_name} item at index {item_index} field "
+                    f"{collection_field} item at index {label_index} must be a JSON object"
+                )
+            if not isinstance(labeled_item.get(label_field), str):
+                raise ValueError(
+                    f"{artifact_name} item at index {item_index} field "
+                    f"{collection_field} item at index {label_index} "
+                    f"must have string {label_field}"
+                )
+
+        normalized_artifact_data.append(
+            {"shot_id": shot_id, collection_field: labeled_items}
+        )
+
+    return normalized_artifact_data
+
+
+def _validate_aligned_transcript_time(
+    segment: Dict[str, Any],
+    segment_index: int,
+    field_name: str,
+) -> float:
+    field_value = segment.get(field_name)
+    if not _is_number(field_value):
+        raise ValueError(
+            f"aligned transcript segment at index {segment_index} "
+            f"must have numeric {field_name}"
+        )
+    if field_value < 0:
+        raise ValueError(
+            f"aligned transcript segment at index {segment_index} "
+            f"must have non-negative {field_name}"
+        )
+
+    return float(field_value)
+
+
+def _validate_aligned_transcript_segments(raw_segments: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_segments, list):
+        raise ValueError("aligned transcript file must contain a JSON array")
+
+    normalized_segments = []
+    for segment_index, segment in enumerate(raw_segments):
+        if not isinstance(segment, dict):
+            raise ValueError(
+                f"aligned transcript segment at index {segment_index} "
+                "must be a JSON object"
+            )
+
+        start = _validate_aligned_transcript_time(segment, segment_index, "start")
+        end = _validate_aligned_transcript_time(segment, segment_index, "end")
+        if end < start:
+            raise ValueError(
+                f"aligned transcript segment at index {segment_index} "
+                "end must be greater than or equal to start"
+            )
+
+        text = segment.get("text")
+        if not isinstance(text, str):
+            raise ValueError(
+                f"aligned transcript segment at index {segment_index} "
+                "must have string text"
+            )
+
+        speaker = segment.get("speaker")
+        if speaker is not None and not isinstance(speaker, str):
+            raise ValueError(
+                f"aligned transcript segment at index {segment_index} "
+                "must have string speaker"
+            )
+
+        if "shot_id" not in segment:
+            raise ValueError(
+                f"aligned transcript segment at index {segment_index} "
+                "must include shot_id"
+            )
+        shot_id = segment["shot_id"]
+        if shot_id is not None:
+            if not isinstance(shot_id, str) or not shot_id.strip():
+                raise ValueError(
+                    f"aligned transcript segment at index {segment_index} "
+                    "must have string shot_id"
+                )
+            shot_id = shot_id.strip()
+
+        normalized_segments.append(
+            {
+                "start": start,
+                "end": end,
+                "text": text,
+                "speaker": speaker,
+                "shot_id": shot_id,
+            }
+        )
+
+    return normalized_segments
+
+
+def _validate_known_shot_references(
+    items: List[Dict[str, Any]],
+    known_shot_ids: set[str],
+    artifact_name: str,
+) -> None:
+    unknown_shot_ids = sorted(
+        {
+            item["shot_id"]
+            for item in items
+            if item.get("shot_id") and item["shot_id"] not in known_shot_ids
+        }
+    )
+    if unknown_shot_ids:
+        raise ValueError(
+            f"{artifact_name} contains unknown shot_id: "
+            + ", ".join(unknown_shot_ids)
+        )
+
+
 def _write_empty_per_shot_output_if_needed(
     scenes: List[Dict[str, Any]],
     output_path: str,
@@ -480,11 +680,32 @@ def create_final_analysis_file(paths: Dict[str, str]):
     logger.info("    -> Creating final unified analysis file...")
 
     # Load all the data sources
-    with open(paths['shots'], 'r') as f: scenes_data = json.load(f)
-    with open(paths['visual_details'], 'r') as f: visual_data = json.load(f)
-    with open(paths['audio_events'], 'r') as f: audio_data = json.load(f)
-    with open(paths['transcript_aligned'], 'r') as f: transcript_data = json.load(f)
-    with open(paths['actions'], 'r') as f: actions_data = json.load(f)
+    with open(paths['shots'], 'r') as f:
+        scenes_data = _validate_shot_boundaries(json.load(f))
+    with open(paths['visual_details'], 'r') as f:
+        visual_data = _validate_visual_details(json.load(f))
+    with open(paths['audio_events'], 'r') as f:
+        audio_data = _validate_labeled_artifact_data(
+            json.load(f),
+            "audio events",
+            "events",
+            "event",
+        )
+    with open(paths['transcript_aligned'], 'r') as f:
+        transcript_data = _validate_aligned_transcript_segments(json.load(f))
+    with open(paths['actions'], 'r') as f:
+        actions_data = _validate_labeled_artifact_data(
+            json.load(f),
+            "actions",
+            "actions",
+            "action",
+        )
+
+    shot_ids = {shot["shot_id"] for shot in scenes_data}
+    _validate_known_shot_references(visual_data, shot_ids, "visual details")
+    _validate_known_shot_references(audio_data, shot_ids, "audio events")
+    _validate_known_shot_references(transcript_data, shot_ids, "aligned transcript")
+    _validate_known_shot_references(actions_data, shot_ids, "actions")
 
     # Create maps for efficient lookup by shot_id
     captions_map = {item['shot_id']: item['caption'] for item in visual_data}
