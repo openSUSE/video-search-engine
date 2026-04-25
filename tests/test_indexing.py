@@ -234,6 +234,112 @@ def test_run_indexing_rejects_embedding_count_mismatch_before_upsert(
     assert collection.upsert_call is None
 
 
+@pytest.mark.parametrize(
+    ("bad_call_index", "message"),
+    [
+        (0, "text embeddings must have consistent dimensions"),
+        (1, "visual embeddings must have consistent dimensions"),
+    ],
+)
+def test_run_indexing_rejects_embedding_dimension_mismatch_before_upsert(
+    tmp_path,
+    bad_call_index,
+    message,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                },
+                {
+                    "segment_id": "segment-2",
+                    "summary": "person exits",
+                    "start_time": 5.0,
+                    "end_time": 7.0,
+                },
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    class MismatchedEmbeddingModel:
+        def __init__(self):
+            self.call_count = 0
+
+        def encode(self, texts, show_progress_bar):
+            call_index = self.call_count
+            self.call_count += 1
+            if call_index == bad_call_index:
+                return [[1.0, 0.0], [1.0, 0.0, 0.0]]
+            return [[call_index, text_index] for text_index, _text in enumerate(texts)]
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+            embedding_model=MismatchedEmbeddingModel(),
+            collection=collection,
+        )
+
+    assert collection.upsert_call is None
+
+
+@pytest.mark.parametrize(
+    ("bad_call_index", "message"),
+    [
+        (0, "text embeddings must be numeric vectors"),
+        (1, "visual embeddings must be numeric vectors"),
+    ],
+)
+def test_run_indexing_rejects_nonnumeric_embeddings_before_upsert(
+    tmp_path,
+    bad_call_index,
+    message,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    class NonnumericEmbeddingModel:
+        def __init__(self):
+            self.call_count = 0
+
+        def encode(self, texts, show_progress_bar):
+            call_index = self.call_count
+            self.call_count += 1
+            if call_index == bad_call_index:
+                return [["not-a-number"] for _text in texts]
+            return [[call_index, text_index] for text_index, _text in enumerate(texts)]
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+            embedding_model=NonnumericEmbeddingModel(),
+            collection=collection,
+        )
+
+    assert collection.upsert_call is None
+
+
 @pytest.mark.parametrize("video_filename", ["", "   ", None])
 def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
     monkeypatch,

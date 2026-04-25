@@ -28,7 +28,11 @@ def _join_metadata_values(values: Any) -> str:
 def _vector_to_list(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
-    return list(vector)
+
+    values = list(vector)
+    if any(isinstance(value, bool) for value in values):
+        raise ValueError("embedding vector values must be numeric")
+    return [float(value) for value in values]
 
 
 def _encoded_vectors_to_lists(
@@ -40,14 +44,23 @@ def _encoded_vectors_to_lists(
         encoded_vectors = encoded_vectors.tolist()
     try:
         vectors = [_vector_to_list(vector) for vector in encoded_vectors]
-    except TypeError as exc:
-        raise ValueError(f"{embedding_type} embeddings must be vectors") from exc
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{embedding_type} embeddings must be numeric vectors") from exc
 
     if len(vectors) != expected_count:
         raise ValueError(
             f"{embedding_type} embedding count {len(vectors)} "
             f"does not match segment count {expected_count}"
         )
+
+    if vectors:
+        dimension_count = len(vectors[0])
+        if dimension_count == 0:
+            raise ValueError(f"{embedding_type} embeddings must be non-empty vectors")
+        if any(len(vector) != dimension_count for vector in vectors):
+            raise ValueError(
+                f"{embedding_type} embeddings must have consistent dimensions"
+            )
 
     return vectors
 
