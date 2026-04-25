@@ -1,6 +1,7 @@
 import subprocess
 import json
 import logging
+import math
 import os
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
@@ -85,7 +86,11 @@ def _write_json(path: str, data: Any) -> None:
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _is_integer(value: Any) -> bool:

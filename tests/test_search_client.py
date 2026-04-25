@@ -107,7 +107,7 @@ def test_post_search_uses_timeout_from_environment(monkeypatch):
     }
 
 
-@pytest.mark.parametrize("raw_value", [None, "", "0", "-1", "abc"])
+@pytest.mark.parametrize("raw_value", [None, "", "0", "-1", "abc", "nan", "inf"])
 def test_search_timeout_falls_back_to_default_for_unusable_values(raw_value):
     assert (
         search_client.search_timeout_seconds(raw_value)

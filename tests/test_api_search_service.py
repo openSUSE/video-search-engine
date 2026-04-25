@@ -95,7 +95,7 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
                 "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
                 "metadatas": [
                     _metadata(title="B", summary="valid result"),
-                    _metadata(title="A", start_time="bad"),
+                    _metadata(title="A", start_time=float("nan")),
                 ],
             }
 
@@ -124,6 +124,8 @@ def test_hybrid_search_service_omits_video_filter_when_not_requested():
     [
         [],
         [0.25, "bad"],
+        [0.25, float("inf")],
+        [0.25, float("nan")],
         [[0.25, 0.75]],
     ],
 )

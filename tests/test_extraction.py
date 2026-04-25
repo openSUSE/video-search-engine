@@ -375,7 +375,9 @@ def test_run_extraction_rejects_invalid_cached_shots_before_downstream_work(
         ({"start_frame": -1}, "start_frame"),
         ({"start_frame": 10, "end_frame": 9}, "end_frame"),
         ({"start_time_sec": -0.1}, "start_time_sec"),
+        ({"start_time_sec": float("nan")}, "start_time_sec"),
         ({"start_time_sec": 2.0, "end_time_sec": 1.0}, "end_time_sec"),
+        ({"end_time_sec": float("inf")}, "end_time_sec"),
     ],
 )
 def test_run_extraction_rejects_inconsistent_cached_shot_boundaries(
@@ -460,7 +462,9 @@ def test_align_transcript_to_shots_writes_valid_aligned_segments(tmp_path):
         ([{"end": 1.0, "text": "hello"}], "start"),
         ([{"start": True, "end": 1.0, "text": "hello"}], "start"),
         ([{"start": -0.1, "end": 1.0, "text": "hello"}], "start"),
+        ([{"start": float("nan"), "end": 1.0, "text": "hello"}], "start"),
         ([{"start": 2.0, "end": 1.0, "text": "hello"}], "end"),
+        ([{"start": 0.0, "end": float("inf"), "text": "hello"}], "end"),
         ([{"start": 0.0, "end": 1.0}], "text"),
         ([{"start": 0.0, "end": 1.0, "text": "hello", "speaker": 7}], "speaker"),
     ],

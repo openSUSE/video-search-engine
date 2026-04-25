@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Any, Dict, List, Optional, Protocol
 
 from api.search_utils import text_metadata_by_segment_id
@@ -41,9 +42,14 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
         raise ValueError("query embedding must be a non-empty numeric vector")
 
     try:
-        return [float(value) for value in vector]
+        float_vector = [float(value) for value in vector]
     except (TypeError, ValueError) as exc:
         raise ValueError("query embedding must be a non-empty numeric vector") from exc
+
+    if any(not math.isfinite(value) for value in float_vector):
+        raise ValueError("query embedding must be a non-empty numeric vector")
+
+    return float_vector
 
 
 def _first_id_list(results: Dict[str, Any]) -> List[str]:
@@ -72,7 +78,7 @@ def _metadata_time(metadata: Dict[str, Any], field_name: str) -> Optional[float]
         time_value = float(value)
     except (TypeError, ValueError):
         return None
-    if time_value < 0:
+    if not math.isfinite(time_value) or time_value < 0:
         return None
     return time_value
 

@@ -43,7 +43,11 @@ class EmbeddingModel(Protocol):
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _validate_shot_time(shot: Dict[str, Any], shot_index: int, field_name: str) -> float:
@@ -292,7 +296,13 @@ def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
 def _vector_to_floats(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
-    return [float(value) for value in vector]
+    raw_values = list(vector)
+    if any(isinstance(value, bool) for value in raw_values):
+        raise ValueError("embedding vector values must be numeric")
+    values = [float(value) for value in raw_values]
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError("embedding vector values must be finite numbers")
+    return values
 
 
 def _encoded_vectors_to_lists(

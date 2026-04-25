@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 from typing import Any, Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,10 @@ def _vector_to_list(vector: Any) -> List[float]:
     values = list(vector)
     if any(isinstance(value, bool) for value in values):
         raise ValueError("embedding vector values must be numeric")
-    return [float(value) for value in values]
+    float_values = [float(value) for value in values]
+    if any(not math.isfinite(value) for value in float_values):
+        raise ValueError("embedding vector values must be finite numbers")
+    return float_values
 
 
 def _encoded_vectors_to_lists(
@@ -93,6 +97,11 @@ def _segment_time_value(segment: Dict[str, Any], field_name: str, index: int) ->
         raise ValueError(
             f"enriched segment at index {index} {field_name} must be a number"
         ) from exc
+
+    if not math.isfinite(time_value):
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} must be a finite number"
+        )
 
     if time_value < 0:
         raise ValueError(

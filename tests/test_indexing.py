@@ -340,6 +340,38 @@ def test_run_indexing_rejects_nonnumeric_embeddings_before_upsert(
     assert collection.upsert_call is None
 
 
+def test_run_indexing_rejects_nonfinite_embeddings_before_upsert(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    class NonfiniteEmbeddingModel:
+        def encode(self, texts, show_progress_bar):
+            return [[float("nan")] for _text in texts]
+
+    with pytest.raises(ValueError, match="text embeddings must be numeric vectors"):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+            embedding_model=NonfiniteEmbeddingModel(),
+            collection=collection,
+        )
+
+    assert collection.upsert_call is None
+
+
 @pytest.mark.parametrize("video_filename", ["", "   ", None])
 def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
     monkeypatch,
@@ -419,7 +451,9 @@ def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
         ([{"segment_id": "segment-1", "start_time": "bad"}], "start_time"),
         ([{"segment_id": "segment-1", "start_time": True}], "start_time"),
         ([{"segment_id": "segment-1", "start_time": -1}], "start_time"),
+        ([{"segment_id": "segment-1", "start_time": float("nan")}], "start_time"),
         ([{"segment_id": "segment-1", "start_time": 0, "end_time": None}], "end_time"),
+        ([{"segment_id": "segment-1", "start_time": 0, "end_time": float("inf")}], "end_time"),
         ([{"segment_id": "segment-1", "start_time": 4, "end_time": 3}], "end_time"),
     ],
 )

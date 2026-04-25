@@ -176,7 +176,9 @@ def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
         (["not a segment"], "index 0"),
         ([_cached_segment(segment_id=" ")], "segment_id"),
         ([_cached_segment(start_time=-1)], "start_time"),
+        ([_cached_segment(start_time=float("nan"))], "start_time"),
         ([_cached_segment(start_time=2, end_time=1)], "end_time"),
+        ([_cached_segment(end_time=float("inf"))], "end_time"),
         ([_cached_segment(speakers="Alice")], "speakers"),
         ([_cached_segment(shot_ids=[7])], "shot_ids"),
     ],
@@ -346,6 +348,48 @@ def test_run_segmentation_rejects_embedding_dimension_mismatch_before_scoring(
     assert not output_path.exists()
 
 
+def test_run_segmentation_rejects_nonfinite_embeddings_before_scoring(tmp_path):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "hello there",
+                            "speaker": "SPEAKER_00",
+                        }
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    class NonfiniteEmbeddingModel:
+        def encode(self, texts, **kwargs):
+            return [[float("nan")] for _text in texts]
+
+    with pytest.raises(ValueError, match="dialogue embeddings must be numeric vectors"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": output_path.name}},
+            embedding_model=NonfiniteEmbeddingModel(),
+        )
+
+    assert not output_path.exists()
+
+
 @pytest.mark.parametrize(
     ("analysis_data", "message"),
     [
@@ -378,8 +422,32 @@ def test_run_segmentation_rejects_embedding_dimension_mismatch_before_scoring(
             [
                 {
                     "shot_id": "shot_0001",
+                    "time_start_sec": float("nan"),
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                }
+            ],
+            "time_start_sec",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
                     "time_start_sec": 2.0,
                     "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                }
+            ],
+            "time_end_sec",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": float("inf"),
                     "visual_caption": "quiet room",
                     "transcript_segments": [],
                 }

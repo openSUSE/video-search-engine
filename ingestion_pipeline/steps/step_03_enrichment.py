@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import shutil
 from typing import Any, Callable, Dict, Optional
@@ -207,6 +208,11 @@ def _segment_time_value(segment: Dict[str, Any], index: int, field_name: str) ->
         raise ValueError(
             f"segment at index {index} field {field_name} must be a number"
         ) from exc
+
+    if not math.isfinite(time_value):
+        raise ValueError(
+            f"segment at index {index} field {field_name} must be a finite number"
+        )
 
     if time_value < 0:
         raise ValueError(

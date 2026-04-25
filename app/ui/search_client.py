@@ -1,3 +1,4 @@
+import math
 import os
 from typing import Any, Mapping
 
@@ -56,7 +57,11 @@ def search_payload(
 
 def search_timeout_seconds(raw_value: str | None = None) -> float:
     raw_timeout = os.getenv("SEARCH_API_TIMEOUT_SECONDS") if raw_value is None else raw_value
-    if raw_timeout in (None, ""):
+    if raw_timeout is None:
+        return DEFAULT_SEARCH_TIMEOUT_SECONDS
+
+    raw_timeout = str(raw_timeout).strip()
+    if not raw_timeout:
         return DEFAULT_SEARCH_TIMEOUT_SECONDS
 
     try:
@@ -64,7 +69,7 @@ def search_timeout_seconds(raw_value: str | None = None) -> float:
     except ValueError:
         return DEFAULT_SEARCH_TIMEOUT_SECONDS
 
-    if timeout <= 0:
+    if not math.isfinite(timeout) or timeout <= 0:
         return DEFAULT_SEARCH_TIMEOUT_SECONDS
 
     return timeout
