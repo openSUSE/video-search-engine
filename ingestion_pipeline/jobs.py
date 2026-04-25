@@ -92,6 +92,8 @@ def decode_job_message(body: bytes) -> IngestionJob:
     unexpected_keys = set(payload) - allowed_keys
     if unexpected_keys:
         raise ValueError(f"unexpected job fields: {', '.join(sorted(unexpected_keys))}")
+    if "video_path" not in payload:
+        raise ValueError("video_path is required")
 
     return IngestionJob(**payload)
 

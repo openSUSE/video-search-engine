@@ -95,6 +95,12 @@ def test_decode_job_message_rejects_invalid_field_types(payload, error):
         decode_job_message(json.dumps(payload).encode("utf-8"))
 
 
+@pytest.mark.parametrize("payload", [{}, {"output_dir": "/data/processed"}])
+def test_decode_job_message_rejects_missing_required_video_path(payload):
+    with pytest.raises(ValueError, match="video_path"):
+        decode_job_message(json.dumps(payload).encode("utf-8"))
+
+
 def test_ingestion_job_builds_pipeline_kwargs_with_default_output_dir():
     job = IngestionJob(video_path="/data/videos/demo.mp4", title="Demo", year=2024)
 
