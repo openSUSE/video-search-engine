@@ -31,10 +31,25 @@ def _vector_to_list(vector: Any) -> List[float]:
     return list(vector)
 
 
-def _encoded_vectors_to_lists(encoded_vectors: Any) -> List[List[float]]:
+def _encoded_vectors_to_lists(
+    encoded_vectors: Any,
+    expected_count: int,
+    embedding_type: str,
+) -> List[List[float]]:
     if hasattr(encoded_vectors, "tolist"):
         encoded_vectors = encoded_vectors.tolist()
-    return [_vector_to_list(vector) for vector in encoded_vectors]
+    try:
+        vectors = [_vector_to_list(vector) for vector in encoded_vectors]
+    except TypeError as exc:
+        raise ValueError(f"{embedding_type} embeddings must be vectors") from exc
+
+    if len(vectors) != expected_count:
+        raise ValueError(
+            f"{embedding_type} embedding count {len(vectors)} "
+            f"does not match segment count {expected_count}"
+        )
+
+    return vectors
 
 
 def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
@@ -189,10 +204,14 @@ def run_indexing(
         all_visual_contexts.append(". ".join(filter(None, visual_parts)))
 
     text_embeddings = _encoded_vectors_to_lists(
-        embedding_model.encode(all_transcripts, show_progress_bar=True)
+        embedding_model.encode(all_transcripts, show_progress_bar=True),
+        len(segments),
+        "text",
     )
     visual_embeddings = _encoded_vectors_to_lists(
-        embedding_model.encode(all_visual_contexts, show_progress_bar=True)
+        embedding_model.encode(all_visual_contexts, show_progress_bar=True),
+        len(segments),
+        "visual",
     )
 
     for i, segment in enumerate(segments):

@@ -184,6 +184,56 @@ def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp
     ]
 
 
+@pytest.mark.parametrize(
+    ("bad_call_index", "message"),
+    [
+        (0, "text embedding count"),
+        (1, "visual embedding count"),
+    ],
+)
+def test_run_indexing_rejects_embedding_count_mismatch_before_upsert(
+    tmp_path,
+    bad_call_index,
+    message,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    class ShortEmbeddingModel:
+        def __init__(self):
+            self.call_count = 0
+
+        def encode(self, texts, show_progress_bar):
+            call_index = self.call_count
+            self.call_count += 1
+            if call_index == bad_call_index:
+                return []
+            return [[call_index, text_index] for text_index, _text in enumerate(texts)]
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+            embedding_model=ShortEmbeddingModel(),
+            collection=collection,
+        )
+
+    assert collection.upsert_call is None
+
+
 @pytest.mark.parametrize("video_filename", ["", "   ", None])
 def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
     monkeypatch,
