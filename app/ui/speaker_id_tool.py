@@ -10,6 +10,7 @@ from app.ui.speaker_support import (
     normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
+    save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
 )
@@ -96,7 +97,14 @@ else:
                     st.json(st.session_state.speaker_map)
 
                 if not unidentified_speakers:
-                    st.success("All speakers have been identified! The speaker map has been saved.")
+                    if save_speaker_map_if_complete(
+                        paths.speaker_map,
+                        st.session_state.speaker_map,
+                        all_speakers,
+                    ):
+                        st.success("All speakers have been identified! The speaker map has been saved.")
+                    else:
+                        st.warning("Speaker assignments are incomplete.")
                 else:
                     st.subheader("❓ Unidentified Speakers")
                     selected_speaker_label = st.radio("Select a speaker to identify:", unidentified_speakers)

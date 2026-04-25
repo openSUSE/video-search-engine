@@ -4,6 +4,7 @@ from app.ui.speaker_support import (
     processed_video_folders,
     reset_speaker_session_for_video,
     resolve_video_path,
+    save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
 )
@@ -108,6 +109,28 @@ def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
     speaker_map_path.write_text('{"SPEAKER_00": "   "}')
 
     assert load_speaker_map(speaker_map_path) == {}
+
+
+def test_save_speaker_map_if_complete_writes_empty_map_for_no_transcript_speakers(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+
+    saved = save_speaker_map_if_complete(speaker_map_path, {}, [])
+
+    assert saved is True
+    assert speaker_map_path.read_text() == "{}"
+
+
+def test_save_speaker_map_if_complete_rejects_incomplete_maps(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+
+    saved = save_speaker_map_if_complete(
+        speaker_map_path,
+        {"SPEAKER_00": "Alice"},
+        ["SPEAKER_00", "SPEAKER_01"],
+    )
+
+    assert saved is False
+    assert not speaker_map_path.exists()
 
 
 def test_speaker_ids_from_transcript_returns_sorted_non_empty_strings():

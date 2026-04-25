@@ -93,6 +93,28 @@ def load_speaker_map(path: str | Path) -> dict[str, str]:
     return normalize_speaker_map(speaker_map) or {}
 
 
+def save_speaker_map_if_complete(
+    path: str | Path,
+    speaker_map: Any,
+    transcript_speaker_ids: Sequence[str],
+) -> bool:
+    normalized_speaker_map = normalize_speaker_map(speaker_map)
+    if normalized_speaker_map is None:
+        return False
+
+    required_speaker_ids = {
+        speaker_id.strip()
+        for speaker_id in transcript_speaker_ids
+        if isinstance(speaker_id, str) and speaker_id.strip()
+    }
+    if required_speaker_ids - set(normalized_speaker_map):
+        return False
+
+    with Path(path).open("w") as f:
+        json.dump(normalized_speaker_map, f, indent=2)
+    return True
+
+
 def ensure_speaker_session_state(state: MutableMapping[str, Any]) -> None:
     if "speaker_map" not in state:
         state["speaker_map"] = {}
