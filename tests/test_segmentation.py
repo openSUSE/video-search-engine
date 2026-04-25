@@ -2,6 +2,9 @@ import json
 import sys
 import types
 
+import pytest
+
+from ingestion_pipeline.steps import step_02_segmentation as segmentation_step
 from ingestion_pipeline.steps.step_02_segmentation import create_embedding_model, run_segmentation
 
 
@@ -133,3 +136,122 @@ def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_pat
             "kwargs": {"show_progress_bar": True, "normalize_embeddings": True},
         },
     ]
+
+
+@pytest.mark.parametrize(
+    ("analysis_data", "message"),
+    [
+        ({"shot_id": "shot_0001"}, "JSON array"),
+        (["not a shot"], "shot at index 0"),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                }
+            ],
+            "time_start_sec",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": "hello",
+                }
+            ],
+            "transcript_segments",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [{"speaker": "SPEAKER_00"}],
+                }
+            ],
+            "text",
+        ),
+    ],
+)
+def test_run_segmentation_rejects_invalid_analysis_before_embedding_setup(
+    monkeypatch,
+    tmp_path,
+    analysis_data,
+    message,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(json.dumps(analysis_data))
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("embedding model should not load for invalid analysis data")
+
+    monkeypatch.setattr(segmentation_step, "create_embedding_model", fail_create_embedding_model)
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": "segments.json"}},
+        )
+
+
+@pytest.mark.parametrize(
+    ("speaker_map", "message"),
+    [
+        (["not a map"], "speaker map"),
+        ({"SPEAKER_00": " "}, "speaker map"),
+        ({"SPEAKER_00": "Alice", " SPEAKER_00 ": "Alicia"}, "speaker map"),
+    ],
+)
+def test_run_segmentation_rejects_invalid_speaker_map_before_embedding_setup(
+    monkeypatch,
+    tmp_path,
+    speaker_map,
+    message,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "hello there",
+                            "speaker": "SPEAKER_00",
+                        }
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps(speaker_map))
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("embedding model should not load for invalid speaker map")
+
+    monkeypatch.setattr(segmentation_step, "create_embedding_model", fail_create_embedding_model)
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": "segments.json"}},
+        )

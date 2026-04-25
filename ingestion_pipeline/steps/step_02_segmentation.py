@@ -5,6 +5,8 @@ import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
+from app.ui.speaker_support import normalize_speaker_map
+
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,93 @@ EMBEDDING_MODEL = 'all-MiniLM-L6-v2'
 class EmbeddingModel(Protocol):
     def encode(self, sentences: List[str], **kwargs: Any) -> Any:
         ...
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _validate_speaker_map(raw_speaker_map: Any) -> Dict[str, str]:
+    speaker_map = normalize_speaker_map(raw_speaker_map)
+    if speaker_map is None:
+        raise ValueError(
+            "speaker map must be a JSON object with non-empty string speaker IDs and names"
+        )
+    return speaker_map
+
+
+def _validate_labeled_items(
+    shot: Dict[str, Any],
+    shot_index: int,
+    field_name: str,
+    label_name: str,
+) -> None:
+    items = shot.get(field_name, [])
+    if not isinstance(items, list):
+        raise ValueError(f"shot at index {shot_index} field {field_name} must be a JSON array")
+
+    for item_index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"{field_name} item at shot index {shot_index}, index {item_index} "
+                "must be a JSON object"
+            )
+        label = item.get(label_name)
+        if not isinstance(label, str):
+            raise ValueError(
+                f"{field_name} item at shot index {shot_index}, index {item_index} "
+                f"must have string {label_name}"
+            )
+
+
+def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_analysis_data, list):
+        raise ValueError("final analysis file must contain a JSON array")
+
+    for shot_index, shot in enumerate(raw_analysis_data):
+        if not isinstance(shot, dict):
+            raise ValueError(f"shot at index {shot_index} must be a JSON object")
+
+        shot_id = shot.get("shot_id")
+        if not isinstance(shot_id, str) or not shot_id.strip():
+            raise ValueError(f"shot at index {shot_index} must have a shot_id")
+
+        for field_name in ("time_start_sec", "time_end_sec"):
+            if not _is_number(shot.get(field_name)):
+                raise ValueError(f"shot at index {shot_index} must have numeric {field_name}")
+
+        visual_caption = shot.get("visual_caption")
+        if not isinstance(visual_caption, str):
+            raise ValueError(f"shot at index {shot_index} must have string visual_caption")
+
+        transcript_segments = shot.get("transcript_segments")
+        if not isinstance(transcript_segments, list):
+            raise ValueError(
+                f"shot at index {shot_index} field transcript_segments must be a JSON array"
+            )
+
+        for segment_index, segment in enumerate(transcript_segments):
+            if not isinstance(segment, dict):
+                raise ValueError(
+                    f"transcript segment at shot index {shot_index}, index {segment_index} "
+                    "must be a JSON object"
+                )
+            if not isinstance(segment.get("text"), str):
+                raise ValueError(
+                    f"transcript segment at shot index {shot_index}, index {segment_index} "
+                    "must have string text"
+                )
+            speaker = segment.get("speaker")
+            if speaker is not None and not isinstance(speaker, str):
+                raise ValueError(
+                    f"transcript segment at shot index {shot_index}, index {segment_index} "
+                    "must have string speaker"
+                )
+
+        _validate_labeled_items(shot, shot_index, "audio_events", "event")
+        _validate_labeled_items(shot, shot_index, "detected_actions", "action")
+
+    return raw_analysis_data
 
 
 def _load_config() -> Dict[str, Any]:
@@ -119,9 +208,9 @@ def run_segmentation(
     # 1. Load all necessary data
     logger.info("1/4: Loading input data...")
     with open(analysis_path, 'r') as f:
-        analysis_data = json.load(f)
+        analysis_data = _validate_analysis_data(json.load(f))
     with open(speaker_map_path, 'r') as f:
-        speaker_map = json.load(f)
+        speaker_map = _validate_speaker_map(json.load(f))
 
     if not analysis_data:
         logger.warning("The 'final_analysis.json' file is empty. Cannot perform segmentation.")
@@ -155,7 +244,7 @@ def _prepare_rich_shots(analysis_data: List[Dict[str, Any]], speaker_map: Dict[s
         # Get unique, real speaker names for the shot
         shot_speakers = set()
         for seg in shot['transcript_segments']:
-            generic_speaker = seg.get('speaker', 'UNKNOWN')
+            generic_speaker = (seg.get('speaker') or 'UNKNOWN').strip()
             real_name = speaker_map.get(generic_speaker, "Unknown Speaker")
             shot_speakers.add(real_name)
 
