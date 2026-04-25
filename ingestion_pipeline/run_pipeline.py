@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 import subprocess
@@ -6,6 +7,7 @@ import sys
 import time
 
 from core.logger import setup_logging
+from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
 from app.ui.url_settings import local_http_url
 
 logger = logging.getLogger(__name__)
@@ -76,11 +78,50 @@ def _speaker_ui_url(config) -> str:
     return local_http_url(ui_config["host"], ui_config["port"])
 
 
-def _wait_until_speaker_map_exists(speaker_map_path: str, server_process=None) -> bool:
+def _speaker_map_readiness(
+    speaker_map_path: str,
+    raw_transcript_path: str,
+) -> tuple[bool, str | None]:
+    if not os.path.exists(speaker_map_path):
+        return False, f"{speaker_map_path} does not exist yet"
+
+    try:
+        with open(raw_transcript_path, "r") as f:
+            transcript = json.load(f)
+        with open(speaker_map_path, "r") as f:
+            speaker_map_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        return False, f"speaker map or transcript is not readable: {exc}"
+
+    speaker_map = normalize_speaker_map(speaker_map_data)
+    if speaker_map is None:
+        return False, "speaker map must contain non-empty speaker names"
+
+    missing_speaker_ids = sorted(set(speaker_ids_from_transcript(transcript)) - set(speaker_map))
+    if missing_speaker_ids:
+        return False, "speaker map is missing names for: " + ", ".join(missing_speaker_ids)
+
+    return True, None
+
+
+def _wait_until_speaker_map_ready(
+    speaker_map_path: str,
+    raw_transcript_path: str,
+    server_process=None,
+) -> bool:
     timeout_seconds = _speaker_map_timeout_seconds()
     deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
+    last_wait_reason = None
 
-    while not os.path.exists(speaker_map_path):
+    while True:
+        is_ready, wait_reason = _speaker_map_readiness(speaker_map_path, raw_transcript_path)
+        if is_ready:
+            return True
+
+        if wait_reason != last_wait_reason:
+            logger.info("Waiting for speaker map: %s", wait_reason)
+            last_wait_reason = wait_reason
+
         if server_process and server_process.poll() is not None:
             logger.error("UI server exited prematurely. Please check the logs.")
             return False
@@ -97,8 +138,6 @@ def _wait_until_speaker_map_exists(speaker_map_path: str, server_process=None) -
         if deadline:
             sleep_seconds = min(sleep_seconds, max(0.1, deadline - time.monotonic()))
         time.sleep(sleep_seconds)
-
-    return True
 
 
 def _terminate_server_process(server_process) -> None:
@@ -130,14 +169,17 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
 
     if _speaker_ui_mode() == "external":
         logger.warning("External speaker UI mode: waiting for speaker_map.json to appear...")
-        if not _wait_until_speaker_map_exists(speaker_map_path):
+        if not _wait_until_speaker_map_ready(speaker_map_path, raw_transcript_path):
             return None
-        logger.info("Speaker map found; continuing.")
+        logger.info("Complete speaker map found; continuing.")
         return speaker_map_path
 
     if os.path.exists(speaker_map_path):
-        logger.info(f"Speaker map already exists at {speaker_map_path}. Skipping UI.")
-        return speaker_map_path
+        is_ready, wait_reason = _speaker_map_readiness(speaker_map_path, raw_transcript_path)
+        if is_ready:
+            logger.info(f"Speaker map already exists at {speaker_map_path}. Skipping UI.")
+            return speaker_map_path
+        logger.info("Existing speaker map is not complete; launching UI. Reason: %s", wait_reason)
 
     if not os.path.exists(raw_transcript_path):
         logger.error(f"Raw transcript not found at {raw_transcript_path}. Cannot start UI.")
@@ -160,7 +202,11 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         logger.warning(f"Please go to {ui_url} to identify speakers.")
         logger.warning("The pipeline will automatically continue once you save your changes in the UI.")
 
-        if not _wait_until_speaker_map_exists(speaker_map_path, server_process=server_process):
+        if not _wait_until_speaker_map_ready(
+            speaker_map_path,
+            raw_transcript_path,
+            server_process=server_process,
+        ):
             _terminate_server_process(server_process)
             return None
 

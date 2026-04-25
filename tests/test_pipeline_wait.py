@@ -1,4 +1,5 @@
 import importlib
+import json
 import logging
 import sys
 import types
@@ -40,8 +41,11 @@ def test_external_speaker_map_wait_returns_existing_file(monkeypatch, tmp_path):
 
     speaker_dir = tmp_path / "processed" / "demo"
     speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}])
+    )
     speaker_map = speaker_dir / "speaker_map.json"
-    speaker_map.write_text("{}")
+    speaker_map.write_text(json.dumps({"SPEAKER_00": "Alice"}))
 
     result = run_pipeline.wait_for_speaker_identification(
         str(tmp_path / "demo.mp4"),
@@ -63,6 +67,96 @@ def test_external_speaker_map_wait_times_out(monkeypatch, tmp_path):
     )
 
     assert result is None
+
+
+def test_external_speaker_map_wait_requires_all_transcript_speakers(monkeypatch, tmp_path):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_UI_MODE", "external")
+    monkeypatch.setenv("SPEAKER_MAP_TIMEOUT_SECONDS", "0.001")
+    monkeypatch.setattr(run_pipeline.time, "sleep", lambda _seconds: None)
+
+    speaker_dir = tmp_path / "processed" / "demo"
+    speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps(
+            [
+                {"speaker": "SPEAKER_00", "text": "hello"},
+                {"speaker": "SPEAKER_01", "text": "reply"},
+            ]
+        )
+    )
+    (speaker_dir / "speaker_map.json").write_text(
+        json.dumps({"SPEAKER_00": "Alice"})
+    )
+
+    result = run_pipeline.wait_for_speaker_identification(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+    )
+
+    assert result is None
+
+
+def test_speaker_map_readiness_allows_empty_map_for_transcript_without_speakers(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    transcript_path.write_text(json.dumps([{"text": "music"}]))
+    speaker_map_path.write_text("{}")
+
+    assert run_pipeline._speaker_map_readiness(
+        str(speaker_map_path),
+        str(transcript_path),
+    ) == (True, None)
+
+
+def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_path):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_UI_MODE", "local")
+
+    speaker_dir = tmp_path / "processed" / "demo"
+    speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps(
+            [
+                {"speaker": "SPEAKER_00", "text": "hello"},
+                {"speaker": "SPEAKER_01", "text": "reply"},
+            ]
+        )
+    )
+    (speaker_dir / "speaker_map.json").write_text(
+        json.dumps({"SPEAKER_00": "Alice"})
+    )
+    calls = {}
+
+    class FakeProcess:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls["terminated"] = True
+
+        def wait(self, timeout):
+            calls["wait_timeout"] = timeout
+
+    def fake_popen(command):
+        calls["command"] = command
+        return FakeProcess()
+
+    monkeypatch.setattr(run_pipeline.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(run_pipeline, "_wait_until_speaker_map_ready", lambda *args, **kwargs: False)
+
+    result = run_pipeline.wait_for_speaker_identification(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+    )
+
+    assert result is None
+    assert calls["command"][:3] == [sys.executable, "-m", "app.main"]
+    assert calls["terminated"] is True
 
 
 def test_speaker_ui_mode_strips_blank_environment_values(monkeypatch):
@@ -162,6 +256,7 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
     output_dir = tmp_path / "processed"
     speaker_dir = output_dir / "demo"
     speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(json.dumps([{"text": "music"}]))
     (speaker_dir / "speaker_map.json").write_text("{}")
 
     assert run_pipeline.run_pipeline(str(tmp_path / "demo.mp4"), str(output_dir))
