@@ -113,6 +113,25 @@ def test_speaker_map_readiness_allows_empty_map_for_transcript_without_speakers(
     ) == (True, None)
 
 
+def test_speaker_map_readiness_rejects_malformed_transcript(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    transcript_path.write_text(json.dumps({"speaker": "SPEAKER_00"}))
+    speaker_map_path.write_text("{}")
+
+    is_ready, wait_reason = run_pipeline._speaker_map_readiness(
+        str(speaker_map_path),
+        str(transcript_path),
+    )
+
+    assert is_ready is False
+    assert "JSON array" in wait_reason
+
+
 def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_path):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     monkeypatch.setenv("SPEAKER_UI_MODE", "local")

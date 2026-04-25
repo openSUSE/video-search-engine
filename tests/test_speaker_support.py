@@ -1,3 +1,5 @@
+import pytest
+
 from app.ui.speaker_support import (
     load_speaker_map,
     normalize_speaker_map,
@@ -7,6 +9,7 @@ from app.ui.speaker_support import (
     save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
+    validate_speaker_ids_from_transcript,
 )
 
 
@@ -144,3 +147,33 @@ def test_speaker_ids_from_transcript_returns_sorted_non_empty_strings():
     ]
 
     assert speaker_ids_from_transcript(transcript) == ["SPEAKER_00", "SPEAKER_01"]
+
+
+def test_validate_speaker_ids_from_transcript_returns_sorted_non_empty_strings():
+    transcript = [
+        {"speaker": " SPEAKER_01 "},
+        {"speaker": "SPEAKER_00"},
+        {"speaker": ""},
+        {"text": "missing speaker"},
+    ]
+
+    assert validate_speaker_ids_from_transcript(transcript) == [
+        "SPEAKER_00",
+        "SPEAKER_01",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("transcript", "message"),
+    [
+        ({"speaker": "SPEAKER_00"}, "JSON array"),
+        (["not a segment"], "index 0"),
+        ([{"speaker": 7}], "speaker"),
+    ],
+)
+def test_validate_speaker_ids_from_transcript_rejects_malformed_segments(
+    transcript,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        validate_speaker_ids_from_transcript(transcript)

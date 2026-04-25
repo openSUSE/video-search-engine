@@ -68,6 +68,30 @@ def speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
     return sorted(speaker_ids)
 
 
+def validate_speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
+    if not isinstance(transcript_segments, list):
+        raise ValueError("transcript must be a JSON array")
+
+    speaker_ids = set()
+    for segment_index, segment in enumerate(transcript_segments):
+        if not isinstance(segment, Mapping):
+            raise ValueError(
+                f"transcript segment at index {segment_index} must be a JSON object"
+            )
+
+        speaker_id = segment.get("speaker")
+        if speaker_id is None:
+            continue
+        if not isinstance(speaker_id, str):
+            raise ValueError(
+                f"transcript segment at index {segment_index} must have string speaker"
+            )
+        if speaker_id.strip():
+            speaker_ids.add(speaker_id.strip())
+
+    return sorted(speaker_ids)
+
+
 def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
     if not isinstance(raw_speaker_map, dict):
         return None

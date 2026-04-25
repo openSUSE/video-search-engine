@@ -7,7 +7,10 @@ import sys
 import time
 
 from core.logger import setup_logging
-from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
+from app.ui.speaker_support import (
+    normalize_speaker_map,
+    validate_speaker_ids_from_transcript,
+)
 from app.ui.url_settings import local_http_url
 
 logger = logging.getLogger(__name__)
@@ -90,14 +93,15 @@ def _speaker_map_readiness(
             transcript = json.load(f)
         with open(speaker_map_path, "r") as f:
             speaker_map_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        required_speaker_ids = validate_speaker_ids_from_transcript(transcript)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
         return False, f"speaker map or transcript is not readable: {exc}"
 
     speaker_map = normalize_speaker_map(speaker_map_data)
     if speaker_map is None:
         return False, "speaker map must contain non-empty speaker names"
 
-    missing_speaker_ids = sorted(set(speaker_ids_from_transcript(transcript)) - set(speaker_map))
+    missing_speaker_ids = sorted(set(required_speaker_ids) - set(speaker_map))
     if missing_speaker_ids:
         return False, "speaker map is missing names for: " + ", ".join(missing_speaker_ids)
 

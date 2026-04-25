@@ -4,7 +4,10 @@ import os
 import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
-from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
+from app.ui.speaker_support import (
+    normalize_speaker_map,
+    validate_speaker_ids_from_transcript,
+)
 from app.ui.url_settings import local_http_url
 
 # Basic configuration for Flask logging
@@ -76,7 +79,7 @@ def _required_speaker_ids():
 
     with open(TRANSCRIPT_PATH, 'r') as f:
         transcript = json.load(f)
-    return speaker_ids_from_transcript(transcript)
+    return validate_speaker_ids_from_transcript(transcript)
 
 
 @app.route('/api/save_map', methods=['POST'])
@@ -92,7 +95,7 @@ def save_speaker_map():
 
     try:
         required_speaker_ids = _required_speaker_ids()
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         logger.error("Could not validate speaker map against transcript: %s", e, exc_info=True)
         return jsonify({"error": "Could not validate speaker map against transcript."}), 500
 
