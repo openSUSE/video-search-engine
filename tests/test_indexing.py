@@ -154,6 +154,61 @@ def test_run_indexing_skips_empty_segment_files_without_creating_dependencies(tm
     )
 
 
+def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    run_indexing(
+        str(enriched_segments_path),
+        "  demo-video  ",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=FakeEmbeddingModel(),
+        collection=collection,
+    )
+
+    assert collection.upsert_call["ids"] == [
+        "demo-video::segment-1_text",
+        "demo-video::segment-1_visual",
+    ]
+
+
+@pytest.mark.parametrize("video_filename", ["", "   ", None])
+def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+    video_filename,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(json.dumps([{"segment_id": "segment-1"}]))
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for invalid video filename"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match="video_filename"):
+        run_indexing(
+            str(enriched_segments_path),
+            video_filename,
+            {"database": {"collection_name": "unused"}},
+        )
+
+
 @pytest.mark.parametrize(
     ("segments", "message"),
     [
@@ -164,6 +219,41 @@ def test_run_indexing_skips_empty_segment_files_without_creating_dependencies(tm
     ],
 )
 def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+    segments,
+    message,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(json.dumps(segments))
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for invalid segment data"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
+
+
+@pytest.mark.parametrize(
+    ("segments", "message"),
+    [
+        ([{"segment_id": "segment-1", "start_time": "bad"}], "start_time"),
+        ([{"segment_id": "segment-1", "start_time": True}], "start_time"),
+        ([{"segment_id": "segment-1", "start_time": -1}], "start_time"),
+        ([{"segment_id": "segment-1", "end_time": None}], "end_time"),
+        ([{"segment_id": "segment-1", "start_time": 4, "end_time": 3}], "end_time"),
+    ],
+)
+def test_run_indexing_rejects_invalid_timing_metadata_before_creating_dependencies(
     monkeypatch,
     tmp_path,
     segments,

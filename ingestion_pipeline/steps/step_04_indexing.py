@@ -41,6 +41,34 @@ def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
     return f"{video_filename}::{segment_id}{suffix}"
 
 
+def _normalize_video_filename(video_filename: Any) -> str:
+    if not isinstance(video_filename, str) or not video_filename.strip():
+        raise ValueError("video_filename must be a non-empty string")
+    return video_filename.strip()
+
+
+def _segment_time_value(segment: Dict[str, Any], field_name: str, index: int) -> float:
+    value = segment.get(field_name, 0.0)
+    if isinstance(value, bool):
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} must be a number"
+        )
+
+    try:
+        time_value = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} must be a number"
+        ) from exc
+
+    if time_value < 0:
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} must be non-negative"
+        )
+
+    return time_value
+
+
 def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
     if not isinstance(segments, list):
         raise ValueError("enriched segments file must contain a JSON array")
@@ -52,6 +80,14 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
         segment_id = segment.get("segment_id")
         if not isinstance(segment_id, str) or not segment_id.strip():
             raise ValueError(f"enriched segment at index {index} must have a segment_id")
+
+        start_time = _segment_time_value(segment, "start_time", index)
+        end_time = _segment_time_value(segment, "end_time", index)
+        if "start_time" in segment and "end_time" in segment and end_time < start_time:
+            raise ValueError(
+                f"enriched segment at index {index} "
+                "end_time must be greater than or equal to start_time"
+            )
 
     return segments
 
@@ -112,6 +148,7 @@ def run_indexing(
     and indexes them in a single ChromaDB collection with distinct IDs.
     """
     logger.info("--- Starting Step 4: Indexing Segments in Vector DB ---")
+    video_filename = _normalize_video_filename(video_filename)
 
     # 1. Load the enriched segments data
     logger.info(f"1/4: Loading enriched segments from {enriched_segments_path}...")
