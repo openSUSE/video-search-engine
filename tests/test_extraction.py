@@ -215,6 +215,33 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
     assert "logline" not in metadata
 
 
+def test_run_extraction_preserves_existing_metadata_when_no_title_is_provided(tmp_path):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+
+    for path in paths.values():
+        Path(path).write_text("[]")
+
+    existing_metadata = {
+        "title": "Fetched Demo",
+        "synopsis": "Fetched synopsis.",
+        "genre": "Drama",
+    }
+    metadata_path = video_dir / "video_metadata.json"
+    metadata_path.write_text(json.dumps(existing_metadata))
+
+    run_extraction(
+        video_path=str(tmp_path / "demo.mp4"),
+        base_output_dir=str(output_dir),
+        config=config,
+    )
+
+    assert json.loads(metadata_path.read_text()) == existing_metadata
+
+
 def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
     paths = {
         "shots": str(tmp_path / "shots.json"),

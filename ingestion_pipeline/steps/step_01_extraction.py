@@ -22,6 +22,44 @@ def _fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Di
     return fetch_movie_metadata(title, year)
 
 
+def _write_video_metadata(
+    metadata_path: str,
+    video_filename: str,
+    video_title: Optional[str],
+    video_year: Optional[int],
+    metadata_fetcher: Optional[MetadataFetcher] = None,
+) -> None:
+    if os.path.exists(metadata_path) and not video_title:
+        logger.info("    -> Existing video metadata found at %s. Skipping refresh.", metadata_path)
+        return
+
+    video_metadata = {
+        "title": video_title or video_filename,
+        "synopsis": "No synopsis provided.",
+        "genre": "N/A",
+        "setting": "N/A",
+        "main_characters": [],
+    }
+
+    if video_title:
+        logger.info(f"Attempting to fetch metadata for '{video_title}'...")
+        if metadata_fetcher is None:
+            metadata_fetcher = _fetch_movie_metadata
+        fetched_metadata = metadata_fetcher(video_title, video_year)
+
+        if fetched_metadata:
+            logger.info("Successfully fetched metadata from TMDb.")
+            video_metadata.update(fetched_metadata)
+        else:
+            logger.warning(f"Could not fetch metadata for '{video_title}'. Proceeding with title only.")
+    else:
+        logger.info("No --title provided. Skipping automatic metadata fetching.")
+
+    with open(metadata_path, 'w') as f:
+        json.dump(video_metadata, f, indent=2)
+    logger.info(f"    -> Video metadata saved to {metadata_path}")
+
+
 # Added path for the final unified output file.
 def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
     """Generates a dictionary of all required output paths using filenames from config."""
@@ -361,33 +399,14 @@ def run_extraction(
     os.makedirs(video_specific_dir, exist_ok=True)
     paths = _get_paths(video_specific_dir, config)
 
-    video_metadata = {
-        "title": video_title or video_filename,
-        "synopsis": "No synopsis provided.",
-        "genre": "N/A",
-        "setting": "N/A",
-        "main_characters": []
-    }
-
-    if video_title:
-        logger.info(f"Attempting to fetch metadata for '{video_title}'...")
-        if metadata_fetcher is None:
-            metadata_fetcher = _fetch_movie_metadata
-        fetched_metadata = metadata_fetcher(video_title, video_year)
-        
-        if fetched_metadata:
-            logger.info("Successfully fetched metadata from TMDb.")
-            # Update the default metadata with the fetched data
-            video_metadata.update(fetched_metadata)
-        else:
-            logger.warning(f"Could not fetch metadata for '{video_title}'. Proceeding with title only.")
-    else:
-        logger.info("No --title provided. Skipping automatic metadata fetching.")
-    
     metadata_path = os.path.join(video_specific_dir, 'video_metadata.json')
-    with open(metadata_path, 'w') as f:
-        json.dump(video_metadata, f, indent=2)
-    logger.info(f"    -> Video metadata saved to {metadata_path}")
+    _write_video_metadata(
+        metadata_path=metadata_path,
+        video_filename=video_filename,
+        video_title=video_title,
+        video_year=video_year,
+        metadata_fetcher=metadata_fetcher,
+    )
 
     # 1. Detect shots first to create the data "skeleton"
     scenes = []
