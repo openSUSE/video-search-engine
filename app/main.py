@@ -5,6 +5,7 @@ import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
 from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
+from app.ui.url_settings import local_http_url
 
 # Basic configuration for Flask logging
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,11 @@ def get_config():
 
         CONFIG = loaded_config
     return CONFIG
+
+
+def _ui_url() -> str:
+    config = get_config()
+    return local_http_url(config['ui']['host'], config['ui']['port'])
 
 
 @app.route('/')
@@ -120,10 +126,10 @@ def save_speaker_map():
 def _request_shutdown_async():
     try:
         import threading, requests
-        config = get_config()
+        shutdown_url = f"{_ui_url()}/api/shutdown"
         def _shutdown():
             try:
-                requests.post(f"http://{config['ui']['host']}:{config['ui']['port']}/api/shutdown", timeout=2)
+                requests.post(shutdown_url, timeout=2)
             except Exception:
                 pass
         threading.Thread(target=_shutdown, daemon=True).start()
@@ -170,7 +176,7 @@ if __name__ == '__main__':
     port = args.port # Use the port from command-line args
 
     logger.info(f"Starting server for video: {VIDEO_PATH}")
-    logger.info(f"Please open http://{host}:{port} in your browser.")
+    logger.info(f"Please open {local_http_url(host, port)} in your browser.")
 
     # Run the app with host and port from config/args
     app.run(host=host, port=port, debug=False, use_reloader=False)

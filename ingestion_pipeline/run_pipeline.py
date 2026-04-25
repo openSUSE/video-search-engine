@@ -6,6 +6,7 @@ import sys
 import time
 
 from core.logger import setup_logging
+from app.ui.url_settings import local_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,11 @@ def _speaker_map_timeout_seconds():
         return None
 
     return timeout_seconds
+
+
+def _speaker_ui_url(config) -> str:
+    ui_config = config["ui"]
+    return local_http_url(ui_config["host"], ui_config["port"])
 
 
 def _wait_until_speaker_map_exists(speaker_map_path: str, server_process=None) -> bool:
@@ -149,7 +155,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
     try:
         server_process = subprocess.Popen(command)
         # Build URL from CONFIG
-        ui_url = f"http://{config['ui']['host']}:{config['ui']['port']}"
+        ui_url = _speaker_ui_url(config)
         logger.warning("Speaker identification UI server started.")
         logger.warning(f"Please go to {ui_url} to identify speakers.")
         logger.warning("The pipeline will automatically continue once you save your changes in the UI.")
@@ -162,7 +168,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         try:
             import requests
 
-            ui_url = f"http://{config['ui']['host']}:{config['ui']['port']}"
+            ui_url = _speaker_ui_url(config)
             requests.post(f"{ui_url}/api/shutdown", timeout=3)
         except Exception as e:
             logger.warning(f"Could not reach UI shutdown endpoint: {e}")

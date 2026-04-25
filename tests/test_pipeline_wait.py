@@ -85,6 +85,14 @@ def test_blank_speaker_map_timeout_does_not_log_invalid_warning(monkeypatch, cap
     assert "Invalid SPEAKER_MAP_TIMEOUT_SECONDS" not in caplog.text
 
 
+def test_speaker_ui_client_url_uses_loopback_for_wildcard_host(monkeypatch):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+
+    assert run_pipeline._speaker_ui_url(
+        {"ui": {"host": "0.0.0.0", "port": 5050}}
+    ) == "http://127.0.0.1:5050"
+
+
 def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_path):
     config = {
         "filenames": {

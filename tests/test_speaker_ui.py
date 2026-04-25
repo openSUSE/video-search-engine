@@ -10,6 +10,19 @@ def test_speaker_ui_template_does_not_render_transcript_data_with_inner_html():
     assert "innerHTML" not in template
 
 
+def test_speaker_flask_ui_url_uses_loopback_for_wildcard_host(monkeypatch):
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "0.0.0.0", "port": 5050},
+        },
+    )
+
+    assert speaker_app._ui_url() == "http://127.0.0.1:5050"
+
+
 def test_save_speaker_map_writes_configured_output(monkeypatch, tmp_path):
     video_path = tmp_path / "videos" / "demo.mp4"
     video_path.parent.mkdir()
