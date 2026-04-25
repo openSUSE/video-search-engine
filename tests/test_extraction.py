@@ -1,9 +1,14 @@
 import json
+import sys
+import types
 from pathlib import Path
+
+import pytest
 
 from ingestion_pipeline.steps.step_01_extraction import (
     _get_paths,
     create_final_analysis_file,
+    detect_shot_boundaries,
     run_extraction,
 )
 
@@ -27,6 +32,55 @@ def test_get_paths_uses_configured_raw_transcript_name(tmp_path):
     paths = _get_paths(str(tmp_path), _extraction_config())
 
     assert paths["transcript_raw"] == str(tmp_path / "custom_raw_transcript.json")
+
+
+@pytest.mark.parametrize(
+    ("opened", "fps", "error_match"),
+    [
+        (False, 30.0, "Cannot open video file"),
+        (True, 0.0, "Could not read a valid FPS"),
+    ],
+)
+def test_detect_shot_boundaries_rejects_invalid_video_before_model_load(
+    monkeypatch,
+    tmp_path,
+    opened,
+    fps,
+    error_match,
+):
+    release_calls = []
+
+    class FakeVideoCapture:
+        def __init__(self, path):
+            self.path = path
+
+        def isOpened(self):
+            return opened
+
+        def get(self, _property):
+            return fps
+
+        def release(self):
+            release_calls.append(self.path)
+
+    fake_cv2 = types.SimpleNamespace(
+        VideoCapture=FakeVideoCapture,
+        CAP_PROP_FPS=5,
+    )
+    fake_transnet = types.ModuleType("transnetv2_pytorch")
+
+    class FailingTransNetV2:
+        def __init__(self):
+            raise AssertionError("TransNet should not load for invalid video metadata")
+
+    fake_transnet.TransNetV2 = FailingTransNetV2
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "transnetv2_pytorch", fake_transnet)
+
+    with pytest.raises(IOError, match=error_match):
+        detect_shot_boundaries("bad-video.mp4", str(tmp_path / "shots.json"))
+
+    assert release_calls == ["bad-video.mp4"]
 
 
 def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):

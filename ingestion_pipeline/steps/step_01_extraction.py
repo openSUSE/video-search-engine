@@ -76,11 +76,20 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
     """Detects shot boundaries and saves them as a rich JSON object."""
     logger.info("    -> Detecting shot boundaries with TransNetV2...")
     import cv2
-    from transnetv2_pytorch import TransNetV2
     
     cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    cap.release()
+    try:
+        if not cap.isOpened():
+            raise IOError(f"Cannot open video file: {video_path}")
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+    finally:
+        cap.release()
+
+    if fps <= 0:
+        raise IOError(f"Could not read a valid FPS from video file: {video_path}")
+
+    from transnetv2_pytorch import TransNetV2
 
     model_transnet = TransNetV2()
     _, _, all_frame_predictions = model_transnet.predict_video(video_path)
