@@ -62,6 +62,41 @@ def test_run_enrichment_uses_injected_provider_and_preserves_completed_segments(
     assert calls[0]["config"] == config
 
 
+def test_run_enrichment_normalizes_provider_name(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "full_transcript": "dialogue",
+                    "speakers": [],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {"title": "Generated", "summary": "Summary.", "keywords": ["demo"]}
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": " OLLAMA "},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    assert len(calls) == 1
+
+
 def test_run_enrichment_uses_logline_metadata_as_synopsis(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(

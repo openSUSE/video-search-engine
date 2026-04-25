@@ -100,12 +100,24 @@ def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
         return None
 
 
-def _resolve_llm_client(provider: str, llm_clients: Optional[Dict[str, LLMClient]]) -> Optional[LLMClient]:
-    if llm_clients and provider in llm_clients:
-        return llm_clients[provider]
-    if provider == 'gemini':
+def _normalize_provider_name(provider: Any) -> str:
+    return str(provider or "").strip().lower()
+
+
+def _resolve_llm_client(
+    provider: Any,
+    llm_clients: Optional[Dict[str, LLMClient]],
+) -> Optional[LLMClient]:
+    provider_name = _normalize_provider_name(provider)
+
+    if llm_clients:
+        for client_name, client in llm_clients.items():
+            if _normalize_provider_name(client_name) == provider_name:
+                return client
+
+    if provider_name == 'gemini':
         return _call_gemini_api
-    if provider == 'ollama':
+    if provider_name == 'ollama':
         return _call_ollama_api
     return None
 
@@ -177,7 +189,9 @@ def run_enrichment(
     output_filename = config['filenames']['enriched_segments']
     output_path = os.path.join(processed_dir, output_filename)
 
-    provider = config.get('llm_enrichment', {}).get('provider', 'ollama')
+    provider = _normalize_provider_name(
+        config.get('llm_enrichment', {}).get('provider', 'ollama')
+    )
     logger.info(f"--- Starting Step 3: LLM Enrichment using provider: '{provider}' ---")
     llm_client = _resolve_llm_client(provider, llm_clients)
     if llm_client is None:
