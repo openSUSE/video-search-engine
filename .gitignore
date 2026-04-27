@@ -93,6 +93,13 @@ data/processed/*
 venv/
 ENV/
 
+# Benchmark reports
+benchmarks/reports/
+*.bench.json
+
+# Claude Code local agent state
+.claude/
+
 # Spyder project settings
 .spyderproject
 

@@ -162,6 +162,15 @@ make validate
 
 This runs unit tests, validates Compose config with and without the worker profile, and compiles lightweight Python entrypoints. CI runs the same target.
 
+Run the benchmark suite when working on a hot path (search service, ingestion validators, segmentation loop, ...):
+
+```bash
+make bench           # full suite, text report
+make bench-smoke     # 10% iterations, suitable for a quick sanity check
+```
+
+See [benchmarks/README.md](benchmarks/README.md) for what is measured, how to add a new benchmark, and how to read the report.
+
 ## Deployment
 
 Build and publish the Docker images from `docker/`:
