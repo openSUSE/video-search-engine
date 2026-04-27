@@ -31,6 +31,10 @@ fakes (see `benchmarks/bench_api.py::_StaticEmbeddingModel` and
 ```bash
 make bench                         # full suite
 make bench-smoke                   # 10% iterations, quiet output (CI-friendly)
+make bench-baseline                # write benchmarks/reports/baseline.json
+make bench-check                   # compare against the baseline, fail on regression
+make bench-check WARN_RATIO=0.20   # 20% threshold instead of the 10% default
+make bench-baseline BASELINE=other.json   # custom baseline path
 
 # Direct invocations
 .venv/bin/python -m benchmarks.runner
