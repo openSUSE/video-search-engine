@@ -13,8 +13,8 @@ The runner discovers benchmarks from the modules listed in
 
 | Category    | What it measures |
 |-------------|------------------|
-| `config`    | YAML parsing, `core.config.load_config`, device selection. |
-| `api`       | RRF fusion in `HybridSearchService`, metadata fan-out, Pydantic v2 schema validation, response serialisation. |
+| `config`    | YAML parsing, `core.config.load_config`, device selection, `setup_logging` first-call vs idempotent paths, `Logger.info` dispatch cost. |
+| `api`       | End-to-end `HybridSearchService.search`, RRF fusion in isolation, query-vector validation, where-clause builder, metadata fan-out, result formatting, Pydantic v2 schema validation, response serialisation. |
 | `ingestion` | Boundary scoring loop, cosine similarity, validation of `final_analysis.json` / `final_segments.json` / `final_enriched_segments.json`, LLM-output normalisation, ChromaDB metadata prep, embedding-batch coercion. |
 | `jobs`      | Encode/decode of RabbitMQ ingestion job messages. |
 | `ui`        | Streamlit search-client serialisation, transcript validation, speaker-map normalisation, URL building. |
@@ -36,6 +36,9 @@ make bench-smoke                   # 10% iterations, quiet output (CI-friendly)
 .venv/bin/python -m benchmarks.runner
 .venv/bin/python -m benchmarks.runner --filter '^api\.'
 .venv/bin/python -m benchmarks.runner --scale 0.25 --json bench.json
+.venv/bin/python -m benchmarks.runner --format md > bench.md
+.venv/bin/python -m benchmarks.runner --baseline previous.json
+.venv/bin/python -m benchmarks.runner --baseline previous.json --fail-on-regression
 .venv/bin/python -m benchmarks.runner --list
 ```
 
@@ -53,6 +56,19 @@ above 1.0 for offline measurement when investigating a regression.
 `median`, `mean`, `p95`, `p99`, `max`, `stdev`, `total`, `ops_per_second`).
 The shape is suitable for diffing across runs and for feeding into trend
 dashboards.
+
+`--format {text,md,json}` controls the stdout report. `text` is the default
+fixed-width table; `md` emits a GitHub-flavoured markdown table suitable for
+pasting into PR comments or README snippets; `json` mirrors the `--json`
+artifact on stdout.
+
+`--baseline PATH` loads a previous `--json` snapshot and prints a
+median-vs-median comparison table on stderr after the run. Combined with
+`--fail-on-regression` and a `--warn-ratio` threshold (default `0.10`,
+i.e. 10% of the baseline median) the runner exits with status 1 if any
+benchmark slowed down past the threshold — useful for blocking PRs on
+known-slow paths. Median is the comparison axis because it ignores the
+tail, which is dominated by environmental noise rather than code changes.
 
 ## Reading The Output
 

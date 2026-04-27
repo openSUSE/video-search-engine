@@ -16,3 +16,5 @@ jobs:
         run: make install-dev
       - name: Run validation
         run: make validate
+      - name: Smoke-run benchmarks
+        run: make bench-smoke
