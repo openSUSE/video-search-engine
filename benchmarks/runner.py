@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import json
 import re
 import sys
 from pathlib import Path
@@ -29,17 +30,34 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from benchmarks.compare import (  # noqa: E402
+    compare_reports,
+    format_comparison,
+    has_regression,
+    load_report,
+)
 from benchmarks.harness import Benchmark, BenchmarkResult, run_benchmark  # noqa: E402
 from benchmarks.reporters import (  # noqa: E402
     RunMetadata,
     format_json_report,
+    format_markdown_report,
     format_text_report,
 )
 
 
+_FORMATTERS = {
+    "text": format_text_report,
+    "md": format_markdown_report,
+    "markdown": format_markdown_report,
+    "json": format_json_report,
+}
+
+
 BENCHMARK_MODULES = (
     "benchmarks.bench_config",
+    "benchmarks.bench_logger",
     "benchmarks.bench_api",
+    "benchmarks.bench_search_internals",
     "benchmarks.bench_segmentation",
     "benchmarks.bench_enrichment",
     "benchmarks.bench_indexing",
@@ -93,7 +111,40 @@ def _parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--json",
         dest="json_path",
         default=None,
-        help="Write a JSON report to this path in addition to the text report.",
+        help="Write a JSON report to this path in addition to the stdout report.",
+    )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=sorted(_FORMATTERS),
+        default="text",
+        help="Format used for the stdout report (text|md|json). Default: text.",
+    )
+    parser.add_argument(
+        "--baseline",
+        dest="baseline_path",
+        default=None,
+        help=(
+            "Path to a previous JSON report (from --json). When provided, a "
+            "comparison table is appended to stderr after the run."
+        ),
+    )
+    parser.add_argument(
+        "--warn-ratio",
+        type=float,
+        default=0.10,
+        help=(
+            "Symmetric threshold for regression/improvement when comparing "
+            "against --baseline. Default: 0.10 (10%% of the baseline median)."
+        ),
+    )
+    parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help=(
+            "Exit with status 1 if any benchmark regresses past --warn-ratio "
+            "compared to --baseline."
+        ),
     )
     parser.add_argument(
         "--list",
@@ -168,7 +219,8 @@ def main(argv: List[str] | None = None) -> int:
             )
 
     metadata = RunMetadata.capture(scale=args.scale)
-    sys.stdout.write(format_text_report(results, metadata=metadata))
+    formatter = _FORMATTERS[args.output_format]
+    sys.stdout.write(formatter(results, metadata=metadata))
 
     if args.json_path:
         Path(args.json_path).write_text(
@@ -176,6 +228,15 @@ def main(argv: List[str] | None = None) -> int:
         )
         if not args.quiet:
             print(f"Wrote JSON report to {args.json_path}", file=sys.stderr)
+
+    if args.baseline_path:
+        baseline = load_report(args.baseline_path)
+        current_payload = json.loads(format_json_report(results, metadata=metadata))
+        rows = compare_reports(baseline, current_payload, warn_ratio=args.warn_ratio)
+        sys.stderr.write("\n")
+        sys.stderr.write(format_comparison(rows, warn_ratio=args.warn_ratio))
+        if args.fail_on_regression and has_regression(rows):
+            return 1
 
     return 0
 

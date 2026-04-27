@@ -129,3 +129,57 @@ def format_json_report(
         "results": [result.to_dict() for result in results],
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def format_markdown_report(
+    results: Iterable[BenchmarkResult], *, metadata: RunMetadata
+) -> str:
+    """Return a GitHub-flavoured markdown report.
+
+    Suitable for pasting into PR comments or README snippets — categories
+    become H3 headers and benchmarks become rows in a markdown table. Units
+    are picked per-cell so a table mixing nanoseconds and milliseconds
+    remains readable.
+    """
+
+    grouped: dict[str, List[BenchmarkResult]] = {}
+    for result in results:
+        grouped.setdefault(result.category, []).append(result)
+
+    lines: List[str] = []
+    lines.append("# Video Search Engine — Benchmark Report")
+    lines.append("")
+    lines.append(
+        f"- python: `{metadata.python_version}`"
+    )
+    lines.append(f"- platform: `{metadata.platform}`")
+    lines.append(f"- scale: `{metadata.scale:g}`")
+    lines.append("")
+
+    for category in sorted(grouped):
+        lines.append(f"### {category}")
+        lines.append("")
+        lines.append(
+            "| benchmark | iters | min | median | mean | p95 | p99 | stdev | ops/s |"
+        )
+        lines.append(
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+        )
+        for result in sorted(grouped[category], key=lambda r: r.name):
+            lines.append(
+                "| `{name}` | {iters} | {min} | {med} | {mean} | "
+                "{p95} | {p99} | {stdev} | {ops} |".format(
+                    name=result.name,
+                    iters=result.iterations,
+                    min=_format_ns(result.min_ns).strip(),
+                    med=_format_ns(result.median_ns).strip(),
+                    mean=_format_ns(result.mean_ns).strip(),
+                    p95=_format_ns(result.p95_ns).strip(),
+                    p99=_format_ns(result.p99_ns).strip(),
+                    stdev=_format_ns(result.stdev_ns).strip(),
+                    ops=_format_ops(result.ops_per_second).strip(),
+                )
+            )
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
