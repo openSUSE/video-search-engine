@@ -101,7 +101,7 @@ def _metadata_string(metadata: Dict[str, Any], field_name: str) -> Optional[str]
     value = metadata.get(field_name)
     if not isinstance(value, str):
         return None
-    return value
+    return value.strip()
 
 
 def _metadata_time(metadata: Dict[str, Any], field_name: str) -> Optional[float]:
@@ -132,13 +132,11 @@ def _format_search_result(
     start_time = _metadata_time(metadata, "start_time")
     end_time = _metadata_time(metadata, "end_time")
 
+    # _metadata_string already strips, so falsy means missing/whitespace-only.
     if (
-        title is None
-        or not title.strip()
-        or summary is None
-        or not summary.strip()
-        or video_filename is None
-        or not video_filename.strip()
+        not title
+        or not summary
+        or not video_filename
         or speakers is None
         or start_time is None
         or end_time is None

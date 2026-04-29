@@ -110,6 +110,32 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
     assert results[0]["summary"] == "valid result"
 
 
+def test_hybrid_search_service_strips_whitespace_from_returned_metadata():
+    class CollectionWithPaddedFields(FakeCollection):
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
+                "metadatas": [
+                    _metadata(
+                        title="  Padded Title  ",
+                        summary=" trimmed summary ",
+                        speakers=" Alice, Bob ",
+                    ),
+                    _metadata(title="A", summary="text-only match"),
+                ],
+            }
+
+    service = HybridSearchService(FakeEmbeddingModel(), CollectionWithPaddedFields())
+
+    results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    by_id = {result["id"]: result for result in results}
+    assert by_id["demo.mp4::segment-b"]["title"] == "Padded Title"
+    assert by_id["demo.mp4::segment-b"]["summary"] == "trimmed summary"
+    assert by_id["demo.mp4::segment-b"]["speakers"] == "Alice, Bob"
+
+
 @pytest.mark.parametrize(
     "blank_field",
     [
