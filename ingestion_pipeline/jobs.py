@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUEUE = "video.ingestion"
 
 
-def _normalize_required_string(value: str, field_name: str) -> str:
+def normalize_required_string(value: str, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
     return value.strip()
 
 
-def _normalize_optional_string(value: Optional[str], field_name: str) -> Optional[str]:
+def normalize_optional_string(value: Optional[str], field_name: str) -> Optional[str]:
     if value is None:
         return None
     if not isinstance(value, str):
@@ -27,14 +27,14 @@ def _normalize_optional_string(value: Optional[str], field_name: str) -> Optiona
 
 def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
     resolved_url = os.getenv("RABBITMQ_URL") if rabbitmq_url is None else rabbitmq_url
-    return _normalize_required_string(resolved_url or "", "RabbitMQ URL")
+    return normalize_required_string(resolved_url or "", "RabbitMQ URL")
 
 
 def resolve_ingestion_queue(queue_name: Optional[str] = None) -> str:
     resolved_queue = (
         os.getenv("INGESTION_QUEUE", DEFAULT_QUEUE) if queue_name is None else queue_name
     )
-    return _normalize_required_string(resolved_queue, "ingestion queue")
+    return normalize_required_string(resolved_queue, "ingestion queue")
 
 
 @dataclass(frozen=True)
@@ -48,17 +48,17 @@ class IngestionJob:
         object.__setattr__(
             self,
             "video_path",
-            _normalize_required_string(self.video_path, "video_path"),
+            normalize_required_string(self.video_path, "video_path"),
         )
         object.__setattr__(
             self,
             "output_dir",
-            _normalize_optional_string(self.output_dir, "output_dir"),
+            normalize_optional_string(self.output_dir, "output_dir"),
         )
         object.__setattr__(
             self,
             "title",
-            _normalize_optional_string(self.title, "title"),
+            normalize_optional_string(self.title, "title"),
         )
         if self.year is not None and type(self.year) is not int:
             raise ValueError("year must be an integer")
@@ -102,8 +102,18 @@ def _open_channel(rabbitmq_url: str, queue_name: str):
     import pika
 
     connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
-    channel = connection.channel()
-    channel.queue_declare(queue=queue_name, durable=True)
+    try:
+        channel = connection.channel()
+        channel.queue_declare(queue=queue_name, durable=True)
+    except Exception:
+        # If queue_declare conflicts with an existing queue or the channel
+        # setup fails, the BlockingConnection would otherwise leak until the
+        # broker idle-times it out. Close it ourselves before re-raising.
+        try:
+            connection.close()
+        except Exception:
+            pass
+        raise
     return connection, channel
 
 
@@ -130,7 +140,8 @@ def publish_ingestion_job(
         )
         logger.info("Published ingestion job for %s to queue %s", job.video_path, queue_name)
     finally:
-        connection.close()
+        if connection.is_open:
+            connection.close()
 
 
 def consume_ingestion_jobs(

@@ -1,4 +1,5 @@
 import builtins
+import logging
 import sys
 import types
 
@@ -63,3 +64,90 @@ def test_fetch_movie_metadata_formats_overview_as_synopsis(monkeypatch):
 
     assert metadata["synopsis"] == "Fetched overview."
     assert "logline" not in metadata
+
+
+def test_fetch_movie_metadata_skips_results_with_unparsable_release_date(monkeypatch):
+    monkeypatch.setenv("TMDB_API_KEY", "test-key")
+
+    fake_module = types.ModuleType("tmdbv3api")
+
+    class FakeTMDb:
+        api_key = None
+
+    class _Result:
+        def __init__(self, id_, title, release_date):
+            self.id = id_
+            self.title = title
+            self.release_date = release_date
+
+        def __contains__(self, key):
+            return hasattr(self, key)
+
+    bad = _Result(1, "Bad Date", "TBD")
+    good = _Result(2, "Demo (2024)", "2024-01-01")
+
+    class FakeDetails:
+        title = "Demo (2024)"
+        overview = "The right one."
+        genres = [{"name": "Drama"}]
+
+    class FakeMovie:
+        def search(self, title):
+            return [bad, good]
+
+        def details(self, movie_id):
+            assert movie_id == 2
+            return FakeDetails()
+
+    fake_module.TMDb = FakeTMDb
+    fake_module.Movie = FakeMovie
+    monkeypatch.setitem(sys.modules, "tmdbv3api", fake_module)
+
+    metadata = fetch_movie_metadata("Demo", 2024)
+
+    assert metadata is not None
+    assert metadata["title"] == "Demo (2024)"
+
+
+def test_fetch_movie_metadata_warns_when_year_does_not_match_any_result(
+    monkeypatch, caplog
+):
+    monkeypatch.setenv("TMDB_API_KEY", "test-key")
+
+    fake_module = types.ModuleType("tmdbv3api")
+
+    class FakeTMDb:
+        api_key = None
+
+    class FakeSearchResult:
+        id = 9
+        title = "Demo (1999)"
+        release_date = "1999-06-30"
+
+        def __contains__(self, key):
+            return hasattr(self, key)
+
+    class FakeDetails:
+        title = "Demo (1999)"
+        overview = "An older release."
+        genres = [{"name": "Drama"}]
+
+    class FakeMovie:
+        def search(self, title):
+            return [FakeSearchResult()]
+
+        def details(self, movie_id):
+            return FakeDetails()
+
+    fake_module.TMDb = FakeTMDb
+    fake_module.Movie = FakeMovie
+    monkeypatch.setitem(sys.modules, "tmdbv3api", fake_module)
+
+    with caplog.at_level(logging.WARNING, logger="ingestion_pipeline.utils.metadata_fetcher"):
+        metadata = fetch_movie_metadata("Demo", 2024)
+
+    assert metadata["title"] == "Demo (1999)"
+    assert any(
+        "year 2024 not found" in record.message and "Demo (1999)" in record.message
+        for record in caplog.records
+    )

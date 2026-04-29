@@ -12,6 +12,10 @@ from app.ui.speaker_support import (
     normalize_speaker_map,
 )
 from app.ui.url_settings import local_http_url
+from ingestion_pipeline.jobs import (
+    normalize_optional_string,
+    normalize_required_string,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,22 +38,6 @@ def _load_pipeline_steps():
 def _clean_env_value(value: str | None) -> str | None:
     if value is None:
         return None
-
-    value = value.strip()
-    return value or None
-
-
-def _normalize_required_string(value: str | None, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field_name} must be a non-empty string")
-    return value.strip()
-
-
-def _normalize_optional_string(value: str | None, field_name: str) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be a string")
 
     value = value.strip()
     return value or None
@@ -167,7 +155,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
     raw_transcript_path = os.path.join(video_specific_dir, config['filenames']['raw_transcript'])
     speaker_map_path = os.path.join(video_specific_dir, config['filenames']['speaker_map'])
 
-    logger.info(f"Raw transcript path: {raw_transcript_path}")
+    logger.info("Raw transcript path: %s", raw_transcript_path)
 
     if _speaker_ui_mode() == "external":
         logger.warning("External speaker UI mode: waiting for speaker_map.json to appear...")
@@ -179,12 +167,12 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
     if os.path.exists(speaker_map_path):
         is_ready, wait_reason = _speaker_map_readiness(speaker_map_path, raw_transcript_path)
         if is_ready:
-            logger.info(f"Speaker map already exists at {speaker_map_path}. Skipping UI.")
+            logger.info("Speaker map already exists at %s. Skipping UI.", speaker_map_path)
             return speaker_map_path
         logger.info("Existing speaker map is not complete; launching UI. Reason: %s", wait_reason)
 
     if not os.path.exists(raw_transcript_path):
-        logger.error(f"Raw transcript not found at {raw_transcript_path}. Cannot start UI.")
+        logger.error("Raw transcript not found at %s. Cannot start UI.", raw_transcript_path)
         return None
 
     # Command to run the Flask server
@@ -201,7 +189,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         # Build URL from CONFIG
         ui_url = _speaker_ui_url(config)
         logger.warning("Speaker identification UI server started.")
-        logger.warning(f"Please go to {ui_url} to identify speakers.")
+        logger.warning("Please go to %s to identify speakers.", ui_url)
         logger.warning("The pipeline will automatically continue once you save your changes in the UI.")
 
         if not _wait_until_speaker_map_ready(
@@ -219,7 +207,7 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
             ui_url = _speaker_ui_url(config)
             requests.post(f"{ui_url}/api/shutdown", timeout=3)
         except Exception as e:
-            logger.warning(f"Could not reach UI shutdown endpoint: {e}")
+            logger.warning("Could not reach UI shutdown endpoint: %s", e)
 
         # Give the server a moment to exit gracefully
         try:
@@ -235,8 +223,8 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         logger.info("Speaker identification UI stopped. Resuming pipeline...")
         return speaker_map_path
 
-    except Exception as e:
-        logger.error(f"Failed to run speaker identification UI: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Failed to run speaker identification UI.")
         if 'server_process' in locals() and server_process.poll() is None:
             _terminate_server_process(server_process)
         return None
@@ -250,9 +238,9 @@ def run_pipeline(
     config=None,
 ) -> bool:
     try:
-        video_path = _normalize_required_string(video_path, "video_path")
-        output_dir = _normalize_required_string(output_dir, "output_dir")
-        title = _normalize_optional_string(title, "title")
+        video_path = normalize_required_string(video_path, "video_path")
+        output_dir = normalize_required_string(output_dir, "output_dir")
+        title = normalize_optional_string(title, "title")
     except ValueError as e:
         logger.critical("Invalid pipeline input: %s", e)
         return False
@@ -261,7 +249,7 @@ def run_pipeline(
         config = _load_config()
     run_extraction, run_segmentation, run_enrichment, run_indexing = _load_pipeline_steps()
 
-    logger.info(f"Starting ingestion pipeline for video: {video_path}")
+    logger.info("Starting ingestion pipeline for video: %s", video_path)
 
     try:
         # Step 1: Data Extraction
@@ -305,12 +293,12 @@ def run_pipeline(
         )
         
         logger.info("🚀 Ingestion pipeline completed successfully!")
-        logger.info(f"Final enriched segments are available at: {enriched_segments_path}")
+        logger.info("Final enriched segments are available at: %s", enriched_segments_path)
         return True
 
 
-    except Exception as e:
-        logger.critical(f"Pipeline failed with a critical error: {e}", exc_info=True)
+    except Exception:
+        logger.critical("Pipeline failed with a critical error.", exc_info=True)
         return False
 
 
@@ -327,9 +315,9 @@ def main():
     args = parser.parse_args()
 
     try:
-        video_path = _normalize_required_string(args.video, "video")
-        output_dir = _normalize_optional_string(args.output_dir, "output_dir")
-        title = _normalize_optional_string(args.title, "title")
+        video_path = normalize_required_string(args.video, "video")
+        output_dir = normalize_optional_string(args.output_dir, "output_dir")
+        title = normalize_optional_string(args.title, "title")
     except ValueError as exc:
         parser.error(str(exc))
 

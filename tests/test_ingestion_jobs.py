@@ -205,6 +205,8 @@ def test_publish_job_uses_environment_queue_when_queue_omitted(monkeypatch):
     calls = {}
 
     class FakeConnection:
+        is_open = True
+
         def close(self):
             calls["closed"] = True
 
@@ -248,6 +250,69 @@ def test_consume_jobs_rejects_blank_rabbitmq_url_before_opening_channel(monkeypa
             rabbitmq_url=" ",
             queue_name="video.ingestion",
         )
+
+
+def test_publish_job_skips_close_when_connection_already_closed(monkeypatch):
+    calls = {}
+
+    class FakeConnection:
+        is_open = False
+
+        def close(self):
+            calls["closed"] = True
+
+    class FakeChannel:
+        def basic_publish(self, *, exchange, routing_key, body, properties):
+            calls["publish"] = True
+
+    def fake_open_channel(rabbitmq_url, queue_name):
+        return FakeConnection(), FakeChannel()
+
+    monkeypatch.setattr(jobs, "_open_channel", fake_open_channel)
+
+    jobs.publish_ingestion_job(
+        IngestionJob(video_path="/data/videos/demo.mp4"),
+        rabbitmq_url="amqp://broker",
+        queue_name="video.ingestion",
+    )
+
+    assert calls.get("publish") is True
+    assert "closed" not in calls
+
+
+def test_open_channel_closes_connection_when_queue_declare_fails(monkeypatch):
+    import sys
+    import types
+
+    closes = []
+
+    class FakeChannel:
+        def queue_declare(self, *, queue, durable):
+            raise RuntimeError("queue exists with different config")
+
+    class FakeConnection:
+        def channel(self):
+            return FakeChannel()
+
+        def close(self):
+            closes.append("closed")
+
+    class FakeURLParameters:
+        def __init__(self, url):
+            self.url = url
+
+    def fake_blocking_connection(params):
+        return FakeConnection()
+
+    fake_pika = types.ModuleType("pika")
+    fake_pika.BlockingConnection = fake_blocking_connection
+    fake_pika.URLParameters = FakeURLParameters
+    monkeypatch.setitem(sys.modules, "pika", fake_pika)
+
+    with pytest.raises(RuntimeError, match="queue exists"):
+        jobs._open_channel("amqp://broker", "video.ingestion")
+
+    assert closes == ["closed"]
 
 
 def test_consume_jobs_uses_environment_queue_when_queue_omitted(monkeypatch):

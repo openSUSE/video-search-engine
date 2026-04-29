@@ -12,7 +12,9 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
     """
     api_key = (os.getenv("TMDB_API_KEY") or "").strip()
     if not api_key:
-        logger.error("TMDB_API_KEY environment variable not set. Cannot fetch metadata.")
+        logger.warning(
+            "TMDB_API_KEY is not set; skipping TMDb metadata lookup."
+        )
         return None
 
     try:
@@ -25,7 +27,7 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         search_results = movie_api.search(title)
         
         if not search_results:
-            logger.warning(f"No movie found on TMDb for title: '{title}'")
+            logger.warning("No movie found on TMDb for title: %r", title)
             return None
 
         # Find the best match (often the first result, but filtering by year is better)
@@ -33,16 +35,30 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         if year:
             for result in search_results:
                 if 'release_date' in result and result.release_date:
-                    release_year = int(result.release_date.split('-')[0])
+                    try:
+                        release_year = int(result.release_date.split('-')[0])
+                    except ValueError:
+                        # Some TMDb rows return non-numeric prefixes ("TBD", "Q1 2024");
+                        # skip them rather than failing the whole fetch.
+                        continue
                     if release_year == year:
                         best_match = result
                         break
-        
+
         # If no year match was found or no year was provided, take the first result
         if not best_match:
-            best_match = search_results[0]
-        
-        logger.info(f"Found TMDb match: '{best_match.title}' ({best_match.release_date})")
+            fallback = search_results[0]
+            if year:
+                logger.warning(
+                    "TMDb year %s not found for title %r; using first result %r (%s).",
+                    year,
+                    title,
+                    getattr(fallback, "title", "?"),
+                    getattr(fallback, "release_date", "?"),
+                )
+            best_match = fallback
+
+        logger.info("Found TMDb match: %r (%s)", best_match.title, best_match.release_date)
         
         # Fetch full details for the matched movie
         details = movie_api.details(best_match.id)
@@ -52,11 +68,9 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
             "title": details.title,
             "synopsis": details.overview,
             "genre": ", ".join([genre['name'] for genre in details.genres]),
-            "setting": "N/A", # TMDb doesn't have a standard 'setting' field, so we'll leave it
-            "main_characters": [] # This is also not a standard field, but we have the title/synopsis
         }
         return metadata
 
-    except Exception as e:
-        logger.error(f"An error occurred while fetching TMDb data: {e}")
+    except Exception:
+        logger.exception("An error occurred while fetching TMDb data.")
         return None
