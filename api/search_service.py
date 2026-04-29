@@ -188,9 +188,7 @@ class HybridSearchService:
                 fused_scores[segment_id] += 1 / (rank + RRF_K)
 
         top_segment_ids = sorted(
-            fused_scores,
-            key=lambda segment_id: fused_scores[segment_id],
-            reverse=True,
+            fused_scores, key=fused_scores.__getitem__, reverse=True
         )[:top_k]
         if not top_segment_ids:
             return []

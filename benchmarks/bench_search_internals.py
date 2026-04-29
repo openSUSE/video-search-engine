@@ -79,7 +79,7 @@ def _bench_rrf_fusion(payload) -> None:
     for ids in (text_ids, visual_ids):
         for rank, segment_id in enumerate(ids):
             fused[segment_id] += 1 / (rank + _RRF_K)
-    sorted(fused, key=lambda segment_id: fused[segment_id], reverse=True)[:10]
+    sorted(fused, key=fused.__getitem__, reverse=True)[:10]
 
 
 BENCHMARKS = [
