@@ -270,18 +270,19 @@ def run_indexing(
     metadatas_to_add = []
 
     # Create all embeddings at once for GPU efficiency.
-    # Text side anchors on the LLM-generated title (concept) + verbatim
-    # transcript (or summary fallback for silent segments) + keywords
-    # (semantic markers). Including title/keywords measurably improves
-    # thematic recall on top of literal-word recall from the transcript.
+    # Text side: title (concept) + keywords (semantic anchors) + transcript
+    # (or summary fallback for silent segments). Order matters because the
+    # sentence-transformer truncates at ~512 tokens — putting the
+    # short/concept-bearing parts first means a long transcript clips its
+    # own tail rather than dropping the LLM-derived anchors entirely.
     all_text_contexts = []
     for seg in segments:
-        text_parts = [
-            seg.get("title", "").strip(),
-            seg.get("full_transcript", "").strip()
-            or seg.get("summary", "").strip(),
-        ]
+        text_parts = [seg.get("title", "").strip()]
         text_parts.extend(seg.get("keywords", []))
+        text_parts.append(
+            seg.get("full_transcript", "").strip()
+            or seg.get("summary", "").strip()
+        )
         all_text_contexts.append(". ".join(filter(None, text_parts)))
 
     all_visual_contexts = []

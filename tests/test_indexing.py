@@ -72,8 +72,10 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
 
     assert embedding_model.encode_calls == [
         {
-            # Text side joins title (none here) + transcript + keywords.
-            "texts": ["spoken words. arrival", "fallback summary"],
+            # Text side joins title (none here) + keywords + transcript so
+            # long transcripts truncate their own tail instead of dropping
+            # the LLM-derived anchors.
+            "texts": ["arrival. spoken words", "fallback summary"],
             "show_progress_bar": True,
         },
         {
@@ -580,5 +582,5 @@ def test_run_indexing_text_context_includes_title_and_keywords(tmp_path):
 
     text_call = embedding_model.encode_calls[0]
     assert text_call["texts"] == [
-        "Arriving at the Station. I just got here.. arrival. station",
+        "Arriving at the Station. arrival. station. I just got here.",
     ]
