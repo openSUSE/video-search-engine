@@ -57,8 +57,9 @@ def search(
     Accepts a search query and returns a ranked list of relevant video segments.
     """
     logger.info(
-        "Received search query: %r for video: %r",
+        "Received search query: %r (top_k=%d, video=%r)",
         query.query,
+        query.top_k,
         query.video_filename,
     )
     started_at = time.monotonic()
