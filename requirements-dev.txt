@@ -1,6 +1,6 @@
 pytest
 packaging
-pydantic<2.10
+pydantic>=2,<2.10
 PyYAML
 python-dotenv
 colorlog
