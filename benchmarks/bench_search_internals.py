@@ -8,6 +8,7 @@ benchmarks make it cheap to spot which layer slowed down.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any, Dict, List
 
 from api import search_service
@@ -74,11 +75,10 @@ def _setup_rrf_fusion():
 
 def _bench_rrf_fusion(payload) -> None:
     text_ids, visual_ids = payload
-    fused: Dict[str, float] = {}
-    for rank, segment_id in enumerate(text_ids):
-        fused[segment_id] = fused.get(segment_id, 0) + 1 / (rank + _RRF_K)
-    for rank, segment_id in enumerate(visual_ids):
-        fused[segment_id] = fused.get(segment_id, 0) + 1 / (rank + _RRF_K)
+    fused: Dict[str, float] = defaultdict(float)
+    for ids in (text_ids, visual_ids):
+        for rank, segment_id in enumerate(ids):
+            fused[segment_id] += 1 / (rank + _RRF_K)
     sorted(fused, key=lambda segment_id: fused[segment_id], reverse=True)[:10]
 
 
