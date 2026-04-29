@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from typing import Any, Union
+from typing import Any
 
 
-PathLike = Union[str, os.PathLike[str]]
+PathLike = str | os.PathLike[str]
 
 
 def atomic_write_json(path: PathLike, data: Any, indent: int = 2) -> None:
