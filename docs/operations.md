@@ -28,7 +28,8 @@ make compose-down
 
 Useful endpoints:
 
-- API health: `http://localhost:1234/healthz`
+- API liveness: `http://localhost:1234/healthz` — returns 200 once the FastAPI process is up.
+- API readiness: `http://localhost:1234/readyz` — returns 503 until the embedding model and ChromaDB connection are initialized; use this for load-balancer or Kubernetes readiness probes.
 - Search UI: `http://localhost:8501`
 - Speaker identification UI: `http://localhost:5050`
 - RabbitMQ management: `http://localhost:15672`
@@ -80,6 +81,10 @@ Required secrets are environment variables:
 
 Do not add these to tracked YAML. Use `.env` locally, Docker/Kubernetes secrets in hosted environments, and `config.example.yaml` for non-secret defaults.
 
+## Logging
+
+`core.logger.setup_logging` honors `LOG_LEVEL` (CRITICAL, ERROR, WARNING, INFO, DEBUG). Default is INFO; unknown values fall back to INFO. Set `LOG_LEVEL=DEBUG` in the API/worker env to surface deeper diagnostics without redeploying code. Both the FastAPI lifespan startup and the ingestion worker call `setup_logging` at boot, so the variable applies to both processes; configure it via `LOG_LEVEL` in `.env` for Compose or via `video-se-config` in Kubernetes.
+
 ## Model And Data Volumes
 
 The Compose stack uses persistent volumes for ChromaDB, RabbitMQ, and model caches. In Kubernetes, the manifests expect PVCs for videos, processed data, and model caches.
@@ -107,6 +112,11 @@ API starts but returns no results:
 - Confirm ingestion completed.
 - Confirm `CHROMA_COLLECTION` is the same for ingestion and API.
 - Confirm the UI sends the selected video's stem as `video_filename`.
+
+Search latency / recall:
+
+- Successful `/search` calls emit `Search returned <N> results in <ms>ms (top_k=..., video=...)`.
+- Failures emit `Search failed after <ms>ms (top_k=..., video=...).` followed by the traceback. Both paths log duration, so a slow timeout vs. a fast crash is distinguishable in logs.
 
 Pipeline waits after extraction:
 

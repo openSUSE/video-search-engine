@@ -146,6 +146,89 @@ def test_kubernetes_configmap_exposes_runtime_collection_name():
     assert configmap["data"]["CHROMA_COLLECTION"] == "video_search_engine"
 
 
+def test_kubernetes_api_probes_split_liveness_and_readiness():
+    documents = list(yaml.safe_load_all(Path("k8s/api.yaml").read_text()))
+    deployment = next(doc for doc in documents if doc.get("kind") == "Deployment")
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+
+    # Liveness asks "is the process responsive — restart if not"; readiness
+    # asks "should I receive traffic — gate the Service if not". Pointing
+    # readiness at /readyz keeps the embedding-model load and ChromaDB
+    # connection from being skipped over by an in-flight request.
+    assert container["livenessProbe"]["httpGet"]["path"] == "/healthz"
+    assert container["readinessProbe"]["httpGet"]["path"] == "/readyz"
+
+
+def test_env_example_documents_log_level():
+    env_example = Path(".env.example").read_text().splitlines()
+    assert any(line.startswith("LOG_LEVEL=") for line in env_example)
+
+
+def test_log_level_propagated_through_deployment_manifests():
+    # The runtime read of LOG_LEVEL only matters if the deployment surface
+    # actually passes the variable into the container. Lock in every touch
+    # point: docker-compose api + ingestion-worker (both call setup_logging,
+    # so both need the var) and the k8s configmap that envFrom-mounts into
+    # the same containers.
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+    for service in ("api", "ingestion-worker"):
+        env = compose["services"][service]["environment"]
+        assert env.get("LOG_LEVEL", "").startswith("${LOG_LEVEL"), (
+            f"docker-compose service {service!r} must pass LOG_LEVEL through"
+        )
+
+    configmap = yaml.safe_load(Path("k8s/configmap.yaml").read_text())
+    assert "LOG_LEVEL" in configmap["data"]
+
+
+def test_api_lifespan_calls_setup_logging_for_log_level_propagation():
+    # core.logger.setup_logging reads LOG_LEVEL from the env. If api/main.py
+    # forgets to invoke it during lifespan startup, LOG_LEVEL set on the api
+    # container goes unused — the FastAPI logger keeps its default level.
+    tree = ast.parse(Path("api/main.py").read_text())
+    imported_names = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "core.logger"
+        for alias in node.names
+    }
+    setup_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "setup_logging"
+    ]
+
+    assert "setup_logging" in imported_names
+    assert setup_calls, "api/main.py must invoke setup_logging() at startup"
+
+
+def test_runtime_modules_use_atomic_write_json_not_raw_json_dump():
+    # Production write paths in api/, app/, and ingestion_pipeline/ must go
+    # through core.atomic_io.atomic_write_json so a SIGKILL mid-write can't
+    # truncate critical state files (enrichment progress, speaker maps,
+    # extraction artifacts). Catch accidental reverts to plain json.dump.
+    offenders = []
+    for root in ("api", "app", "ingestion_pipeline"):
+        for path in Path(root).rglob("*.py"):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "dump"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "json"
+                ):
+                    offenders.append(f"{path}:{node.lineno}")
+
+    assert not offenders, (
+        "json.dump found in runtime source — use core.atomic_io.atomic_write_json:\n"
+        + "\n".join(offenders)
+    )
+
+
 def test_service_dockerfiles_use_pinned_python_base_image():
     for dockerfile in Path("docker").glob("*.Dockerfile"):
         first_line = dockerfile.read_text().splitlines()[0]

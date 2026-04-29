@@ -70,7 +70,8 @@ Default URLs:
 - Search UI: `http://localhost:8501`
 - Speaker identification UI: `http://localhost:5050` when started with `make compose-speaker`
 - Search API: `http://localhost:1234`
-- API health: `http://localhost:1234/healthz`
+- API liveness: `http://localhost:1234/healthz`
+- API readiness: `http://localhost:1234/readyz`
 - RabbitMQ management: `http://localhost:15672` with credentials from `.env` or `video_se` / `video_se_dev` if unset
 - ChromaDB: `http://localhost:8000`
 
@@ -149,6 +150,7 @@ Important variables:
 - `RABBITMQ_URL`, `INGESTION_QUEUE`
 - `RABBITMQ_IMAGE_TAG`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` for local Compose or the bundled Kubernetes RabbitMQ
 - `LLM_PROVIDER`, `GEMINI_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT`, `OLLAMA_MODEL`
+- `LOG_LEVEL` for runtime log verbosity (defaults to INFO)
 
 Use `config.example.yaml` and `.env.example` as references. Do not put secrets in tracked YAML.
 

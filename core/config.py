@@ -60,7 +60,7 @@ def _int_setting(env_name: str, config_value: Any, default: int) -> int:
 
 def _select_device(requested_device: str) -> str:
     requested = (requested_device or "auto").strip().lower()
-    if requested in {"cpu", "cuda", "mps"} and requested != "auto":
+    if requested in {"cpu", "cuda", "mps"}:
         return requested
 
     if requested != "auto":

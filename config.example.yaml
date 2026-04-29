@@ -2,11 +2,20 @@
 # == Configuration for the Video Search Engine Ingestion Pipeline  ==
 # ===================================================================
 
+# --- General settings ---
 general:
+  # Device to use for ML models: "cuda", "cpu", "mps".
+  # If "auto", the script will intelligently select CUDA if available, otherwise CPU.
   device: "auto"
+
+  # Hugging Face access token for speaker diarization.
+  # Set this with HF_TOKEN in your environment or .env file.
   hf_token:
+
+  # Default base directory for all processed video data.
   default_output_dir: "data/processed"
 
+# --- UI Server Settings ---
 ui:
   host: "127.0.0.1"
   port: 5050
@@ -16,10 +25,15 @@ api_server:
   port: 1234
 
 database:
+  # Connection details for the ChromaDB server
   host: "localhost"
   port: 8000
+
+  # The name of the collection where video data will be stored
   collection_name: "video_search_engine"
 
+# --- Default filenames for processed outputs ---
+# These are relative to the specific video's output folder.
 filenames:
   audio: "normalized_audio.mp3"
   raw_transcript: "transcript_raw.json"
@@ -33,40 +47,63 @@ filenames:
   final_segments: "final_segments.json"
   enriched_segments: "final_enriched_segments.json"
 
+# --- LLM Enrichment Settings ---
 llm_enrichment:
+  # The provider to use: "ollama" or "gemini"
   provider: "gemini"
+
+  # Settings for local Ollama
   ollama:
     enabled: true
     host: "http://localhost"
     port: 11434
     model: "gemma:2b"
     timeout_sec: 120
-  gemini:
-    model: "gemini-1.5-flash"
 
+  # Settings for Google Gemini API
+  gemini:
+    # Model name from Google (gemini-1.5-flash is fast and cost-effective)
+    model: "gemini-1.5-flash"
+    # The API key will be read from the GEMINI_API_KEY environment variable
+
+# --- Model identifiers and settings ---
 models:
+  # WhisperX for transcription
   transcription:
-    name: "base"
-    compute_type: "int8"
+    name: "base"          # Model size: "tiny", "base", "small", "medium", "large-v2"
+    compute_type: "int8"  # "float16", "int8", etc. depending on GPU support
+
+  # Audio Spectrogram Transformer (AST) for event detection
   audio_events:
     name: "MIT/ast-finetuned-audioset-10-10-0.4593"
+
+  # BLIP for image captioning
   visual_captioning:
     name: "Salesforce/blip-image-captioning-base"
+
   embedding:
+    # Model for creating text and visual embeddings for search.
+    # This model MUST be used for both indexing (step 4) and querying (API).
     name: "all-MiniLM-L6-v2"
+
   action_recognition:
     name: "MCG-NJU/videomae-base-finetuned-kinetics"
 
+# --- Parameters for processing steps ---
 parameters:
   transcription:
     batch_size: 32
+
   audio:
-    sample_rate: 16000
+    sample_rate: 16000 # Required sample rate for AST model
+
   audio_events:
-    top_n: 3
-    confidence_threshold: 0.1
+    top_n: 3             # Number of top audio events to record per shot
+    confidence_threshold: 0.1 # Minimum score for an event to be recorded
+
   visual_captioning:
     max_new_tokens: 50
+
   action_recognition:
     num_frames: 16
     top_n: 3

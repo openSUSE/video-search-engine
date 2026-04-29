@@ -7,7 +7,7 @@ general:
   # Device to use for ML models: "cuda", "cpu", "mps".
   # If "auto", the script will intelligently select CUDA if available, otherwise CPU.
   device: "auto"
-  
+
   # Hugging Face access token for speaker diarization.
   # Set this with HF_TOKEN in your environment or .env file.
   hf_token:
@@ -28,7 +28,7 @@ database:
   # Connection details for the ChromaDB server
   host: "localhost"
   port: 8000
-  
+
   # The name of the collection where video data will be stored
   collection_name: "video_search_engine"
 
@@ -54,7 +54,7 @@ llm_enrichment:
 
   # Settings for local Ollama
   ollama:
-    enabled: true 
+    enabled: true
     host: "http://localhost"
     port: 11434
     model: "gemma:2b"
@@ -80,7 +80,7 @@ models:
   # BLIP for image captioning
   visual_captioning:
     name: "Salesforce/blip-image-captioning-base"
-  
+
   embedding:
     # Model for creating text and visual embeddings for search.
     # This model MUST be used for both indexing (step 4) and querying (API).
