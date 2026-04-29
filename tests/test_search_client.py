@@ -177,3 +177,32 @@ def test_search_results_from_response_rejects_malformed_payloads(payload, messag
 
     with pytest.raises(ValueError, match=message):
         search_client.search_results_from_response(response)
+
+
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [
+        (0, "0m 00s"),
+        (5, "0m 05s"),
+        (65, "1m 05s"),
+        (3725, "62m 05s"),
+        (12.7, "0m 12s"),
+        (-3, "0m 00s"),
+    ],
+)
+def test_format_clock_pads_seconds_and_clamps_negatives(seconds, expected):
+    assert search_client.format_clock(seconds) == expected
+
+
+def test_format_time_range_includes_duration():
+    assert (
+        search_client.format_time_range(125.7, 188.2)
+        == "2m 05s → 3m 08s (62s)"
+    )
+
+
+def test_format_time_range_clamps_inverted_ranges_to_zero_duration():
+    assert (
+        search_client.format_time_range(100, 90)
+        == "1m 40s → 1m 30s (0s)"
+    )

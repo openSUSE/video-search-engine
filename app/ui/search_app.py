@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 from app.ui.path_settings import env_path_setting
 from app.ui.search_client import (
     RequestException,
+    format_time_range,
     post_search,
     search_api_url,
     search_payload,
@@ -49,7 +50,7 @@ with st.sidebar:
             st.stop()
 
         selected_video_file = st.selectbox("Choose a video to search:", video_files)
-        
+
         # Update the video path and clear stale playback/results on video changes.
         reset_search_session_for_video(
             st.session_state,
@@ -57,6 +58,8 @@ with st.sidebar:
             os.path.join(VIDEO_DATA_DIR, selected_video_file),
             os.path.splitext(selected_video_file)[0],
         )
+
+        top_k = st.slider("Number of results", min_value=1, max_value=50, value=5)
 
     except FileNotFoundError:
         st.error(f"Video directory not found at '{VIDEO_DATA_DIR}'. Please create it and add videos.")
@@ -71,6 +74,7 @@ with col1:
     query = st.text_input(
         "What are you looking for?",
         placeholder="e.g., a man holding a gun",
+        max_chars=1000,
     ).strip()
     
     if st.button("Search", type="primary"):
@@ -82,27 +86,35 @@ with col1:
                     payload = search_payload(
                         query,
                         st.session_state.video_filename_clean,
-                        top_k=5,
+                        top_k=top_k,
                     )
                     response = post_search(API_URL, payload)
-                    
+
                     if response.status_code == 200:
                         try:
                             st.session_state.search_results = search_results_from_response(
                                 response
                             )
+                            st.session_state.last_search_query = query
                         except ValueError as e:
                             st.error(f"Search API returned an unusable response: {e}")
                             st.session_state.search_results = []
+                            st.session_state.last_search_query = None
                     else:
-                        st.error(f"Failed to get results from API. Status code: {response.status_code}")
-                        st.error(f"Response: {response.text}")
+                        st.error(
+                            f"Failed to get results from API (status {response.status_code}).\n\n"
+                            f"Response: {response.text}"
+                        )
                         st.session_state.search_results = []
+                        st.session_state.last_search_query = None
 
                 except RequestException as e:
-                    st.error(f"Could not connect to the Search API at {API_URL}. Is it running?")
-                    st.error(f"Details: {e}")
+                    st.error(
+                        f"Could not connect to the Search API at {API_URL}. "
+                        f"Is it running?\n\nDetails: {e}"
+                    )
                     st.session_state.search_results = []
+                    st.session_state.last_search_query = None
 
 with col2:
     st.header("Player")
@@ -123,7 +135,11 @@ if st.session_state.search_results:
             with res_col1:
                 st.subheader(f"**Title:** {result['title']}")
                 st.write(f"**Summary:** {result['summary']}")
-                st.caption(f"**Time:** {int(result['start_time']//60)}m {int(result['start_time']%60)}s  |  **Speakers:** {result['speakers'] or 'N/A'}")
+                time_range = format_time_range(result["start_time"], result["end_time"])
+                st.caption(
+                    f"**Time:** {time_range}  |  **Speakers:** "
+                    f"{result['speakers'] or 'N/A'}"
+                )
             with res_col2:
                 # Use a unique key for each button to avoid conflicts
                 if st.button("▶️ Play", key=f"play_{result['id']}"):
@@ -131,5 +147,7 @@ if st.session_state.search_results:
                     # st.rerun() is essential to force the UI to update immediately
                     # with the new video start time.
                     st.rerun()
+elif st.session_state.last_search_query:
+    st.info(f"No matches found for {st.session_state.last_search_query!r}.")
 else:
     st.info("Your search results will appear here.")

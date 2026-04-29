@@ -10,6 +10,8 @@ def ensure_search_session_state(state: MutableMapping[str, Any]) -> None:
         state["start_time"] = 0
     if "search_results" not in state:
         state["search_results"] = []
+    if "last_search_query" not in state:
+        state["last_search_query"] = None
 
 
 def reset_search_session_for_video(
@@ -28,3 +30,4 @@ def reset_search_session_for_video(
     state["video_filename_clean"] = video_filename_clean
     state["start_time"] = 0
     state["search_results"] = []
+    state["last_search_query"] = None

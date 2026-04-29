@@ -132,6 +132,17 @@ def post_search(api_url: str, payload: Mapping[str, Any], timeout_seconds: float
     return requests.post(api_url, json=dict(payload), timeout=timeout)
 
 
+def format_clock(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    minutes, remainder = divmod(total_seconds, 60)
+    return f"{minutes}m {remainder:02d}s"
+
+
+def format_time_range(start_time: float, end_time: float) -> str:
+    duration = max(0, int(end_time - start_time))
+    return f"{format_clock(start_time)} → {format_clock(end_time)} ({duration}s)"
+
+
 def search_results_from_response(response: Any) -> list[dict[str, Any]]:
     try:
         payload = response.json()

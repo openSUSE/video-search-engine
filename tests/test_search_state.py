@@ -9,6 +9,7 @@ def test_ensure_search_session_state_sets_defaults_without_clobbering_existing_v
         "video_path": "data/videos/demo.mp4",
         "start_time": 42,
         "search_results": [{"id": "segment_0001"}],
+        "last_search_query": "find this",
     }
 
     ensure_search_session_state(state)
@@ -16,6 +17,15 @@ def test_ensure_search_session_state_sets_defaults_without_clobbering_existing_v
     assert state["video_path"] == "data/videos/demo.mp4"
     assert state["start_time"] == 42
     assert state["search_results"] == [{"id": "segment_0001"}]
+    assert state["last_search_query"] == "find this"
+
+
+def test_ensure_search_session_state_initializes_last_search_query_to_none():
+    state = {}
+
+    ensure_search_session_state(state)
+
+    assert state["last_search_query"] is None
 
 
 def test_reset_search_session_for_video_preserves_state_for_same_selection():
@@ -45,6 +55,7 @@ def test_reset_search_session_for_video_clears_stale_results_for_new_selection()
         "video_filename_clean": "old",
         "start_time": 42,
         "search_results": [{"id": "old::segment_0001"}],
+        "last_search_query": "stale query",
     }
 
     reset_search_session_for_video(
@@ -60,4 +71,5 @@ def test_reset_search_session_for_video_clears_stale_results_for_new_selection()
         "video_filename_clean": "new",
         "start_time": 0,
         "search_results": [],
+        "last_search_query": None,
     }
