@@ -116,6 +116,17 @@ def _bench_local_http_url(_: Any) -> None:
     url_settings.local_http_url("::1", "8000")
 
 
+def _bench_format_time_range(_: Any) -> None:
+    # Five calls: each rendered result row in the search UI invokes this once,
+    # and a top_k=50 response triggers 50 calls. Cover sub-minute, multi-minute,
+    # and hour-scale spans plus the inverted-range fallback.
+    search_client.format_time_range(0.0, 7.5)
+    search_client.format_time_range(125.7, 188.2)
+    search_client.format_time_range(3725.0, 3800.0)
+    search_client.format_time_range(0.0, 0.0)
+    search_client.format_time_range(100.0, 90.0)
+
+
 BENCHMARKS = [
     Benchmark(
         name="search_client.search_payload",
@@ -198,5 +209,16 @@ BENCHMARKS = [
         fn=_bench_local_http_url,
         iterations=50_000,
         inner_loops=3,
+    ),
+    Benchmark(
+        name="search_client.format_time_range.x5",
+        category="ui",
+        description=(
+            "Render-time span formatting; runs once per result row, so a "
+            "top_k=50 response amortises ~50 calls per UI rerun."
+        ),
+        fn=_bench_format_time_range,
+        iterations=20_000,
+        inner_loops=5,
     ),
 ]
