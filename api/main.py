@@ -86,7 +86,10 @@ def search(
 
 @app.get("/")
 def read_root():
-    return {"message": "Video Search Engine API is running. Go to /docs for the API interface."}
+    return {
+        "message": "Video Search Engine API is running. Go to /docs for the API interface.",
+        "version": app.version,
+    }
 
 
 @app.get("/healthz")
