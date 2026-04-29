@@ -204,7 +204,6 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         try:
             import requests
 
-            ui_url = _speaker_ui_url(config)
             requests.post(f"{ui_url}/api/shutdown", timeout=3)
         except Exception as e:
             logger.warning("Could not reach UI shutdown endpoint: %s", e)
