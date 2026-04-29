@@ -2,6 +2,7 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -195,11 +196,21 @@ def test_api_root_endpoint_exposes_version():
     assert "app.version" in body_text
 
 
-def test_api_lifespan_calls_setup_logging_for_log_level_propagation():
-    # core.logger.setup_logging reads LOG_LEVEL from the env. If api/main.py
-    # forgets to invoke it during lifespan startup, LOG_LEVEL set on the api
-    # container goes unused — the FastAPI logger keeps its default level.
-    tree = ast.parse(Path("api/main.py").read_text())
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "api/main.py",
+        "app/main.py",
+        "ingestion_pipeline/publisher.py",
+        "ingestion_pipeline/worker.py",
+    ],
+)
+def test_entrypoints_call_setup_logging_for_log_level_propagation(entrypoint):
+    # core.logger.setup_logging reads LOG_LEVEL from the env. Each long-running
+    # process the project ships needs to invoke it so the env var actually
+    # flips verbosity on that container; otherwise the variable is plumbed
+    # through deployment manifests but ignored at runtime.
+    tree = ast.parse(Path(entrypoint).read_text())
     imported_names = {
         alias.name
         for node in tree.body
@@ -214,8 +225,10 @@ def test_api_lifespan_calls_setup_logging_for_log_level_propagation():
         and node.func.id == "setup_logging"
     ]
 
-    assert "setup_logging" in imported_names
-    assert setup_calls, "api/main.py must invoke setup_logging() at startup"
+    assert "setup_logging" in imported_names, (
+        f"{entrypoint} must import setup_logging from core.logger"
+    )
+    assert setup_calls, f"{entrypoint} must invoke setup_logging() at startup"
 
 
 def test_request_path_modules_use_lazy_logging_not_f_strings():
