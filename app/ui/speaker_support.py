@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
+from core.atomic_io import atomic_write_json
+
 DEFAULT_TRANSCRIPT_FILENAME = "transcript_generic.json"
 DEFAULT_SPEAKER_MAP_FILENAME = "speaker_map.json"
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi")
@@ -214,8 +216,7 @@ def save_speaker_map_if_complete(
     if required_speaker_ids - set(normalized_speaker_map):
         return False
 
-    with Path(path).open("w") as f:
-        json.dump(normalized_speaker_map, f, indent=2)
+    atomic_write_json(path, normalized_speaker_map)
     return True
 
 

@@ -7,6 +7,8 @@ import os
 import shutil
 from typing import Any, Callable, Dict, Optional
 
+from core.atomic_io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 LLMClient = Callable[[str, Dict[str, Any]], Optional[Dict[str, Any]]]
@@ -68,12 +70,16 @@ def _call_ollama_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
     }
     try:
         import requests
+    except ImportError as e:
+        logger.error("Ollama API request failed: requests is not installed: %s", e)
+        return None
 
+    try:
         response = requests.post(api_url, json=payload, timeout=ollama_config.get('timeout_sec', 120))
         response.raise_for_status()
         return json.loads(response.json()['response'])
     except Exception as e:
-        logger.error(f"Ollama API request failed: {e}")
+        logger.error("Ollama API request failed: %s", e)
         return None
 
 def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -87,7 +93,7 @@ def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
         import google.generativeai as genai
         from google.api_core import exceptions as google_exceptions
     except ImportError as e:
-        logger.error(f"Gemini API request failed: Google SDK is not installed: {e}")
+        logger.error("Gemini API request failed: Google SDK is not installed: %s", e)
         return None
 
     try:
@@ -97,7 +103,7 @@ def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
         response = model.generate_content(prompt, generation_config=generation_config)
         return json.loads(response.text)
     except (ValueError, google_exceptions.GoogleAPICallError, google_exceptions.RetryError) as e:
-        logger.error(f"Gemini API request failed: {e}")
+        logger.error("Gemini API request failed: %s", e)
         return None
 
 
@@ -407,12 +413,13 @@ def run_enrichment(
             # Mark as an error so it can be retried on the next run
             segment.update({'title': 'Error', 'summary': 'Failed to generate', 'keywords': []})
 
-        # CRITICAL CHANGE: Save the entire list back to the file after every single update.
+        # Save the entire list back to the file after every single update.
+        # atomic_write_json keeps the destination either fully updated or
+        # unchanged, so a kill mid-write never loses prior work.
         try:
-            with open(output_path, 'w') as f:
-                json.dump(segments, f, indent=4)
+            atomic_write_json(output_path, segments, indent=4)
             logger.info(f"  -> Progress saved to {output_path}")
-        except IOError as e:
+        except OSError as e:
             logger.error(f"FATAL: Could not write progress to {output_path}. Halting. Error: {e}")
             return None # Stop if we can't save
 

@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
 from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
+from core.atomic_io import atomic_write_json
 
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
@@ -413,11 +414,12 @@ def run_segmentation(
         embedding_model = create_embedding_model(config)
     final_segments = _perform_boundary_scoring(rich_shots, embedding_model)
 
-    # 4. Save the final segments to a file
+    # 4. Save the final segments to a file. atomic_write_json keeps the
+    # destination either fully populated or absent, so a kill mid-write never
+    # leaves a corrupted file that the skip-if-exists check would later trip on.
     logger.info("4/4: Saving final segments...")
-    with open(output_path, 'w') as f:
-        json.dump(final_segments, f, indent=4)
-    
+    atomic_write_json(output_path, final_segments, indent=4)
+
     logger.info(f"--- Segmentation Step Complete! Saved {len(final_segments)} segments to {output_path} ---")
     return output_path
 

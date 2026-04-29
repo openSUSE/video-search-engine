@@ -449,3 +449,5 @@ def test_run_enrichment_rejects_invalid_resume_state_before_calling_provider(tmp
 
     assert result is None
     assert calls == []
+
+

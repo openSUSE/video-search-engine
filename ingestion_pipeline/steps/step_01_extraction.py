@@ -6,6 +6,8 @@ import os
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
 
+from core.atomic_io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 MetadataFetcher = Callable[[str, Optional[int]], Optional[Dict[str, Any]]]
@@ -38,8 +40,6 @@ def _write_video_metadata(
         "title": video_title or video_filename,
         "synopsis": "No synopsis provided.",
         "genre": "N/A",
-        "setting": "N/A",
-        "main_characters": [],
     }
 
     if video_title:
@@ -56,8 +56,7 @@ def _write_video_metadata(
     else:
         logger.info("No --title provided. Skipping automatic metadata fetching.")
 
-    with open(metadata_path, 'w') as f:
-        json.dump(video_metadata, f, indent=2)
+    atomic_write_json(metadata_path, video_metadata)
     logger.info(f"    -> Video metadata saved to {metadata_path}")
 
 
@@ -78,11 +77,6 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
         "actions": os.path.join(processed_dir, f_names['actions']),
         "final_analysis": os.path.join(processed_dir, f_names['final_analysis']),
     }
-
-
-def _write_json(path: str, data: Any) -> None:
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
 
 
 def _is_number(value: Any) -> bool:
@@ -427,7 +421,7 @@ def _write_empty_per_shot_output_if_needed(
     if scenes:
         return False
 
-    _write_json(output_path, [])
+    atomic_write_json(output_path, [])
     logger.info("    -> No shots found. Saved empty %s to %s.", label, output_path)
     return True
 
@@ -460,8 +454,7 @@ def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Di
     diarize_segments = diarize_model(audio)
     result_transcript = whisperx.assign_word_speakers(diarize_segments, result_transcript)
 
-    with open(raw_transcript_path, 'w') as f:
-        json.dump(result_transcript['segments'], f, indent=2)
+    atomic_write_json(raw_transcript_path, result_transcript['segments'])
     logger.info(f"    -> Raw transcript saved to {raw_transcript_path}")
 
 def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, Any]]:
@@ -498,8 +491,7 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
             "end_time_sec": round(end_frame / fps, 3)
         })
 
-    with open(shots_path, 'w') as f:
-        json.dump(scenes_data, f, indent=2)
+    atomic_write_json(shots_path, scenes_data)
     logger.info(f"    -> Shot boundaries saved to {shots_path}")
     return _validate_shot_boundaries(scenes_data)
 
@@ -525,8 +517,7 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
         }
         aligned_segments.append(aligned_segment)
 
-    with open(aligned_transcript_path, 'w') as f:
-        json.dump(aligned_segments, f, indent=2)
+    atomic_write_json(aligned_transcript_path, aligned_segments)
     logger.info(f"    -> Aligned transcript saved to {aligned_transcript_path}")
 
 def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
@@ -569,8 +560,7 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
             shot_events_info["events"] = detected_events
         all_shot_events.append(shot_events_info)
 
-    with open(output_path, 'w') as f:
-        json.dump(all_shot_events, f, indent=2)
+    atomic_write_json(output_path, all_shot_events)
     logger.info(f"    -> Timestamped audio events saved.")
 
 def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
@@ -611,8 +601,7 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
     finally:
         cap.release()
 
-    with open(output_path, 'w') as f:
-        json.dump(visual_details, f, indent=2)
+    atomic_write_json(output_path, visual_details)
     logger.info(f"    -> Visual details saved.")
 
 def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
@@ -688,8 +677,7 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     finally:
         cap.release()
     
-    with open(output_path, 'w') as f:
-        json.dump(all_shot_actions, f, indent=2)
+    atomic_write_json(output_path, all_shot_actions)
     logger.info(f"    -> Detected actions saved to {output_path}")
 
 
@@ -761,8 +749,7 @@ def create_final_analysis_file(paths: Dict[str, str]):
         }
         final_data.append(final_shot_object)
 
-    with open(paths['final_analysis'], 'w') as f:
-        json.dump(final_data, f, indent=2)
+    atomic_write_json(paths['final_analysis'], final_data)
     logger.info(f"    -> Final analysis file saved to {paths['final_analysis']}")
 
 def run_extraction(

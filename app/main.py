@@ -10,6 +10,7 @@ from app.ui.speaker_support import (
     normalize_speaker_map,
 )
 from app.ui.url_settings import local_http_url
+from core.atomic_io import atomic_write_json
 
 # Basic configuration for Flask logging
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +54,7 @@ def video_file():
     # It's safer to serve files from an absolute path
     video_dir = os.path.dirname(VIDEO_PATH)
     video_filename = os.path.basename(VIDEO_PATH)
-    logger.info(f"Serving video: {video_filename} from {video_dir}")
+    logger.info("Serving video: %s from %s", video_filename, video_dir)
     return send_from_directory(video_dir, video_filename)
 
 @app.route('/api/data')
@@ -66,13 +67,13 @@ def get_data():
             "video_filename": os.path.basename(VIDEO_PATH)
         })
     except FileNotFoundError:
-        logger.error(f"Transcript file not found at: {TRANSCRIPT_PATH}")
+        logger.error("Transcript file not found at: %s", TRANSCRIPT_PATH)
         return jsonify({"error": "Transcript file not found."}), 404
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Invalid transcript file at {TRANSCRIPT_PATH}: {e}", exc_info=True)
+    except (json.JSONDecodeError, ValueError):
+        logger.exception("Invalid transcript file at %s", TRANSCRIPT_PATH)
         return jsonify({"error": "Could not read transcript file."}), 500
-    except Exception as e:
-        logger.error(f"Error reading transcript file: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error reading transcript file at %s", TRANSCRIPT_PATH)
         return jsonify({"error": "Could not read transcript file."}), 500
 
 
@@ -115,11 +116,10 @@ def save_speaker_map():
 
     try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(speaker_map, f, indent=2)
+        atomic_write_json(output_path, speaker_map)
         logger.info("Saved speaker map to %s", output_path)
-    except Exception as e:
-        logger.error("Failed to save speaker map to %s: %s", output_path, e, exc_info=True)
+    except Exception:
+        logger.exception("Failed to save speaker map to %s", output_path)
         return jsonify({"error": "Could not save speaker map."}), 500
 
     # Ask the server to shut down in the background; the UI work is done.
@@ -141,12 +141,24 @@ def _request_shutdown_async():
         pass
 
 def shutdown_server():
-    """Function to shut down the Werkzeug server."""
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        logger.warning("Could not shut down server automatically. The pipeline will continue.")
-        return
-    func()
+    """Stop the Werkzeug dev server.
+
+    Werkzeug ≥2.2 removed the ``werkzeug.server.shutdown`` magic that older
+    Flask docs use, so we schedule ``os._exit`` from a background thread
+    after a short delay — long enough for Flask to flush the response, short
+    enough that the pipeline's ``server_process.wait`` returns promptly.
+    The speaker map has already been atomic-written before this point, so
+    skipping interpreter cleanup is safe.
+    """
+    import threading
+    import time
+
+    def _kill():
+        time.sleep(0.2)
+        os._exit(0)
+
+    threading.Thread(target=_kill, daemon=True).start()
+
 
 @app.route('/api/shutdown', methods=['POST'])
 def shutdown():
@@ -179,8 +191,8 @@ if __name__ == '__main__':
     host = config['ui']['host']
     port = args.port # Use the port from command-line args
 
-    logger.info(f"Starting server for video: {VIDEO_PATH}")
-    logger.info(f"Please open {local_http_url(host, port)} in your browser.")
+    logger.info("Starting server for video: %s", VIDEO_PATH)
+    logger.info("Please open %s in your browser.", local_http_url(host, port))
 
     # Run the app with host and port from config/args
     app.run(host=host, port=port, debug=False, use_reloader=False)

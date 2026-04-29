@@ -203,6 +203,25 @@ def test_save_speaker_map_if_complete_rejects_incomplete_maps(tmp_path):
     assert not speaker_map_path.exists()
 
 
+def test_save_speaker_map_if_complete_writes_atomically(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Old"}))
+
+    saved = save_speaker_map_if_complete(
+        speaker_map_path,
+        {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"},
+        ["SPEAKER_00", "SPEAKER_01"],
+    )
+
+    assert saved is True
+    assert json.loads(speaker_map_path.read_text()) == {
+        "SPEAKER_00": "Alice",
+        "SPEAKER_01": "Bob",
+    }
+    leftover = sorted(p.name for p in tmp_path.iterdir())
+    assert leftover == ["speaker_map.json"]
+
+
 def test_speaker_ids_from_transcript_returns_sorted_non_empty_strings():
     transcript = [
         {"speaker": " SPEAKER_01 "},

@@ -15,6 +15,7 @@ from app.ui.speaker_support import (
     speaker_artifact_paths,
     speaker_ids_from_transcript,
 )
+from core.atomic_io import atomic_write_json
 
 OUTPUT_DIR = env_path_setting("OUTPUT_DIR", "data/processed")
 VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
@@ -125,9 +126,11 @@ else:
                         normalized_speaker_map = normalize_speaker_map(updated_speaker_map)
                         if normalized_speaker_map:
                             st.session_state.speaker_map = normalized_speaker_map
-                            # Save the map immediately on change
-                            with paths.speaker_map.open("w") as f:
-                                json.dump(st.session_state.speaker_map, f, indent=2)
+                            # Save the map immediately on change.
+                            atomic_write_json(
+                                paths.speaker_map,
+                                st.session_state.speaker_map,
+                            )
                             st.rerun() # Rerun the app to update the UI
                         else:
                             st.warning("Please enter a name.")
@@ -140,7 +143,8 @@ else:
                         if segment.get('speaker') == selected_speaker_label:
                             start_time = segment['start']
                             text = segment['text']
-                            if st.button(f"[{start_time:.1f}s] {text[:70]}...", key=f"seg_{start_time}"):
+                            preview = text if len(text) <= 70 else text[:70] + "..."
+                            if st.button(f"[{start_time:.1f}s] {preview}", key=f"seg_{start_time}"):
                                 st.session_state.video_start_time = int(start_time)
 
             with right_col:
