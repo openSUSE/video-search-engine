@@ -25,11 +25,17 @@ async def lifespan(app: FastAPI):
     # idempotent and skips reattachment if uvicorn has already configured a
     # root handler.
     setup_logging()
+    started_at = time.monotonic()
     try:
         app.state.search_service = create_search_service(load_api_config())
     except Exception:
-        logger.exception("Failed to initialize search service during startup.")
+        duration_s = time.monotonic() - started_at
+        logger.exception(
+            "Search service initialization failed after %.1fs.", duration_s
+        )
         raise
+    duration_s = time.monotonic() - started_at
+    logger.info("Search service initialized in %.1fs.", duration_s)
     yield
 
 
