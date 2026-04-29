@@ -26,6 +26,18 @@ def _join_metadata_values(values: Any) -> str:
     return ",".join(str(value) for value in values)
 
 
+def _join_embedding_parts(parts: List[str]) -> str:
+    """Strip each part and join non-blank results with ". " for embedding input.
+
+    Strips per-part because the validators only require list-of-string and
+    don't reject blank or whitespace-only entries (e.g. an LLM keyword like
+    " " or an empty caption row). Without the strip, those would surface
+    as "..." artifacts in the embedding text.
+    """
+    cleaned = [str(part).strip() for part in parts]
+    return ". ".join(part for part in cleaned if part)
+
+
 def _vector_to_list(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
@@ -277,21 +289,20 @@ def run_indexing(
     # own tail rather than dropping the LLM-derived anchors entirely.
     all_text_contexts = []
     for seg in segments:
-        text_parts = [seg.get("title", "").strip()]
+        text_parts: List[str] = [seg.get("title", "")]
         text_parts.extend(seg.get("keywords", []))
         text_parts.append(
             seg.get("full_transcript", "").strip()
             or seg.get("summary", "").strip()
         )
-        all_text_contexts.append(". ".join(filter(None, text_parts)))
+        all_text_contexts.append(_join_embedding_parts(text_parts))
 
     all_visual_contexts = []
     for seg in segments:
-        visual_parts = [seg.get("summary", "")]
+        visual_parts: List[str] = [seg.get("summary", "")]
         visual_parts.extend(seg.get("consolidated_visual_captions", []))
         visual_parts.extend(seg.get("consolidated_actions", []))
-        # Join non-empty parts with a period for semantic separation
-        all_visual_contexts.append(". ".join(filter(None, visual_parts)))
+        all_visual_contexts.append(_join_embedding_parts(visual_parts))
 
     text_embeddings = _encoded_vectors_to_lists(
         embedding_model.encode(all_text_contexts, show_progress_bar=True),

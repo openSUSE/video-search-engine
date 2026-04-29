@@ -584,3 +584,38 @@ def test_run_indexing_text_context_includes_title_and_keywords(tmp_path):
     assert text_call["texts"] == [
         "Arriving at the Station. arrival. station. I just got here.",
     ]
+
+
+def test_run_indexing_drops_blank_keyword_entries_from_embedding(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "title": "Padded Title",
+                    "full_transcript": "spoken text",
+                    # Validators only require list-of-string. Blank and
+                    # whitespace-only keywords used to leak ". ." artefacts
+                    # into the embedding input.
+                    "keywords": ["topic", "", "  ", "anchor"],
+                    "start_time": 0.0,
+                    "end_time": 1.0,
+                }
+            ]
+        )
+    )
+    embedding_model = FakeEmbeddingModel()
+    collection = FakeCollection()
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=embedding_model,
+        collection=collection,
+    )
+
+    assert embedding_model.encode_calls[0]["texts"] == [
+        "Padded Title. topic. anchor. spoken text",
+    ]
