@@ -83,7 +83,7 @@ Do not add these to tracked YAML. Use `.env` locally, Docker/Kubernetes secrets 
 
 ## Logging
 
-`core.logger.setup_logging` honors `LOG_LEVEL` (CRITICAL, ERROR, WARNING, INFO, DEBUG). Default is INFO; unknown values fall back to INFO. Set `LOG_LEVEL=DEBUG` in the API/worker env to surface deeper diagnostics without redeploying code. Both the FastAPI lifespan startup and the ingestion worker call `setup_logging` at boot, so the variable applies to both processes; configure it via `LOG_LEVEL` in `.env` for Compose or via `video-se-config` in Kubernetes.
+`core.logger.setup_logging` honors `LOG_LEVEL` (CRITICAL, ERROR, WARNING, INFO, DEBUG). Default is INFO; unknown values fall back to INFO. Set `LOG_LEVEL=DEBUG` in the API/worker env to surface deeper diagnostics without redeploying code. Every long-running entrypoint — the FastAPI service, the ingestion worker, the Flask speaker UI, and the publisher CLI — calls `setup_logging` at boot, so the variable applies uniformly; configure it via `LOG_LEVEL` in `.env` for Compose or via `video-se-config` in Kubernetes.
 
 ## Model And Data Volumes
 
