@@ -39,16 +39,21 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
     except TypeError as exc:
         raise ValueError("query embedding must be a non-empty numeric vector") from exc
 
-    if not vector or any(isinstance(value, bool) for value in vector):
+    if not vector:
         raise ValueError("query embedding must be a non-empty numeric vector")
 
-    try:
-        float_vector = [float(value) for value in vector]
-    except (TypeError, ValueError) as exc:
-        raise ValueError("query embedding must be a non-empty numeric vector") from exc
-
-    if any(not math.isfinite(value) for value in float_vector):
-        raise ValueError("query embedding must be a non-empty numeric vector")
+    invalid = ValueError("query embedding must be a non-empty numeric vector")
+    float_vector: List[float] = []
+    for value in vector:
+        if isinstance(value, bool):
+            raise invalid
+        try:
+            number = float(value)
+        except (TypeError, ValueError) as exc:
+            raise invalid from exc
+        if not math.isfinite(number):
+            raise invalid
+        float_vector.append(number)
 
     return float_vector
 
