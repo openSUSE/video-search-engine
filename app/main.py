@@ -11,9 +11,11 @@ from app.ui.speaker_support import (
 )
 from app.ui.url_settings import local_http_url
 from core.atomic_io import atomic_write_json
+from core.logger import setup_logging
 
-# Basic configuration for Flask logging
-logging.basicConfig(level=logging.INFO)
+# Honour LOG_LEVEL on this Flask UI subprocess too — setup_logging is
+# idempotent so it's safe even if the parent already configured logging.
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
