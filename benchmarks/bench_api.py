@@ -75,7 +75,14 @@ class _SyntheticCollection:
             for segment_id in self._segment_ids
         }
 
-    def query(self, *, query_embeddings: Any, n_results: int, where: Dict[str, Any]):
+    def query(
+        self,
+        *,
+        query_embeddings: Any,
+        n_results: int,
+        where: Dict[str, Any],
+        include: List[str],
+    ):  # noqa: ARG002 - parity with chromadb.Collection.query
         if where.get("type") == "text" or (
             "$and" in where and where["$and"][0]["type"] == "text"
         ):

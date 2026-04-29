@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -6,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 
 from api.schemas import SearchQuery, SearchResponse
 from api.search_service import HybridSearchService, create_search_service
+from core.logger import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,16 @@ def load_api_config() -> Dict[str, Any]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.search_service = create_search_service(load_api_config())
+    # Apply LOG_LEVEL before initialising the search service so any startup
+    # diagnostics emit at the configured verbosity. setup_logging is
+    # idempotent and skips reattachment if uvicorn has already configured a
+    # root handler.
+    setup_logging()
+    try:
+        app.state.search_service = create_search_service(load_api_config())
+    except Exception:
+        logger.exception("Failed to initialize search service during startup.")
+        raise
     yield
 
 
@@ -45,13 +56,32 @@ def search(
     """
     Accepts a search query and returns a ranked list of relevant video segments.
     """
-    logger.info(f"Received search query: '{query.query}' for video: {query.video_filename}")
+    logger.info(
+        "Received search query: %r for video: %r",
+        query.query,
+        query.video_filename,
+    )
+    started_at = time.monotonic()
     try:
         results = search_service.search(query.query, query.top_k, query.video_filename)
-        return {"results": results}
-    except Exception as e:
-        logger.error(f"An error occurred during search: {e}", exc_info=True)
+    except Exception:
+        duration_ms = (time.monotonic() - started_at) * 1000
+        logger.exception(
+            "Search failed after %.1fms (top_k=%d, video=%r).",
+            duration_ms,
+            query.top_k,
+            query.video_filename,
+        )
         raise HTTPException(status_code=500, detail="Internal server error during search.")
+    duration_ms = (time.monotonic() - started_at) * 1000
+    logger.info(
+        "Search returned %d results in %.1fms (top_k=%d, video=%r)",
+        len(results),
+        duration_ms,
+        query.top_k,
+        query.video_filename,
+    )
+    return {"results": results}
 
 
 @app.get("/")
@@ -61,4 +91,9 @@ def read_root():
 
 @app.get("/healthz")
 def healthz():
+    return {"ok": True}
+
+
+@app.get("/readyz")
+def readyz(_: HybridSearchService = Depends(get_search_service)):
     return {"ok": True}

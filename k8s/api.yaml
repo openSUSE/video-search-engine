@@ -27,7 +27,7 @@ spec:
           - { name: model-cache, mountPath: /models }
           - { name: tmp,         mountPath: /tmp }
         readinessProbe:
-          httpGet: { path: /healthz, port: 1234 }
+          httpGet: { path: /readyz, port: 1234 }
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 2

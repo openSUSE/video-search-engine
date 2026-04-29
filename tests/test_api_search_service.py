@@ -30,12 +30,13 @@ class FakeCollection:
         self.query_calls = []
         self.get_call = None
 
-    def query(self, *, query_embeddings, n_results, where):
+    def query(self, *, query_embeddings, n_results, where, include):
         self.query_calls.append(
             {
                 "query_embeddings": query_embeddings,
                 "n_results": n_results,
                 "where": where,
+                "include": include,
             }
         )
         doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
@@ -74,11 +75,13 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
             "query_embeddings": [[0.25, 0.75]],
             "n_results": 6,
             "where": {"$and": [{"type": "text"}, {"video_filename": "demo.mp4"}]},
+            "include": [],
         },
         {
             "query_embeddings": [[0.25, 0.75]],
             "n_results": 6,
             "where": {"$and": [{"type": "visual"}, {"video_filename": "demo.mp4"}]},
+            "include": [],
         },
     ]
     assert collection.get_call == {
@@ -105,6 +108,34 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
 
     assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
     assert results[0]["summary"] == "valid result"
+
+
+@pytest.mark.parametrize(
+    "blank_field",
+    [
+        {"title": ""},
+        {"title": "   "},
+        {"summary": ""},
+        {"summary": "   "},
+    ],
+)
+def test_hybrid_search_service_skips_results_with_blank_title_or_summary(blank_field):
+    class CollectionWithBlankField(FakeCollection):
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
+                "metadatas": [
+                    _metadata(title="B", summary="kept result"),
+                    _metadata(**blank_field),
+                ],
+            }
+
+    service = HybridSearchService(FakeEmbeddingModel(), CollectionWithBlankField())
+
+    results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
 
 
 def test_hybrid_search_service_skips_malformed_fetched_metadata_ids():
@@ -141,12 +172,13 @@ def test_hybrid_search_service_skips_malformed_fetched_metadata_ids():
 
 def test_hybrid_search_service_skips_malformed_query_result_ids_before_fusion():
     class CollectionWithMalformedQueryIds(FakeCollection):
-        def query(self, *, query_embeddings, n_results, where):
+        def query(self, *, query_embeddings, n_results, where, include):
             self.query_calls.append(
                 {
                     "query_embeddings": query_embeddings,
                     "n_results": n_results,
                     "where": where,
+                    "include": include,
                 }
             )
             doc_type = where["type"] if "type" in where else where["$and"][0]["type"]

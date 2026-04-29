@@ -1,5 +1,6 @@
 import logging
 import math
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
 from api.search_utils import text_metadata_by_segment_id
@@ -128,7 +129,9 @@ def _format_search_result(
 
     if (
         title is None
+        or not title.strip()
         or summary is None
+        or not summary.strip()
         or video_filename is None
         or not video_filename.strip()
         or speakers is None
@@ -167,19 +170,19 @@ class HybridSearchService:
             query_embeddings=[query_vector],
             n_results=top_k * 3,
             where=_where_clause("text", video_filename),
+            include=[],
         )
         visual_results = self.collection.query(
             query_embeddings=[query_vector],
             n_results=top_k * 3,
             where=_where_clause("visual", video_filename),
+            include=[],
         )
 
-        fused_scores: Dict[str, float] = {}
-        for rank, segment_id in enumerate(_query_segment_ids(text_results, "_text")):
-            fused_scores[segment_id] = fused_scores.get(segment_id, 0) + 1 / (rank + RRF_K)
-
-        for rank, segment_id in enumerate(_query_segment_ids(visual_results, "_visual")):
-            fused_scores[segment_id] = fused_scores.get(segment_id, 0) + 1 / (rank + RRF_K)
+        fused_scores: Dict[str, float] = defaultdict(float)
+        for results, suffix in ((text_results, "_text"), (visual_results, "_visual")):
+            for rank, segment_id in enumerate(_query_segment_ids(results, suffix)):
+                fused_scores[segment_id] += 1 / (rank + RRF_K)
 
         top_segment_ids = sorted(
             fused_scores,

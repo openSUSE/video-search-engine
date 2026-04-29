@@ -2,14 +2,15 @@ from typing import List, Optional
 
 from pydantic import BaseModel, conint, constr
 
-NonEmptyString = constr(strip_whitespace=True, min_length=1)
+QueryString = constr(strip_whitespace=True, min_length=1, max_length=1000)
+VideoFilenameString = constr(strip_whitespace=True, min_length=1, max_length=512)
 SearchLimit = conint(ge=1, le=50)
 
 
 class SearchQuery(BaseModel):
-    query: NonEmptyString
+    query: QueryString
     top_k: SearchLimit = 5
-    video_filename: Optional[NonEmptyString] = None
+    video_filename: Optional[VideoFilenameString] = None
 
 
 class SearchResult(BaseModel):
