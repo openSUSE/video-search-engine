@@ -294,16 +294,35 @@ def test_hybrid_search_service_rejects_invalid_query_embeddings_before_query(
     assert collection.get_call is None
 
 
-def test_first_id_list_warns_when_first_row_is_none(caplog):
-    # ChromaDB's contract is that ids[0] is a list of doc ids; a None there
-    # is malformed. Before the helper logged nothing for this case (the
-    # `or []` fallback silently turned it into an empty result). Now we
-    # surface the malformed shape via a WARNING so an upstream regression
-    # is visible.
+@pytest.mark.parametrize(
+    ("payload", "warning_substring"),
+    [
+        ("not a dict", "expected a mapping"),
+        ({"ids": "not a list"}, "ids must be a list"),
+        ({"ids": [None]}, "first ids row"),
+        ({"ids": ["not a list"]}, "first ids row"),
+        ({"ids": [42]}, "first ids row"),
+    ],
+)
+def test_first_id_list_warns_on_malformed_shapes(caplog, payload, warning_substring):
+    # ChromaDB's contract: results is a dict, results["ids"] is a list,
+    # results["ids"][0] is a list/tuple of doc ids. Each rejection path
+    # logs a distinct WARNING so an upstream regression is visible to
+    # operators tailing the API logs.
     with caplog.at_level(logging.WARNING, logger="api.search_service"):
-        result = _first_id_list({"ids": [None]})
+        result = _first_id_list(payload)
 
     assert result == []
-    assert any(
-        "first ids row" in record.message for record in caplog.records
-    )
+    assert any(warning_substring in record.message for record in caplog.records)
+
+
+def test_first_id_list_returns_empty_quietly_for_legitimate_empty_results(caplog):
+    # An empty results.ids or first row of [] is a normal "no matches"
+    # response from ChromaDB, not a malformed one — no warning should
+    # fire, and we should just return an empty list to the caller.
+    with caplog.at_level(logging.WARNING, logger="api.search_service"):
+        assert _first_id_list({"ids": []}) == []
+        assert _first_id_list({"ids": [[]]}) == []
+        assert _first_id_list({}) == []
+
+    assert not caplog.records
