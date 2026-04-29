@@ -204,6 +204,39 @@ def test_api_lifespan_calls_setup_logging_for_log_level_propagation():
     assert setup_calls, "api/main.py must invoke setup_logging() at startup"
 
 
+def test_request_path_modules_use_lazy_logging_not_f_strings():
+    # On the api/, app/, core/ request paths, log message construction
+    # should be deferred to the formatter — `logger.info(f"...")` builds the
+    # string even when the level is disabled. Match calls whose receiver is
+    # named `logger` so unrelated attributes like `st.error(...)` aren't
+    # flagged. Ingestion pipeline step files remain free to use f-strings
+    # since their logs are low-traffic per-shot progress output.
+    log_methods = {"info", "warning", "error", "debug", "critical", "exception"}
+    offenders = []
+    for root in ("api", "app", "core"):
+        for path in Path(root).rglob("*.py"):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if not isinstance(func, ast.Attribute):
+                    continue
+                if func.attr not in log_methods:
+                    continue
+                if not isinstance(func.value, ast.Name) or func.value.id != "logger":
+                    continue
+                if not node.args:
+                    continue
+                if isinstance(node.args[0], ast.JoinedStr):
+                    offenders.append(f"{path}:{node.lineno}")
+
+    assert not offenders, (
+        "f-string logger call on request path — use %-style formatting:\n"
+        + "\n".join(offenders)
+    )
+
+
 def test_runtime_modules_use_atomic_write_json_not_raw_json_dump():
     # Production write paths in api/, app/, and ingestion_pipeline/ must go
     # through core.atomic_io.atomic_write_json so a SIGKILL mid-write can't

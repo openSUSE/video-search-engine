@@ -201,7 +201,7 @@ def load_config() -> Dict[str, Any]:
         else:
             os.environ[k] = os.environ[k].strip()
 
-    logger.info(f"Using device: {cfg['general']['device']}")
+    logger.info("Using device: %s", cfg["general"]["device"])
     return cfg
 
 
