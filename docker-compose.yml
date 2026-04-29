@@ -45,6 +45,7 @@ services:
       CHROMA_COLLECTION: "${CHROMA_COLLECTION:-video_search_engine}"
       ML_DEVICE: "${ML_DEVICE:-cpu}"
       MODEL_CACHE_DIR: /models
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - model-cache:/models
     depends_on:
@@ -122,6 +123,7 @@ services:
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
       RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER:-video_se}:${RABBITMQ_DEFAULT_PASS:-video_se_dev}@rabbitmq:5672/%2F"
       INGESTION_QUEUE: "${INGESTION_QUEUE:-video.ingestion}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - ./data/videos:/data/videos
       - ./data/processed:/data/processed

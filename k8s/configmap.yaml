@@ -44,3 +44,7 @@ data:
   TRANSFORMERS_CACHE: "/models/hf"
   SENTENCE_TRANSFORMERS_HOME: "/models/hf"
   TORCH_HOME: "/models/torch"
+
+  # Runtime log verbosity for setup_logging-aware entrypoints
+  # (CRITICAL/ERROR/WARNING/INFO/DEBUG). Defaults to INFO if unset/unknown.
+  LOG_LEVEL: "INFO"

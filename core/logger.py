@@ -1,5 +1,19 @@
 import logging
+import os
+
 import colorlog
+
+_VALID_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+
+
+def _resolve_log_level() -> int:
+    """Return the log level requested via the LOG_LEVEL env var, or INFO."""
+
+    raw = (os.getenv("LOG_LEVEL") or "").strip().upper()
+    if raw in _VALID_LEVELS:
+        return getattr(logging, raw)
+    return logging.INFO
+
 
 def setup_logging():
     """
@@ -7,12 +21,12 @@ def setup_logging():
     This function should be called once at the beginning of the application.
     """
     root_logger = logging.getLogger()
-    
+
     # Avoid adding handlers multiple times if this function is called again.
     if root_logger.hasHandlers():
         return
 
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(_resolve_log_level())
 
     # Create a colored formatter
     formatter = colorlog.ColoredFormatter(
