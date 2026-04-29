@@ -79,10 +79,6 @@ def _first_id_list(results: Dict[str, Any]) -> List[Any]:
     return list(first_ids)
 
 
-def _segment_id(doc_id: str, suffix: str) -> str:
-    return doc_id.removesuffix(suffix)
-
-
 def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
     segment_ids = []
     for doc_id in _first_id_list(results):
@@ -93,7 +89,7 @@ def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
                 suffix,
             )
             continue
-        segment_ids.append(_segment_id(doc_id, suffix))
+        segment_ids.append(doc_id.removesuffix(suffix))
     return segment_ids
 
 
