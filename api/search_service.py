@@ -186,14 +186,14 @@ class HybridSearchService:
             for rank, segment_id in enumerate(_query_segment_ids(results, suffix)):
                 fused_scores[segment_id] += 1 / (rank + RRF_K)
 
-        top_segment_ids = sorted(
+        ranked_segment_ids = sorted(
             fused_scores, key=fused_scores.__getitem__, reverse=True
-        )[:top_k]
-        if not top_segment_ids:
+        )
+        if not ranked_segment_ids:
             return []
 
         final_results_data = self.collection.get(
-            ids=[f"{segment_id}_text" for segment_id in top_segment_ids],
+            ids=[f"{segment_id}_text" for segment_id in ranked_segment_ids],
             include=["metadatas"],
         )
         metadata_by_segment_id = text_metadata_by_segment_id(
@@ -202,7 +202,7 @@ class HybridSearchService:
         )
 
         formatted_results = []
-        for segment_id in top_segment_ids:
+        for segment_id in ranked_segment_ids:
             metadata = metadata_by_segment_id.get(segment_id)
             result = _format_search_result(
                 segment_id,
@@ -216,6 +216,8 @@ class HybridSearchService:
                 )
                 continue
             formatted_results.append(result)
+            if len(formatted_results) == top_k:
+                break
 
         return formatted_results
 

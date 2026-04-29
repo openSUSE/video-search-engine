@@ -87,7 +87,11 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
         },
     ]
     assert collection.get_call == {
-        "ids": ["demo.mp4::segment-b_text", "demo.mp4::segment-a_text"],
+        "ids": [
+            "demo.mp4::segment-b_text",
+            "demo.mp4::segment-a_text",
+            "demo.mp4::segment-c_text",
+        ],
         "include": ["metadatas"],
     }
 
@@ -110,6 +114,64 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
 
     assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
     assert results[0]["summary"] == "valid result"
+
+
+def test_hybrid_search_service_backfills_from_lower_ranked_candidates_when_top_metadata_stale():
+    class CollectionWithStaleTopCandidate(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::stale_text",
+                            "demo.mp4::primary_text",
+                            "demo.mp4::fallback_text",
+                        ]
+                    ]
+                }
+            return {"ids": [[]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": [
+                    "demo.mp4::stale_text",
+                    "demo.mp4::primary_text",
+                    "demo.mp4::fallback_text",
+                ],
+                "metadatas": [
+                    _metadata(title=" "),
+                    _metadata(title="Primary", summary="top valid candidate"),
+                    _metadata(title="Fallback", summary="lower valid candidate"),
+                ],
+            }
+
+    collection = CollectionWithStaleTopCandidate()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    results = service.search("find highlights", top_k=2)
+
+    assert collection.get_call == {
+        "ids": [
+            "demo.mp4::stale_text",
+            "demo.mp4::primary_text",
+            "demo.mp4::fallback_text",
+        ],
+        "include": ["metadatas"],
+    }
+    assert [result["id"] for result in results] == [
+        "demo.mp4::primary",
+        "demo.mp4::fallback",
+    ]
 
 
 def test_hybrid_search_service_strips_whitespace_from_returned_metadata():
