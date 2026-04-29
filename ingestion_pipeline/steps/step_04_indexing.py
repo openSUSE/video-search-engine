@@ -269,11 +269,20 @@ def run_indexing(
     embeddings_to_add = []
     metadatas_to_add = []
 
-    # Create all embeddings at once for GPU efficiency
-    all_transcripts = [
-        seg.get("full_transcript", "") or seg.get("summary", "")
-        for seg in segments
-    ]
+    # Create all embeddings at once for GPU efficiency.
+    # Text side anchors on the LLM-generated title (concept) + verbatim
+    # transcript (or summary fallback for silent segments) + keywords
+    # (semantic markers). Including title/keywords measurably improves
+    # thematic recall on top of literal-word recall from the transcript.
+    all_text_contexts = []
+    for seg in segments:
+        text_parts = [
+            seg.get("title", "").strip(),
+            seg.get("full_transcript", "").strip()
+            or seg.get("summary", "").strip(),
+        ]
+        text_parts.extend(seg.get("keywords", []))
+        all_text_contexts.append(". ".join(filter(None, text_parts)))
 
     all_visual_contexts = []
     for seg in segments:
@@ -284,7 +293,7 @@ def run_indexing(
         all_visual_contexts.append(". ".join(filter(None, visual_parts)))
 
     text_embeddings = _encoded_vectors_to_lists(
-        embedding_model.encode(all_transcripts, show_progress_bar=True),
+        embedding_model.encode(all_text_contexts, show_progress_bar=True),
         len(segments),
         "text",
     )

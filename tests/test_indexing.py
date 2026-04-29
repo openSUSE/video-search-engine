@@ -72,7 +72,8 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
 
     assert embedding_model.encode_calls == [
         {
-            "texts": ["spoken words", "fallback summary"],
+            # Text side joins title (none here) + transcript + keywords.
+            "texts": ["spoken words. arrival", "fallback summary"],
             "show_progress_bar": True,
         },
         {
@@ -548,3 +549,36 @@ def test_run_indexing_rejects_invalid_timing_metadata_before_creating_dependenci
             "demo-video",
             {"database": {"collection_name": "unused"}},
         )
+
+
+def test_run_indexing_text_context_includes_title_and_keywords(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "title": "Arriving at the Station",
+                    "full_transcript": "I just got here.",
+                    "keywords": ["arrival", "station"],
+                    "start_time": 0.0,
+                    "end_time": 3.0,
+                },
+            ]
+        )
+    )
+    embedding_model = FakeEmbeddingModel()
+    collection = FakeCollection()
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=embedding_model,
+        collection=collection,
+    )
+
+    text_call = embedding_model.encode_calls[0]
+    assert text_call["texts"] == [
+        "Arriving at the Station. I just got here.. arrival. station",
+    ]
