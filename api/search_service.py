@@ -128,7 +128,10 @@ def _format_search_result(
     start_time = _metadata_time(metadata, "start_time")
     end_time = _metadata_time(metadata, "end_time")
 
-    # _metadata_string already strips, so falsy means missing/whitespace-only.
+    # _metadata_string already strips, so falsy means missing or
+    # whitespace-only. speakers is checked with `is None` (not `not`) so an
+    # empty string passes through — that's the legitimate "no speakers
+    # identified" case the UI renders as "N/A".
     if (
         not title
         or not summary
