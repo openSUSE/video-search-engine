@@ -181,6 +181,20 @@ def test_log_level_propagated_through_deployment_manifests():
     assert "LOG_LEVEL" in configmap["data"]
 
 
+def test_api_root_endpoint_exposes_version():
+    # `/` returns app.version so operators can identify the deployed build
+    # without digging into container labels or /docs. Lock the read so a
+    # cleanup pass doesn't quietly drop it back to a fixed banner.
+    tree = ast.parse(Path("api/main.py").read_text())
+    root_handler = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "read_root"
+    )
+    body_text = ast.unparse(root_handler)
+    assert "app.version" in body_text
+
+
 def test_api_lifespan_calls_setup_logging_for_log_level_propagation():
     # core.logger.setup_logging reads LOG_LEVEL from the env. If api/main.py
     # forgets to invoke it during lifespan startup, LOG_LEVEL set on the api
