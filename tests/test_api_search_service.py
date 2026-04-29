@@ -1,6 +1,8 @@
+import logging
+
 import pytest
 
-from api.search_service import HybridSearchService
+from api.search_service import HybridSearchService, _first_id_list
 
 
 def _metadata(**updates):
@@ -290,3 +292,18 @@ def test_hybrid_search_service_rejects_invalid_query_embeddings_before_query(
 
     assert collection.query_calls == []
     assert collection.get_call is None
+
+
+def test_first_id_list_warns_when_first_row_is_none(caplog):
+    # ChromaDB's contract is that ids[0] is a list of doc ids; a None there
+    # is malformed. Before the helper logged nothing for this case (the
+    # `or []` fallback silently turned it into an empty result). Now we
+    # surface the malformed shape via a WARNING so an upstream regression
+    # is visible.
+    with caplog.at_level(logging.WARNING, logger="api.search_service"):
+        result = _first_id_list({"ids": [None]})
+
+    assert result == []
+    assert any(
+        "first ids row" in record.message for record in caplog.records
+    )

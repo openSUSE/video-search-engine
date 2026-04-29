@@ -70,7 +70,7 @@ def _first_id_list(results: Dict[str, Any]) -> List[Any]:
         logger.warning("Skipping malformed search query results: ids must be a list.")
         return []
 
-    first_ids = ids[0] or []
+    first_ids = ids[0]
     if not isinstance(first_ids, (list, tuple)):
         logger.warning(
             "Skipping malformed search query results: first ids row must be a list."
