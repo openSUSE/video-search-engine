@@ -90,6 +90,14 @@ def test_supported_video_filenames_returns_sorted_supported_files_only(tmp_path)
     assert supported_video_filenames(tmp_path) == ["alpha.mov", "zeta.MP4"]
 
 
+def test_supported_video_filenames_rejects_non_directory_paths(tmp_path):
+    video_data_path = tmp_path / "videos.mp4"
+    video_data_path.write_bytes(b"not a directory")
+
+    with pytest.raises(FileNotFoundError, match="Video directory"):
+        supported_video_filenames(video_data_path)
+
+
 def test_reset_speaker_session_for_video_clears_previous_video_state():
     state = {
         "selected_video_folder": "old",

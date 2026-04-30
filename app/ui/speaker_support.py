@@ -31,6 +31,9 @@ def is_supported_video_file(filename: str | Path) -> bool:
 
 def supported_video_filenames(video_data_dir: str | Path) -> list[str]:
     video_dir = Path(video_data_dir)
+    if not video_dir.is_dir():
+        raise FileNotFoundError(f"Video directory not found: {video_dir}")
+
     return sorted(
         path.name
         for path in video_dir.iterdir()
