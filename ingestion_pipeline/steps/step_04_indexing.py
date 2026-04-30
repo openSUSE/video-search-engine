@@ -7,6 +7,8 @@ import os
 from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Protocol
 
+from ingestion_pipeline.jobs import normalize_required_string
+
 logger = logging.getLogger(__name__)
 
 DOCUMENT_ID_SCOPE_DELIMITER = "::"
@@ -377,6 +379,15 @@ def run_indexing(
     and indexes them in a single ChromaDB collection with distinct IDs.
     """
     logger.info("--- Starting Step 4: Indexing Segments in Vector DB ---")
+    try:
+        enriched_segments_path = normalize_required_string(
+            enriched_segments_path,
+            "enriched_segments_path",
+        )
+    except ValueError as exc:
+        logger.error("Invalid indexing input: %s", exc)
+        return False
+
     video_filename = _normalize_video_filename(video_filename)
 
     # 1. Load the enriched segments data

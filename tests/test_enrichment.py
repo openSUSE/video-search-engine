@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from ingestion_pipeline.steps import step_03_enrichment as enrichment_step
 from ingestion_pipeline.steps.step_03_enrichment import _call_gemini_api, run_enrichment
 
 
@@ -754,6 +755,36 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
             "filenames": {"enriched_segments": "enriched.json"},
             "llm_enrichment": {"provider": "unknown"},
         },
+    )
+
+    assert result is None
+    assert not (tmp_path / "enriched.json").exists()
+
+
+@pytest.mark.parametrize("segments_path", ["", "   ", None])
+def test_run_enrichment_rejects_invalid_segments_path_before_resolving_provider(
+    monkeypatch,
+    tmp_path,
+    segments_path,
+):
+    monkeypatch.chdir(tmp_path)
+
+    def fail_resolve_llm_client(_provider, _llm_clients):
+        raise AssertionError("LLM provider should not resolve for invalid input paths")
+
+    monkeypatch.setattr(
+        enrichment_step,
+        "_resolve_llm_client",
+        fail_resolve_llm_client,
+    )
+
+    result = run_enrichment(
+        segments_path,
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: {"title": "unused"}},
     )
 
     assert result is None

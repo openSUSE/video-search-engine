@@ -8,6 +8,7 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from core.atomic_io import atomic_write_json
+from ingestion_pipeline.jobs import normalize_required_string
 
 logger = logging.getLogger(__name__)
 
@@ -405,6 +406,12 @@ def run_enrichment(
     Enriches segments with LLM data, saving progress after each segment.
     On rerun, it skips already enriched segments.
     """
+    try:
+        segments_path = normalize_required_string(segments_path, "segments_path")
+    except ValueError as exc:
+        logger.error("Invalid enrichment input: %s", exc)
+        return None
+
     processed_dir = os.path.dirname(segments_path)
     output_filename = config['filenames']['enriched_segments']
     output_path = os.path.join(processed_dir, output_filename)
