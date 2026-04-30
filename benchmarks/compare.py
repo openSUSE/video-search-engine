@@ -23,9 +23,10 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping
+from typing import Dict, Iterable, List
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,9 @@ def load_report(path: str | Path) -> Mapping[str, object]:
 
 
 def _median_by_name(report: Mapping[str, object]) -> Dict[str, Dict[str, object]]:
+    if not isinstance(report, Mapping):
+        raise ValueError("report must be a JSON object")
+
     results = report.get("results")
     if not isinstance(results, list):
         raise ValueError("report must contain a 'results' list")

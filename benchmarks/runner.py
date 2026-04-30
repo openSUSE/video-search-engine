@@ -220,6 +220,19 @@ def _regex_pattern(raw_value: str) -> re.Pattern[str]:
         ) from exc
 
 
+def _baseline_error(path: str, exc: Exception) -> str:
+    if isinstance(exc, json.JSONDecodeError):
+        detail = (
+            f"must be valid JSON: {exc.msg} "
+            f"(line {exc.lineno}, column {exc.colno})"
+        )
+    elif isinstance(exc, OSError):
+        detail = f"could not be read: {exc}"
+    else:
+        detail = str(exc)
+    return f"Invalid benchmark baseline {path!r}: {detail}"
+
+
 def main(argv: List[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -267,9 +280,23 @@ def main(argv: List[str] | None = None) -> int:
             print(f"Wrote JSON report to {args.json_path}", file=sys.stderr)
 
     if args.baseline_path:
-        baseline = load_report(args.baseline_path)
+        try:
+            baseline = load_report(args.baseline_path)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(_baseline_error(args.baseline_path, exc), file=sys.stderr)
+            return 2
+
         current_payload = json.loads(format_json_report(results, metadata=metadata))
-        rows = compare_reports(baseline, current_payload, warn_ratio=args.warn_ratio)
+        try:
+            rows = compare_reports(
+                baseline,
+                current_payload,
+                warn_ratio=args.warn_ratio,
+            )
+        except ValueError as exc:
+            print(_baseline_error(args.baseline_path, exc), file=sys.stderr)
+            return 2
+
         sys.stderr.write("\n")
         sys.stderr.write(format_comparison(rows, warn_ratio=args.warn_ratio))
         if args.fail_on_regression and has_regression(rows):

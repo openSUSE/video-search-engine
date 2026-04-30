@@ -187,6 +187,38 @@ def test_runner_baseline_with_forced_regression_exits_one(tmp_path):
     assert "regression" in result.stderr
 
 
+@pytest.mark.parametrize(
+    ("baseline_payload", "message"),
+    [
+        ("{not-json", "valid JSON"),
+        (json.dumps([]), "JSON object"),
+        (json.dumps({"results": "not-a-list"}), "results"),
+    ],
+)
+def test_runner_invalid_baseline_reports_usage_error(
+    tmp_path,
+    baseline_payload: str,
+    message: str,
+):
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(baseline_payload)
+
+    result = _run_runner(
+        "--scale",
+        "0.02",
+        "--quiet",
+        "--filter",
+        "^jobs\\.encode_job_message\\(minimal\\)$",
+        "--baseline",
+        str(baseline),
+    )
+
+    assert result.returncode == 2
+    assert "Invalid benchmark baseline" in result.stderr
+    assert message in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_runner_no_match_filter_exits_two():
     result = _run_runner(
         "--scale",
