@@ -76,6 +76,9 @@
 
             videoTitle.textContent = `Video: ${data.video_filename}`;
             const transcript = data.transcript;
+            const speakerMap = data.speaker_map && typeof data.speaker_map === 'object' && !Array.isArray(data.speaker_map)
+                ? data.speaker_map
+                : {};
             
             const uniqueSpeakers = [...new Set(transcript.map(seg => seg.speaker).filter(Boolean))];
 
@@ -94,6 +97,9 @@
                 input.id = inputId;
                 input.placeholder = 'Enter real name...';
                 input.dataset.speakerId = speakerId;
+                if (typeof speakerMap[speakerId] === 'string') {
+                    input.value = speakerMap[speakerId];
+                }
 
                 group.append(label, input);
                 speakerInputs.appendChild(group);

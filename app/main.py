@@ -71,6 +71,7 @@ def get_data():
         transcript = load_transcript_segments(TRANSCRIPT_PATH)
         return jsonify({
             "transcript": transcript,
+            "speaker_map": _existing_speaker_map(),
             "video_filename": os.path.basename(VIDEO_PATH)
         })
     except FileNotFoundError:
@@ -91,6 +92,35 @@ def _required_speaker_ids():
     return load_transcript_speaker_ids(TRANSCRIPT_PATH)
 
 
+def _speaker_map_output_path():
+    if not VIDEO_PATH or not OUTPUT_DIR:
+        return None
+
+    video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
+    config = get_config()
+    speaker_map_filename = config['filenames']['speaker_map']
+    return os.path.join(OUTPUT_DIR, video_filename_no_ext, speaker_map_filename)
+
+
+def _existing_speaker_map():
+    output_path = _speaker_map_output_path()
+    if not output_path or not os.path.exists(output_path):
+        return {}
+
+    try:
+        with open(output_path, "r") as f:
+            speaker_map = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not load existing speaker map at %s: %s", output_path, exc)
+        return {}
+
+    normalized_speaker_map = normalize_speaker_map(speaker_map)
+    if normalized_speaker_map is None:
+        logger.warning("Ignoring malformed existing speaker map at %s.", output_path)
+        return {}
+    return normalized_speaker_map
+
+
 @app.route('/api/save_map', methods=['POST'])
 def save_speaker_map():
     """API endpoint to receive speaker mappings and save them to a file."""
@@ -98,9 +128,13 @@ def save_speaker_map():
     if not isinstance(data, dict):
         return jsonify({"error": "No speaker map data received."}), 400
 
-    speaker_map = normalize_speaker_map(data.get('speaker_map'))
-    if speaker_map is None:
+    submitted_speaker_map = normalize_speaker_map(data.get('speaker_map'))
+    if submitted_speaker_map is None:
         return jsonify({"error": "Speaker map must contain non-empty speaker names."}), 400
+    speaker_map = {
+        **_existing_speaker_map(),
+        **submitted_speaker_map,
+    }
 
     try:
         required_speaker_ids = _required_speaker_ids()
@@ -114,12 +148,9 @@ def save_speaker_map():
             "error": "Speaker map is missing names for: " + ", ".join(missing_speaker_ids)
         }), 400
 
-    video_filename_no_ext = os.path.splitext(os.path.basename(VIDEO_PATH))[0]
-    
-    # Use the filename from the central CONFIG file
-    config = get_config()
-    speaker_map_filename = config['filenames']['speaker_map']
-    output_path = os.path.join(OUTPUT_DIR, video_filename_no_ext, speaker_map_filename)
+    output_path = _speaker_map_output_path()
+    if output_path is None:
+        return jsonify({"error": "Speaker map output path is not configured."}), 500
 
     try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

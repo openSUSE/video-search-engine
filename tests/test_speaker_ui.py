@@ -18,6 +18,14 @@ def test_speaker_ui_template_handles_transcript_load_errors():
     assert "saveButton.disabled = true" in template
 
 
+def test_speaker_ui_template_prefills_existing_speaker_map():
+    template = Path("app/ui/index.html").read_text()
+
+    assert "data.speaker_map" in template
+    assert "speakerMap[speakerId]" in template
+    assert "input.value =" in template
+
+
 def test_speaker_flask_ui_url_uses_loopback_for_wildcard_host(monkeypatch):
     monkeypatch.setattr(
         speaker_app,
@@ -79,8 +87,49 @@ def test_get_data_returns_validated_transcript(monkeypatch, tmp_path):
                 "speaker": "SPEAKER_00",
             }
         ],
+        "speaker_map": {},
         "video_filename": "demo.mp4",
     }
+
+
+def test_get_data_returns_existing_normalized_speaker_map(monkeypatch, tmp_path):
+    video_path = tmp_path / "videos" / "demo.mp4"
+    video_path.parent.mkdir()
+    video_path.write_bytes(b"")
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            [
+                {
+                    "start": 1,
+                    "end": 2,
+                    "text": "hello",
+                    "speaker": "SPEAKER_00",
+                }
+            ]
+        )
+    )
+    output_dir = tmp_path / "processed"
+    speaker_map_path = output_dir / "demo" / "speaker_map.json"
+    speaker_map_path.parent.mkdir(parents=True)
+    speaker_map_path.write_text(json.dumps({" SPEAKER_00 ": " Alice "}))
+
+    monkeypatch.setattr(speaker_app, "VIDEO_PATH", str(video_path))
+    monkeypatch.setattr(speaker_app, "TRANSCRIPT_PATH", str(transcript_path))
+    monkeypatch.setattr(speaker_app, "OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "127.0.0.1", "port": 5050},
+        },
+    )
+
+    response = speaker_app.app.test_client().get("/api/data")
+
+    assert response.status_code == 200
+    assert response.get_json()["speaker_map"] == {"SPEAKER_00": "Alice"}
 
 
 def test_get_data_rejects_malformed_transcript(monkeypatch, tmp_path):
@@ -170,6 +219,50 @@ def test_save_speaker_map_trims_names_before_writing(monkeypatch, tmp_path):
     speaker_map_path = output_dir / "demo" / "speaker_map.json"
     assert response.status_code == 200
     assert json.loads(speaker_map_path.read_text()) == {"SPEAKER_00": "Alice"}
+
+
+def test_save_speaker_map_merges_existing_entries_before_validation(monkeypatch, tmp_path):
+    video_path = tmp_path / "videos" / "demo.mp4"
+    video_path.parent.mkdir()
+    video_path.write_bytes(b"")
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            [
+                {"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"},
+                {"start": 1, "end": 2, "speaker": "SPEAKER_01", "text": "reply"},
+            ]
+        )
+    )
+
+    output_dir = tmp_path / "processed"
+    speaker_map_path = output_dir / "demo" / "speaker_map.json"
+    speaker_map_path.parent.mkdir(parents=True)
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    monkeypatch.setattr(speaker_app, "VIDEO_PATH", str(video_path))
+    monkeypatch.setattr(speaker_app, "TRANSCRIPT_PATH", str(transcript_path))
+    monkeypatch.setattr(speaker_app, "OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "127.0.0.1", "port": 5050},
+        },
+    )
+    monkeypatch.setattr(speaker_app, "_request_shutdown_async", lambda: None)
+
+    response = speaker_app.app.test_client().post(
+        "/api/save_map",
+        json={"speaker_map": {"SPEAKER_01": "Bob"}},
+    )
+
+    assert response.status_code == 200
+    assert json.loads(speaker_map_path.read_text()) == {
+        "SPEAKER_00": "Alice",
+        "SPEAKER_01": "Bob",
+    }
 
 
 def test_save_speaker_map_rejects_invalid_payload():
