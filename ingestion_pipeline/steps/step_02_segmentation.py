@@ -261,11 +261,26 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
 
         start_time = _validate_cached_segment_time(segment, segment_index, "start_time")
         end_time = _validate_cached_segment_time(segment, segment_index, "end_time")
-        _validate_cached_segment_time(segment, segment_index, "duration_sec")
+        duration_sec = _validate_cached_segment_time(
+            segment,
+            segment_index,
+            "duration_sec",
+        )
         if end_time < start_time:
             raise ValueError(
                 f"cached segment at index {segment_index} "
                 "end_time must be greater than or equal to start_time"
+            )
+        expected_duration_sec = round(end_time - start_time, 3)
+        if not math.isclose(
+            duration_sec,
+            expected_duration_sec,
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        ):
+            raise ValueError(
+                f"cached segment at index {segment_index} "
+                "duration_sec must match end_time - start_time"
             )
         if previous_end_time is not None and start_time < previous_end_time:
             raise ValueError(

@@ -382,6 +382,7 @@ def test_run_segmentation_recomputes_cached_output_when_analysis_content_changed
         ([_cached_segment(start_time=-1)], "start_time"),
         ([_cached_segment(start_time=float("nan"))], "start_time"),
         ([_cached_segment(start_time=2, end_time=1)], "end_time"),
+        ([_cached_segment(start_time=0, end_time=2, duration_sec=99)], "duration_sec"),
         ([_cached_segment(end_time=float("inf"))], "end_time"),
         ([_cached_segment(speakers="Alice")], "speakers"),
         ([_cached_segment(shot_ids=[7])], "shot_ids"),
