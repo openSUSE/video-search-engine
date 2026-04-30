@@ -277,6 +277,7 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
             "keywords",
             "consolidated_visual_captions",
             "consolidated_actions",
+            "consolidated_audio_events",
         ):
             _validate_optional_string_list_field(segment, index, field_name)
 
@@ -311,6 +312,7 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
     speakers_str = _join_metadata_values(segment.get("speakers", []))
     keywords_str = _join_metadata_values(segment.get("keywords", []))
     actions_str = _join_metadata_values(segment.get("consolidated_actions", []))
+    audio_events_str = _join_metadata_values(segment.get("consolidated_audio_events", []))
 
     return {
         # Core searchable metadata
@@ -319,6 +321,7 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
         "speakers": speakers_str,
         "keywords": keywords_str,
         "actions": actions_str,
+        "audio_events": audio_events_str,
         # Essential data for displaying results
         "start_time": segment["start_time"],
         "end_time": segment["end_time"],
@@ -404,6 +407,7 @@ def run_indexing(
         visual_parts: List[str] = [seg.get("summary", "")]
         visual_parts.extend(seg.get("consolidated_visual_captions", []))
         visual_parts.extend(seg.get("consolidated_actions", []))
+        visual_parts.extend(seg.get("consolidated_audio_events", []))
         all_visual_contexts.append(_join_embedding_parts(visual_parts))
 
     text_embeddings = _encoded_vectors_to_lists(

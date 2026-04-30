@@ -77,6 +77,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
                     speakers=[" Alice ", "", "Bob"],
                     keywords=["arrival"],
                     consolidated_actions=[" walking ", ""],
+                    consolidated_audio_events=[" announcement ", "", "crowd"],
                     consolidated_visual_captions=["a doorway"],
                 ),
                 _enriched_segment(
@@ -116,7 +117,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
         },
         {
             "texts": [
-                "person enters. a doorway. walking",
+                "person enters. a doorway. walking. announcement. crowd",
                 "fallback summary",
             ],
             "show_progress_bar": True,
@@ -141,6 +142,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "speakers": "Alice, Bob",
             "keywords": "arrival",
             "actions": "walking",
+            "audio_events": "announcement, crowd",
             "start_time": 1.5,
             "end_time": 4.0,
             "video_filename": "demo-video",
@@ -152,6 +154,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "speakers": "Alice, Bob",
             "keywords": "arrival",
             "actions": "walking",
+            "audio_events": "announcement, crowd",
             "start_time": 1.5,
             "end_time": 4.0,
             "video_filename": "demo-video",
@@ -163,6 +166,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "speakers": "",
             "keywords": "fallback",
             "actions": "",
+            "audio_events": "",
             "start_time": 5.0,
             "end_time": 8.0,
             "video_filename": "demo-video",
@@ -174,6 +178,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "speakers": "",
             "keywords": "fallback",
             "actions": "",
+            "audio_events": "",
             "start_time": 5.0,
             "end_time": 8.0,
             "video_filename": "demo-video",
@@ -592,6 +597,14 @@ def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencie
         (
             [{"segment_id": "segment-1", "consolidated_actions": [None]}],
             "consolidated_actions",
+        ),
+        (
+            [{"segment_id": "segment-1", "consolidated_audio_events": "music"}],
+            "consolidated_audio_events",
+        ),
+        (
+            [{"segment_id": "segment-1", "consolidated_audio_events": [None]}],
+            "consolidated_audio_events",
         ),
     ],
 )
