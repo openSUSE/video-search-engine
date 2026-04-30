@@ -1266,6 +1266,83 @@ def test_align_transcript_to_shots_rejects_invalid_raw_transcript_before_writing
     assert not aligned_transcript_path.exists()
 
 
+def _final_analysis_paths(tmp_path):
+    return {
+        "shots": str(tmp_path / "shots.json"),
+        "visual_details": str(tmp_path / "visual_details.json"),
+        "audio_events": str(tmp_path / "audio_events.json"),
+        "transcript_aligned": str(tmp_path / "aligned.json"),
+        "actions": str(tmp_path / "actions.json"),
+        "final_analysis": str(tmp_path / "final_analysis.json"),
+    }
+
+
+def _write_valid_final_analysis_inputs(paths):
+    valid_artifacts = {
+        "shots": [
+            {
+                "shot_id": "shot_0001",
+                "shot_index": 1,
+                "start_time_sec": 0.0,
+                "end_time_sec": 2.0,
+                "start_frame": 0,
+                "end_frame": 48,
+            }
+        ],
+        "visual_details": [{"shot_id": "shot_0001", "caption": "a station platform"}],
+        "audio_events": [{"shot_id": "shot_0001", "events": [{"event": "speech"}]}],
+        "transcript_aligned": [
+            {
+                "start": 0.1,
+                "end": 1.2,
+                "text": "hello",
+                "speaker": "Alice",
+                "shot_id": "shot_0001",
+            }
+        ],
+        "actions": [{"shot_id": "shot_0001", "actions": [{"action": "standing"}]}],
+    }
+    for name, data in valid_artifacts.items():
+        Path(paths[name]).write_text(json.dumps(data))
+
+
+@pytest.mark.parametrize(
+    ("artifact_name", "artifact_label"),
+    [
+        ("shots", "shot boundaries"),
+        ("visual_details", "visual details"),
+        ("audio_events", "audio events"),
+        ("transcript_aligned", "aligned transcript"),
+        ("actions", "actions"),
+    ],
+)
+def test_create_final_analysis_file_wraps_malformed_json_artifacts_before_writing(
+    tmp_path,
+    artifact_name,
+    artifact_label,
+):
+    paths = _final_analysis_paths(tmp_path)
+    _write_valid_final_analysis_inputs(paths)
+    Path(paths[artifact_name]).write_text("{")
+
+    with pytest.raises(ValueError, match=f"{artifact_label}.*valid JSON"):
+        create_final_analysis_file(paths)
+
+    assert not Path(paths["final_analysis"]).exists()
+
+
+def test_create_final_analysis_file_wraps_unreadable_artifacts_before_writing(tmp_path):
+    paths = _final_analysis_paths(tmp_path)
+    _write_valid_final_analysis_inputs(paths)
+    Path(paths["visual_details"]).unlink()
+    Path(paths["visual_details"]).mkdir()
+
+    with pytest.raises(ValueError, match="visual details.*could not be read"):
+        create_final_analysis_file(paths)
+
+    assert not Path(paths["final_analysis"]).exists()
+
+
 def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
     paths = {
         "shots": str(tmp_path / "shots.json"),

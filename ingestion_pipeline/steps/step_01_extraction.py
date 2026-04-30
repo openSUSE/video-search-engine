@@ -799,32 +799,47 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     logger.info(f"    -> Detected actions saved to {output_path}")
 
 
+def _load_json_artifact(path: str, artifact_label: str) -> Any:
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{artifact_label} artifact at {path} must be valid JSON"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            f"{artifact_label} artifact at {path} could not be read"
+        ) from exc
+
+
 # NEW: Function to combine all metadata into a single file.
 def create_final_analysis_file(paths: Dict[str, str]):
     """Combines all intermediate JSON files into a single, unified analysis file."""
     logger.info("    -> Creating final unified analysis file...")
 
     # Load all the data sources
-    with open(paths['shots'], 'r') as f:
-        scenes_data = _validate_shot_boundaries(json.load(f))
-    with open(paths['visual_details'], 'r') as f:
-        visual_data = _validate_visual_details(json.load(f))
-    with open(paths['audio_events'], 'r') as f:
-        audio_data = _validate_labeled_artifact_data(
-            json.load(f),
-            "audio events",
-            "events",
-            "event",
-        )
-    with open(paths['transcript_aligned'], 'r') as f:
-        transcript_data = _validate_aligned_transcript_segments(json.load(f))
-    with open(paths['actions'], 'r') as f:
-        actions_data = _validate_labeled_artifact_data(
-            json.load(f),
-            "actions",
-            "actions",
-            "action",
-        )
+    scenes_data = _validate_shot_boundaries(
+        _load_json_artifact(paths['shots'], "shot boundaries")
+    )
+    visual_data = _validate_visual_details(
+        _load_json_artifact(paths['visual_details'], "visual details")
+    )
+    audio_data = _validate_labeled_artifact_data(
+        _load_json_artifact(paths['audio_events'], "audio events"),
+        "audio events",
+        "events",
+        "event",
+    )
+    transcript_data = _validate_aligned_transcript_segments(
+        _load_json_artifact(paths['transcript_aligned'], "aligned transcript")
+    )
+    actions_data = _validate_labeled_artifact_data(
+        _load_json_artifact(paths['actions'], "actions"),
+        "actions",
+        "actions",
+        "action",
+    )
 
     shot_ids = {shot["shot_id"] for shot in scenes_data}
     _validate_known_shot_references(visual_data, shot_ids, "visual details")
