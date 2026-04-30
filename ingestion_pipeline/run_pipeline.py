@@ -71,6 +71,18 @@ def _speaker_map_timeout_seconds():
     return timeout_seconds
 
 
+def _is_terminal_speaker_wait_reason(wait_reason: str | None) -> bool:
+    return bool(
+        wait_reason
+        and wait_reason.startswith(
+            (
+                "malformed raw transcript:",
+                "raw transcript is not valid JSON:",
+            )
+        )
+    )
+
+
 def _speaker_ui_url(config) -> str:
     ui_config = config["ui"]
     return local_http_url(ui_config["host"], ui_config["port"])
@@ -82,8 +94,12 @@ def _speaker_map_readiness(
 ) -> tuple[bool, str | None]:
     try:
         required_speaker_ids = load_transcript_speaker_ids(raw_transcript_path)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
-        return False, f"speaker map or transcript is not readable: {exc}"
+    except FileNotFoundError as exc:
+        return False, f"raw transcript is not available yet: {exc}"
+    except json.JSONDecodeError as exc:
+        return False, f"raw transcript is not valid JSON: {exc}"
+    except ValueError as exc:
+        return False, f"malformed raw transcript: {exc}"
 
     if not os.path.exists(speaker_map_path):
         if not required_speaker_ids:
@@ -106,8 +122,10 @@ def _speaker_map_readiness(
     try:
         with open(speaker_map_path, "r") as f:
             speaker_map_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
-        return False, f"speaker map or transcript is not readable: {exc}"
+    except FileNotFoundError as exc:
+        return False, f"speaker map is not available yet: {exc}"
+    except (json.JSONDecodeError, ValueError) as exc:
+        return False, f"speaker map is not readable: {exc}"
 
     speaker_map = normalize_speaker_map(speaker_map_data)
     if speaker_map is None:
@@ -137,6 +155,10 @@ def _wait_until_speaker_map_ready(
         if wait_reason != last_wait_reason:
             logger.info("Waiting for speaker map: %s", wait_reason)
             last_wait_reason = wait_reason
+
+        if _is_terminal_speaker_wait_reason(wait_reason):
+            logger.error("Cannot continue waiting for speaker map: %s", wait_reason)
+            return False
 
         if server_process and server_process.poll() is not None:
             logger.error("UI server exited prematurely. Please check the logs.")

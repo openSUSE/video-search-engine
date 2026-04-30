@@ -157,6 +157,32 @@ def test_speaker_map_readiness_rejects_malformed_transcript(
     assert "start" in wait_reason
 
 
+def test_speaker_map_wait_fails_fast_for_malformed_transcript(
+    monkeypatch,
+    tmp_path,
+    caplog,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    transcript_path.write_text(json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}]))
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    def fail_sleep(_seconds):
+        raise AssertionError("malformed transcript should not keep the wait loop alive")
+
+    monkeypatch.setattr(run_pipeline.time, "sleep", fail_sleep)
+
+    with caplog.at_level(logging.ERROR):
+        result = run_pipeline._wait_until_speaker_map_ready(
+            str(speaker_map_path),
+            str(transcript_path),
+        )
+
+    assert result is False
+    assert "malformed raw transcript" in caplog.text
+
+
 def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_path):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     monkeypatch.setenv("SPEAKER_UI_MODE", "local")
