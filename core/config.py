@@ -20,6 +20,19 @@ CONFIG_SECTIONS = [
 ]
 MIN_TCP_PORT = 1
 MAX_TCP_PORT = 65535
+DEFAULT_FILENAMES = {
+    "audio": "normalized_audio.mp3",
+    "raw_transcript": "transcript_raw.json",
+    "speaker_map": "speaker_map.json",
+    "transcript": "transcript_generic.json",
+    "shots": "shots.json",
+    "audio_events": "audio_events.json",
+    "visual_details": "visual_details.json",
+    "actions": "actions.json",
+    "final_analysis": "final_analysis.json",
+    "final_segments": "final_segments.json",
+    "enriched_segments": "final_enriched_segments.json",
+}
 
 
 def _yaml(path: str) -> Dict[str, Any]:
@@ -83,6 +96,33 @@ def _port_setting(env_name: str, config_value: Any, default: int) -> int:
     if not MIN_TCP_PORT <= port <= MAX_TCP_PORT:
         raise ValueError(invalid_message)
     return port
+
+
+def _filename_setting(key: str, config_value: Any, default: str) -> str:
+    invalid_message = f"filenames.{key} must be a non-empty filename"
+    if config_value is None:
+        return default
+    if not isinstance(config_value, str):
+        raise ValueError(invalid_message)
+
+    filename = config_value.strip()
+    if (
+        not filename
+        or filename in {".", ".."}
+        or os.path.basename(filename) != filename
+        or "\\" in filename
+    ):
+        raise ValueError(invalid_message)
+    return filename
+
+
+def _normalize_filenames(filenames_config: Dict[str, Any]) -> None:
+    for key, default in DEFAULT_FILENAMES.items():
+        filenames_config[key] = _filename_setting(
+            key,
+            filenames_config.get(key),
+            default,
+        )
 
 
 def _select_device(requested_device: str) -> str:
@@ -161,6 +201,9 @@ def load_config() -> Dict[str, Any]:
         cfg["database"].get("collection_name"),
         "video_search_engine",
     )
+
+    # ------- artifact filenames -------
+    _normalize_filenames(cfg["filenames"])
 
     # ------- LLM provider overrides -------
     prov = _string_setting(

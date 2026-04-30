@@ -247,6 +247,50 @@ def test_nested_llm_config_sections_must_be_mappings(
         _load_config_module(monkeypatch, tmp_path, config_text)
 
 
+def test_filename_defaults_are_populated(monkeypatch, tmp_path):
+    config_module = _load_config_module(monkeypatch, tmp_path, "{}")
+
+    assert config_module.CONFIG["filenames"]["raw_transcript"] == "transcript_raw.json"
+    assert config_module.CONFIG["filenames"]["speaker_map"] == "speaker_map.json"
+    assert (
+        config_module.CONFIG["filenames"]["enriched_segments"]
+        == "final_enriched_segments.json"
+    )
+
+
+def test_configured_filenames_are_stripped(monkeypatch, tmp_path):
+    config_module = _load_config_module(
+        monkeypatch,
+        tmp_path,
+        """
+filenames:
+  raw_transcript: "  raw-custom.json  "
+""",
+    )
+
+    assert config_module.CONFIG["filenames"]["raw_transcript"] == "raw-custom.json"
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("filenames:\n  raw_transcript: ''\n", "filenames.raw_transcript"),
+        ("filenames:\n  raw_transcript: []\n", "filenames.raw_transcript"),
+        ("filenames:\n  raw_transcript: ../transcript.json\n", "filenames.raw_transcript"),
+        ("filenames:\n  raw_transcript: nested/transcript.json\n", "filenames.raw_transcript"),
+        ("filenames:\n  raw_transcript: nested\\\\transcript.json\n", "filenames.raw_transcript"),
+    ],
+)
+def test_configured_filenames_must_be_simple_filenames(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 def test_null_config_sections_are_treated_as_empty_mappings(monkeypatch, tmp_path):
     config_module = _load_config_module(
         monkeypatch,
