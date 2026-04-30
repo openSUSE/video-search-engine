@@ -133,6 +133,13 @@ def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
                 doc_id,
             )
             continue
+        if segment_id != segment_id.strip():
+            logger.warning(
+                "Skipping malformed search query result id %r; segment id has "
+                "surrounding whitespace.",
+                doc_id,
+            )
+            continue
         if segment_id in seen_segment_ids:
             continue
         seen_segment_ids.add(segment_id)

@@ -43,3 +43,20 @@ def test_text_metadata_lookup_skips_blank_segment_ids():
     )
 
     assert metadata == {"valid": {"title": "valid"}}
+
+
+def test_text_metadata_lookup_skips_whitespace_padded_segment_ids():
+    metadata = text_metadata_by_segment_id(
+        ids=[
+            " padded-left_text",
+            "padded-right _text",
+            "valid_text",
+        ],
+        metadatas=[
+            {"title": "left"},
+            {"title": "right"},
+            {"title": "valid"},
+        ],
+    )
+
+    assert metadata == {"valid": {"title": "valid"}}

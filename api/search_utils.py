@@ -16,6 +16,8 @@ def text_metadata_by_segment_id(
         segment_id = doc_id.removesuffix("_text")
         if not segment_id.strip():
             continue
+        if segment_id != segment_id.strip():
+            continue
         metadata_by_segment_id[segment_id] = metadata
 
     return metadata_by_segment_id
