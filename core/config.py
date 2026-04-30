@@ -35,6 +35,7 @@ DEFAULT_FILENAMES = {
     "final_segments": "final_segments.json",
     "enriched_segments": "final_enriched_segments.json",
 }
+LLM_PROVIDERS = {"gemini", "ollama"}
 
 
 def _yaml(path: str) -> Dict[str, Any]:
@@ -96,6 +97,19 @@ def _string_setting(env_name: str, config_value: Any, default: str) -> str:
         raise ValueError(f"{env_name} must be a string")
 
     return _clean_string(config_value) or default
+
+
+def _choice_setting(
+    env_name: str,
+    config_value: Any,
+    default: str,
+    allowed_values: set[str],
+) -> str:
+    value = _string_setting(env_name, config_value, default).lower()
+    if value not in allowed_values:
+        allowed = ", ".join(sorted(allowed_values))
+        raise ValueError(f"{env_name} must be one of: {allowed}")
+    return value
 
 
 def _http_origin_setting(env_name: str, config_value: Any, default: str) -> str:
@@ -268,10 +282,11 @@ def load_config() -> Dict[str, Any]:
     _normalize_filenames(cfg["filenames"])
 
     # ------- LLM provider overrides -------
-    prov = _string_setting(
+    prov = _choice_setting(
         "LLM_PROVIDER",
         cfg["llm_enrichment"].get("provider"),
         "gemini",
+        LLM_PROVIDERS,
     )
     cfg["llm_enrichment"]["provider"] = prov
     ollama_config = _ensure_nested_config_section(

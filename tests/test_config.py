@@ -63,7 +63,7 @@ def test_environment_overrides_are_stripped(monkeypatch, tmp_path):
     monkeypatch.setenv("CHROMA_PORT", " 8001 ")
     monkeypatch.setenv("CHROMA_COLLECTION", " video_segments ")
     monkeypatch.setenv("OUTPUT_DIR", " data/custom ")
-    monkeypatch.setenv("LLM_PROVIDER", " ollama ")
+    monkeypatch.setenv("LLM_PROVIDER", " OLLAMA ")
     monkeypatch.setenv("OLLAMA_HOST", " http://ollama ")
     monkeypatch.setenv("OLLAMA_PORT", " 11435 ")
     monkeypatch.setenv("OLLAMA_MODEL", " gemma3 ")
@@ -151,7 +151,7 @@ database:
   port: "8001"
   collection_name: "configured_collection"
 llm_enrichment:
-  provider: "configured_provider"
+  provider: " OLLAMA "
   ollama:
     host: "http://configured-ollama"
     port: "11435"
@@ -171,7 +171,7 @@ llm_enrichment:
         "port": 8001,
         "collection_name": "configured_collection",
     }
-    assert config["llm_enrichment"]["provider"] == "configured_provider"
+    assert config["llm_enrichment"]["provider"] == "ollama"
     assert config["llm_enrichment"]["ollama"] == {
         "host": "http://configured-ollama",
         "port": 11435,
@@ -195,6 +195,32 @@ llm_enrichment:
     assert config_module.CONFIG["llm_enrichment"]["ollama"]["host"] == (
         "https://ollama.local"
     )
+
+
+@pytest.mark.parametrize("raw_provider", ["openai", "gemini-pro", "anthropic"])
+def test_invalid_llm_provider_environment_override_fails_fast(
+    monkeypatch,
+    tmp_path,
+    raw_provider,
+):
+    monkeypatch.setenv("LLM_PROVIDER", raw_provider)
+
+    with pytest.raises(ValueError, match="LLM_PROVIDER"):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize("raw_provider", ["openai", "gemini-pro", "anthropic"])
+def test_invalid_configured_llm_provider_fails_fast(
+    monkeypatch,
+    tmp_path,
+    raw_provider,
+):
+    with pytest.raises(ValueError, match="LLM_PROVIDER"):
+        _load_config_module(
+            monkeypatch,
+            tmp_path,
+            f"llm_enrichment:\n  provider: {raw_provider}\n",
+        )
 
 
 @pytest.mark.parametrize(
