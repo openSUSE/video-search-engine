@@ -28,7 +28,7 @@ def atomic_write_json(path: PathLike, data: Any, indent: int = 2) -> None:
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=indent)
+            json.dump(data, f, indent=indent, allow_nan=False)
         os.replace(tmp_path, target)
     except Exception:
         try:

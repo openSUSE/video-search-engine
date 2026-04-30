@@ -40,6 +40,18 @@ def test_atomic_write_json_keeps_existing_file_when_serialization_fails(tmp_path
     assert leftover == ["data.json"]
 
 
+def test_atomic_write_json_rejects_nonfinite_numbers_without_replacing_file(tmp_path):
+    output_path = tmp_path / "data.json"
+    output_path.write_text(json.dumps({"value": "previous"}))
+
+    with pytest.raises(ValueError):
+        atomic_write_json(str(output_path), {"value": float("nan")})
+
+    assert json.loads(output_path.read_text()) == {"value": "previous"}
+    leftover = sorted(p.name for p in tmp_path.iterdir())
+    assert leftover == ["data.json"]
+
+
 def test_atomic_write_json_honors_indent(tmp_path):
     output_path = tmp_path / "data.json"
 
