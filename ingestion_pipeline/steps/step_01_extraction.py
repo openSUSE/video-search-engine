@@ -166,6 +166,13 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
                     f"shot boundary at index {index} must have non-negative {field_name}"
                 )
 
+        expected_shot_index = index + 1
+        if shot["shot_index"] != expected_shot_index:
+            raise ValueError(
+                f"shot boundary at index {index} shot_index must be "
+                f"{expected_shot_index}"
+            )
+
         for field_name in ("start_time_sec", "end_time_sec"):
             field_value = shot.get(field_name)
             if not _is_number(field_value):

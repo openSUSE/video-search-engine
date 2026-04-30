@@ -1138,6 +1138,7 @@ def test_run_extraction_wraps_malformed_cached_shots_before_downstream_work(
     ("shot_updates", "message"),
     [
         ({"shot_index": 0}, "shot_index"),
+        ({"shot_index": 2}, "shot_index"),
         ({"start_frame": -1}, "start_frame"),
         ({"start_frame": 10, "end_frame": 9}, "end_frame"),
         ({"start_time_sec": -0.1}, "start_time_sec"),
