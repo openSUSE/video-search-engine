@@ -834,6 +834,27 @@ def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_callin
     assert not (tmp_path / "enriched.json").exists()
 
 
+def test_run_enrichment_handles_unreadable_source_segments_before_copying_or_calling_provider(
+    tmp_path,
+):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.mkdir()
+    calls = []
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: calls.append("called")},
+    )
+
+    assert result is None
+    assert calls == []
+    assert not (tmp_path / "enriched.json").exists()
+
+
 def test_run_enrichment_rejects_duplicate_resume_segment_ids_before_calling_provider(
     tmp_path,
 ):
@@ -865,6 +886,37 @@ def test_run_enrichment_rejects_duplicate_resume_segment_ids_before_calling_prov
             ]
         )
     )
+    calls = []
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: calls.append("called")},
+    )
+
+    assert result is None
+    assert calls == []
+
+
+def test_run_enrichment_handles_unreadable_resume_state_before_calling_provider(
+    tmp_path,
+):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                }
+            ]
+        )
+    )
+    (tmp_path / "enriched.json").mkdir()
     calls = []
 
     result = run_enrichment(

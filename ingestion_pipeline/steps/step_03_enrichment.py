@@ -420,7 +420,7 @@ def run_enrichment(
 
     try:
         source_segments = _load_segments_file(segments_path)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         logger.error(f"Could not read or parse the segments file at {segments_path}: {e}")
         return None
     if not source_segments:
@@ -437,7 +437,7 @@ def run_enrichment(
     else:
         try:
             segments = _load_segments_file(output_path)
-        except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        except (OSError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
             return None
 
