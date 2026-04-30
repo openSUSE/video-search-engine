@@ -187,6 +187,22 @@ def test_load_transcript_segments_validates_display_fields(tmp_path):
     ]
 
 
+def test_load_transcript_segments_reports_unreadable_file(monkeypatch, tmp_path):
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text('[{"start": 0, "end": 1, "text": "hello"}]')
+    real_open = Path.open
+
+    def unreadable_file(path, *args, **kwargs):
+        if path == transcript_path:
+            raise PermissionError("permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", unreadable_file)
+
+    with pytest.raises(ValueError, match="could not be read"):
+        load_transcript_segments(transcript_path)
+
+
 def test_load_transcript_speaker_ids_requires_display_valid_transcript(tmp_path):
     transcript_path = tmp_path / "transcript.json"
     transcript_path.write_text(

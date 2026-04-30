@@ -189,8 +189,13 @@ def validate_transcript_segments_for_display(
 
 
 def load_transcript_segments(path: str | Path) -> list[dict[str, Any]]:
-    with Path(path).open("r") as f:
-        transcript_segments = json.load(f)
+    try:
+        with Path(path).open("r") as f:
+            transcript_segments = json.load(f)
+    except FileNotFoundError:
+        raise
+    except OSError as exc:
+        raise ValueError(f"transcript file could not be read: {exc}") from exc
     return validate_transcript_segments_for_display(transcript_segments)
 
 
