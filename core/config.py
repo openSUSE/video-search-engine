@@ -18,6 +18,8 @@ CONFIG_SECTIONS = [
     "parameters",
     "llm_enrichment",
 ]
+MIN_TCP_PORT = 1
+MAX_TCP_PORT = 65535
 
 
 def _yaml(path: str) -> Dict[str, Any]:
@@ -54,8 +56,19 @@ def _string_setting(env_name: str, config_value: Any, default: str) -> str:
     return _clean_string(os.getenv(env_name)) or _clean_string(config_value) or default
 
 
-def _int_setting(env_name: str, config_value: Any, default: int) -> int:
-    return int(_string_setting(env_name, config_value, str(default)))
+def _port_setting(env_name: str, config_value: Any, default: int) -> int:
+    raw_port = _string_setting(env_name, config_value, str(default))
+    invalid_message = (
+        f"{env_name} must be a TCP port between {MIN_TCP_PORT} and {MAX_TCP_PORT}"
+    )
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise ValueError(invalid_message) from exc
+
+    if not MIN_TCP_PORT <= port <= MAX_TCP_PORT:
+        raise ValueError(invalid_message)
+    return port
 
 
 def _select_device(requested_device: str) -> str:
@@ -106,13 +119,13 @@ def load_config() -> Dict[str, Any]:
 
     # ------- networking -------
     cfg["ui"]["host"] = _string_setting("UI_HOST", cfg["ui"].get("host"), "0.0.0.0")
-    cfg["ui"]["port"] = _int_setting("UI_PORT", cfg["ui"].get("port"), 5050)
+    cfg["ui"]["port"] = _port_setting("UI_PORT", cfg["ui"].get("port"), 5050)
     cfg["api_server"]["host"] = _string_setting(
         "API_HOST",
         cfg["api_server"].get("host"),
         "0.0.0.0",
     )
-    cfg["api_server"]["port"] = _int_setting(
+    cfg["api_server"]["port"] = _port_setting(
         "API_PORT",
         cfg["api_server"].get("port"),
         1234,
@@ -124,7 +137,7 @@ def load_config() -> Dict[str, Any]:
         cfg["database"].get("host"),
         "localhost",
     )
-    cfg["database"]["port"] = _int_setting(
+    cfg["database"]["port"] = _port_setting(
         "CHROMA_PORT",
         cfg["database"].get("port"),
         8000,
@@ -148,7 +161,7 @@ def load_config() -> Dict[str, Any]:
         cfg["llm_enrichment"]["ollama"].get("host"),
         "http://localhost",
     )
-    cfg["llm_enrichment"]["ollama"]["port"] = _int_setting(
+    cfg["llm_enrichment"]["ollama"]["port"] = _port_setting(
         "OLLAMA_PORT",
         cfg["llm_enrichment"]["ollama"].get("port"),
         11434,

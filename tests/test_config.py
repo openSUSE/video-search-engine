@@ -176,6 +176,42 @@ llm_enrichment:
     assert config["llm_enrichment"]["gemini"]["model"] == "configured-gemini-model"
 
 
+@pytest.mark.parametrize(
+    "env_name",
+    ["UI_PORT", "API_PORT", "CHROMA_PORT", "OLLAMA_PORT"],
+)
+@pytest.mark.parametrize("raw_port", ["0", "-1", "65536", "not-a-port"])
+def test_invalid_port_environment_overrides_fail_fast(
+    monkeypatch,
+    tmp_path,
+    env_name,
+    raw_port,
+):
+    monkeypatch.setenv(env_name, raw_port)
+
+    with pytest.raises(ValueError, match=env_name):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("ui:\n  port: 0\n", "UI_PORT"),
+        ("api_server:\n  port: -1\n", "API_PORT"),
+        ("database:\n  port: 65536\n", "CHROMA_PORT"),
+        ("llm_enrichment:\n  ollama:\n    port: not-a-port\n", "OLLAMA_PORT"),
+    ],
+)
+def test_invalid_configured_ports_fail_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 @pytest.mark.parametrize("config_text", ["[]", "not-a-mapping"])
 def test_config_file_root_must_be_mapping(monkeypatch, tmp_path, config_text):
     with pytest.raises(ValueError, match="YAML mapping"):
