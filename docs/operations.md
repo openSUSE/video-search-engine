@@ -117,7 +117,7 @@ Search latency / recall:
 
 - Successful `/search` calls emit `Search returned <N> results in <ms>ms (top_k=..., video=...)`.
 - Failures emit `Search failed after <ms>ms (top_k=..., video=...).` followed by the traceback. Both paths log duration, so a slow timeout vs. a fast crash is distinguishable in logs.
-- The text-side embedding is built from `title + (transcript or summary) + keywords`. Changes to that recipe in `step_04_indexing.py` only take effect after re-running the ingestion pipeline on each video — `collection.upsert` overwrites by id, so reingesting a video replaces its embeddings without dropping the collection.
+- The text-side embedding is built from `title + keywords + (transcript or summary)`, keeping short semantic anchors ahead of long transcripts. Changes to that recipe in `step_04_indexing.py` only take effect after re-running the ingestion pipeline on each video — `collection.upsert` overwrites by id, so reingesting a video replaces its embeddings without dropping the collection.
 
 Pipeline waits after extraction:
 
