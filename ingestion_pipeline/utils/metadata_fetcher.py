@@ -26,6 +26,21 @@ def _release_year(result: Any) -> Optional[int]:
         return None
 
 
+def _metadata_id(result: Any) -> Optional[int]:
+    movie_id = _metadata_field(result, "id")
+    if isinstance(movie_id, bool):
+        return None
+    if isinstance(movie_id, int) and movie_id > 0:
+        return movie_id
+    if isinstance(movie_id, str):
+        movie_id = movie_id.strip()
+        if movie_id.isdecimal():
+            parsed_id = int(movie_id)
+            if parsed_id > 0:
+                return parsed_id
+    return None
+
+
 def _genre_names(details: Any) -> str:
     names = []
     for genre in _metadata_field(details, "genres") or []:
@@ -59,17 +74,27 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
             logger.warning("No movie found on TMDb for title: %r", title)
             return None
 
+        usable_results = [
+            result for result in search_results if _metadata_id(result) is not None
+        ]
+        if not usable_results:
+            logger.warning(
+                "TMDb search returned no usable movie IDs for title: %r",
+                title,
+            )
+            return None
+
         # Find the best match (often the first result, but filtering by year is better)
         best_match = None
         if year:
-            for result in search_results:
+            for result in usable_results:
                 if _release_year(result) == year:
                     best_match = result
                     break
 
         # If no year match was found or no year was provided, take the first result
         if not best_match:
-            fallback = search_results[0]
+            fallback = usable_results[0]
             if year:
                 logger.warning(
                     "TMDb year %s not found for title %r; using first result %r (%s).",
@@ -87,7 +112,7 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         )
         
         # Fetch full details for the matched movie
-        details = movie_api.details(_metadata_field(best_match, "id"))
+        details = movie_api.details(_metadata_id(best_match))
 
         # Format the data into our desired structure
         metadata = {
