@@ -95,6 +95,7 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_scenes, list):
         raise ValueError("shot boundaries file must contain a JSON array")
 
+    seen_shot_ids = set()
     for index, shot in enumerate(raw_scenes):
         if not isinstance(shot, dict):
             raise ValueError(f"shot boundary at index {index} must be a JSON object")
@@ -102,6 +103,11 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
         shot_id = shot.get("shot_id")
         if not isinstance(shot_id, str) or not shot_id.strip():
             raise ValueError(f"shot boundary at index {index} must have a shot_id")
+        shot_id = shot_id.strip()
+        if shot_id in seen_shot_ids:
+            raise ValueError(f"shot boundary at index {index} has duplicate shot_id")
+        seen_shot_ids.add(shot_id)
+        shot["shot_id"] = shot_id
 
         for field_name in ("shot_index", "start_frame", "end_frame"):
             field_value = shot.get(field_name)
