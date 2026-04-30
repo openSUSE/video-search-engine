@@ -432,6 +432,40 @@ def test_run_segmentation_rejects_duplicate_cached_segment_ids_before_skipping(
         )
 
 
+def test_run_segmentation_rejects_overlapping_cached_segments_before_skipping(
+    tmp_path,
+):
+    output_path = tmp_path / "custom_segments.json"
+    output_path.write_text(
+        json.dumps(
+            [
+                _cached_segment(
+                    segment_id="segment_0001",
+                    start_time=0.0,
+                    end_time=5.0,
+                    duration_sec=5.0,
+                ),
+                _cached_segment(
+                    segment_id="segment_0002",
+                    segment_index=2,
+                    start_time=4.0,
+                    end_time=6.0,
+                    duration_sec=2.0,
+                    shot_ids=["shot_0002"],
+                ),
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="overlaps previous segment"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(tmp_path / "missing_analysis.json"),
+            speaker_map_path=str(tmp_path / "missing_speaker_map.json"),
+            config={"filenames": {"final_segments": output_path.name}},
+        )
+
+
 @pytest.mark.parametrize(
     ("bad_call_index", "message"),
     [
