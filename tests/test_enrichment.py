@@ -287,6 +287,120 @@ def test_run_enrichment_retries_malformed_enrichment_fields(tmp_path, resume_upd
     assert segment["keywords"] == ["complete"]
 
 
+def test_run_enrichment_reinitializes_resume_when_segment_ids_change(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "current dialogue",
+                }
+            ]
+        )
+    )
+    (tmp_path / "enriched.json").write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_9999",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "stale dialogue",
+                    "title": "Stale Title",
+                    "summary": "Stale summary.",
+                    "keywords": ["stale"],
+                }
+            ]
+        )
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {
+            "title": "Fresh Title",
+            "summary": "Fresh summary.",
+            "keywords": ["fresh"],
+        }
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert len(calls) == 1
+    assert "current dialogue" in calls[0]
+    assert segment["segment_id"] == "segment_0001"
+    assert segment["full_transcript"] == "current dialogue"
+    assert segment["title"] == "Fresh Title"
+
+
+def test_run_enrichment_reinitializes_resume_when_source_context_changes(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "current dialogue",
+                }
+            ]
+        )
+    )
+    (tmp_path / "enriched.json").write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "stale dialogue",
+                    "title": "Stale Title",
+                    "summary": "Stale summary.",
+                    "keywords": ["stale"],
+                }
+            ]
+        )
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {
+            "title": "Fresh Title",
+            "summary": "Fresh summary.",
+            "keywords": ["fresh"],
+        }
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert len(calls) == 1
+    assert "current dialogue" in calls[0]
+    assert "stale dialogue" not in calls[0]
+    assert segment["full_transcript"] == "current dialogue"
+    assert segment["title"] == "Fresh Title"
+
+
 def test_run_enrichment_does_not_apply_structural_llm_fields(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(

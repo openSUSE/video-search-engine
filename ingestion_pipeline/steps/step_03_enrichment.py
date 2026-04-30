@@ -4,7 +4,6 @@ import json
 import logging
 import math
 import os
-import shutil
 from typing import Any, Callable, Dict, Optional
 
 from core.atomic_io import atomic_write_json
@@ -12,6 +11,7 @@ from core.atomic_io import atomic_write_json
 logger = logging.getLogger(__name__)
 
 LLMClient = Callable[[str, Dict[str, Any]], Optional[Dict[str, Any]]]
+ENRICHMENT_FIELDS = {"title", "summary", "keywords"}
 
 # Main prompt for when a transcript is available
 PROMPT_WITH_TRANSCRIPT = """
@@ -332,6 +332,38 @@ def _has_complete_enrichment(segment: Dict[str, Any]) -> bool:
     )
 
 
+def _source_segment_snapshot(segment: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        field_name: value
+        for field_name, value in segment.items()
+        if field_name not in ENRICHMENT_FIELDS
+    }
+
+
+def _matches_source_segments(
+    source_segments: list[Dict[str, Any]],
+    resume_segments: list[Dict[str, Any]],
+) -> bool:
+    source_snapshots = [
+        _source_segment_snapshot(segment)
+        for segment in source_segments
+    ]
+    resume_snapshots = [
+        _source_segment_snapshot(segment)
+        for segment in resume_segments
+    ]
+    return source_snapshots == resume_snapshots
+
+
+def _write_enrichment_state(path: str, segments: list[Dict[str, Any]]) -> bool:
+    try:
+        atomic_write_json(path, segments, indent=4)
+    except OSError as exc:
+        logger.error("Failed to initialize enrichment output at %s: %s", path, exc)
+        return False
+    return True
+
+
 def run_enrichment(
     segments_path: str,
     config: Dict[str, Any],
@@ -354,23 +386,36 @@ def run_enrichment(
         logger.error(f"Invalid LLM provider: {provider}. Halting.")
         return None
 
-    # If the output file doesn't exist, create it by copying the input file.
-    # This initializes our "state" file for enrichment.
+    try:
+        source_segments = _load_segments_file(segments_path)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Could not read or parse the segments file at {segments_path}: {e}")
+        return None
+
+    # The enrichment file is resumable progress, but only while its structural
+    # segment data still matches the current segmentation output.
     if not os.path.exists(output_path):
         logger.info(f"Output file not found. Creating initial version from {segments_path}.")
+        if not _write_enrichment_state(output_path, source_segments):
+            return None
+        segments = source_segments
+    else:
         try:
-            _load_segments_file(segments_path)
-            shutil.copy(segments_path, output_path)
-        except (OSError, json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to create initial output file: {e}")
+            segments = _load_segments_file(output_path)
+        except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
             return None
 
-    # Now, we read from and write to the same output_path.
-    try:
-        segments = _load_segments_file(output_path)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Could not read or parse the segments file at {output_path}: {e}")
-        return None
+        if not _matches_source_segments(source_segments, segments):
+            logger.warning(
+                "Existing enrichment progress at %s does not match %s; "
+                "reinitializing from current segments.",
+                output_path,
+                segments_path,
+            )
+            if not _write_enrichment_state(output_path, source_segments):
+                return None
+            segments = source_segments
 
     video_metadata_path = os.path.join(processed_dir, 'video_metadata.json')
     video_metadata = _load_video_metadata(video_metadata_path)
