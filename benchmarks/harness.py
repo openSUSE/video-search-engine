@@ -73,6 +73,28 @@ class Benchmark:
     category: str = "misc"
     description: str = ""
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError("benchmark name must be a non-empty string")
+        if not callable(self.fn):
+            raise ValueError("benchmark fn must be callable")
+        if self.setup is not None and not callable(self.setup):
+            raise ValueError("benchmark setup must be callable when provided")
+        if type(self.iterations) is not int or self.iterations <= 0:
+            raise ValueError("benchmark iterations must be a positive integer")
+        if type(self.warmup) is not int or self.warmup < 0:
+            raise ValueError("benchmark warmup must be a non-negative integer")
+        if type(self.inner_loops) is not int or self.inner_loops <= 0:
+            raise ValueError("benchmark inner_loops must be a positive integer")
+        if not isinstance(self.category, str) or not self.category.strip():
+            raise ValueError("benchmark category must be a non-empty string")
+        if not isinstance(self.description, str):
+            raise ValueError("benchmark description must be a string")
+
+        object.__setattr__(self, "name", self.name.strip())
+        object.__setattr__(self, "category", self.category.strip())
+        object.__setattr__(self, "description", self.description.strip())
+
 
 @dataclass
 class BenchmarkResult:

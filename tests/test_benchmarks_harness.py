@@ -64,6 +64,49 @@ def test_run_benchmark_scale_floor_is_one():
     assert len(result.samples_ns) >= 1
 
 
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        ({"name": ""}, "name"),
+        ({"name": "   "}, "name"),
+        ({"category": ""}, "category"),
+        ({"category": "   "}, "category"),
+        ({"description": 42}, "description"),
+        ({"fn": None}, "fn"),
+        ({"setup": object()}, "setup"),
+        ({"iterations": 0}, "iterations"),
+        ({"iterations": -1}, "iterations"),
+        ({"iterations": True}, "iterations"),
+        ({"iterations": 1.5}, "iterations"),
+        ({"warmup": -1}, "warmup"),
+        ({"warmup": True}, "warmup"),
+        ({"warmup": 0.5}, "warmup"),
+        ({"inner_loops": 0}, "inner_loops"),
+        ({"inner_loops": True}, "inner_loops"),
+        ({"inner_loops": 1.5}, "inner_loops"),
+    ],
+)
+def test_benchmark_rejects_invalid_definitions(updates, message):
+    kwargs = {"name": "valid.benchmark", "fn": _noop}
+    kwargs.update(updates)
+
+    with pytest.raises(ValueError, match=message):
+        Benchmark(**kwargs)
+
+
+def test_benchmark_strips_display_fields():
+    benchmark = Benchmark(
+        name="  valid.benchmark  ",
+        fn=_noop,
+        category="  api  ",
+        description="  measures validation  ",
+    )
+
+    assert benchmark.name == "valid.benchmark"
+    assert benchmark.category == "api"
+    assert benchmark.description == "measures validation"
+
+
 def test_run_benchmark_rejects_non_positive_scale():
     benchmark = Benchmark(name="x", fn=_noop, iterations=1)
     with pytest.raises(ValueError):
