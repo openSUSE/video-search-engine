@@ -339,11 +339,19 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
 
 
 def _load_cached_segments(path: str) -> List[Dict[str, Any]]:
+    return _validate_cached_segments(
+        _load_json_artifact(path, "cached segments file")
+    )
+
+
+def _load_json_artifact(path: str, label: str) -> Any:
     try:
         with open(path, 'r') as f:
-            return _validate_cached_segments(json.load(f))
+            return json.load(f)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"cached segments file at {path} must be valid JSON") from exc
+        raise ValueError(f"{label} at {path} must be valid JSON") from exc
+    except OSError as exc:
+        raise ValueError(f"{label} at {path} must be a readable JSON file") from exc
 
 
 def _numeric_cache_values_match(left: Any, right: Any) -> bool:
@@ -539,10 +547,12 @@ def run_segmentation(
     if os.path.exists(output_path):
         cached_segments = _load_cached_segments(output_path)
         if os.path.exists(analysis_path) and os.path.exists(speaker_map_path):
-            with open(analysis_path, 'r') as f:
-                analysis_data = _validate_analysis_data(json.load(f))
-            with open(speaker_map_path, 'r') as f:
-                speaker_map = _validate_speaker_map(json.load(f))
+            analysis_data = _validate_analysis_data(
+                _load_json_artifact(analysis_path, "final analysis file")
+            )
+            speaker_map = _validate_speaker_map(
+                _load_json_artifact(speaker_map_path, "speaker map file")
+            )
             _validate_speaker_map_coverage(analysis_data, speaker_map)
             if _cached_segments_match_analysis(
                 cached_segments,
@@ -565,11 +575,13 @@ def run_segmentation(
     # 1. Load all necessary data
     logger.info("1/4: Loading input data...")
     if analysis_data is None:
-        with open(analysis_path, 'r') as f:
-            analysis_data = _validate_analysis_data(json.load(f))
+        analysis_data = _validate_analysis_data(
+            _load_json_artifact(analysis_path, "final analysis file")
+        )
     if speaker_map is None:
-        with open(speaker_map_path, 'r') as f:
-            speaker_map = _validate_speaker_map(json.load(f))
+        speaker_map = _validate_speaker_map(
+            _load_json_artifact(speaker_map_path, "speaker map file")
+        )
         _validate_speaker_map_coverage(analysis_data, speaker_map)
 
     if not analysis_data:

@@ -411,6 +411,21 @@ def test_run_segmentation_rejects_malformed_cached_output_before_skipping(
         )
 
 
+def test_run_segmentation_rejects_unreadable_cached_output_before_skipping(
+    tmp_path,
+):
+    output_path = tmp_path / "custom_segments.json"
+    output_path.mkdir()
+
+    with pytest.raises(ValueError, match="cached segments file.*readable JSON file"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(tmp_path / "missing_analysis.json"),
+            speaker_map_path=str(tmp_path / "missing_speaker_map.json"),
+            config={"filenames": {"final_segments": output_path.name}},
+        )
+
+
 def test_run_segmentation_rejects_duplicate_cached_segment_ids_before_skipping(
     tmp_path,
 ):
@@ -715,6 +730,61 @@ def test_run_segmentation_handles_large_finite_embeddings_without_losing_boundar
         ["shot_0001"],
         ["shot_0002"],
     ]
+
+
+@pytest.mark.parametrize(
+    ("artifact_name", "message"),
+    [
+        ("analysis", "final analysis file.*valid JSON"),
+        ("speaker_map", "speaker map file.*valid JSON"),
+    ],
+)
+def test_run_segmentation_rejects_malformed_input_json_before_embedding_setup(
+    monkeypatch,
+    tmp_path,
+    artifact_name,
+    message,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text("{}")
+    if artifact_name == "analysis":
+        analysis_path.write_text("{not valid json")
+    else:
+        speaker_map_path.write_text("{not valid json")
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("embedding model should not load for invalid JSON inputs")
+
+    monkeypatch.setattr(
+        segmentation_step,
+        "create_embedding_model",
+        fail_create_embedding_model,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": output_path.name}},
+        )
 
 
 @pytest.mark.parametrize(
