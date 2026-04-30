@@ -587,6 +587,18 @@ def test_config_file_must_be_valid_yaml(monkeypatch, tmp_path):
         _load_config_module(monkeypatch, tmp_path, "general: [unterminated")
 
 
+def test_config_path_must_be_readable_yaml_file(monkeypatch, tmp_path):
+    config_dir = tmp_path / "config-dir"
+    config_dir.mkdir()
+    monkeypatch.setenv("CONFIG_PATH", str(config_dir))
+    monkeypatch.setenv("MODEL_CACHE_DIR", str(tmp_path / "models"))
+    monkeypatch.setenv("ML_DEVICE", "cpu")
+    sys.modules.pop("core.config", None)
+
+    with pytest.raises(ValueError, match="readable YAML file"):
+        importlib.import_module("core.config")
+
+
 @pytest.mark.parametrize("section_value", ["[]", "not-a-mapping"])
 def test_config_sections_must_be_mappings(monkeypatch, tmp_path, section_value):
     with pytest.raises(ValueError, match="general"):

@@ -66,11 +66,15 @@ LLM_PROVIDERS = {"gemini", "ollama"}
 
 def _yaml(path: str) -> Dict[str, Any]:
     if os.path.exists(path):
-        with open(path, "r") as f:
-            try:
+        try:
+            with open(path, "r") as f:
                 loaded_config = yaml.safe_load(f)
-            except yaml.YAMLError as exc:
-                raise ValueError(f"config file {path} must be valid YAML") from exc
+        except yaml.YAMLError as exc:
+            raise ValueError(f"config file {path} must be valid YAML") from exc
+        except OSError as exc:
+            raise ValueError(
+                f"config file {path} must be a readable YAML file"
+            ) from exc
         if loaded_config is None:
             return {}
         if not isinstance(loaded_config, dict):
