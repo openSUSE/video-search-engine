@@ -22,6 +22,7 @@ For tail-sensitive analysis, drop into the JSON directly.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping
@@ -166,7 +167,9 @@ def _as_float(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        number = float(value)
+        if math.isfinite(number) and number >= 0:
+            return number
     return None
 
 

@@ -110,6 +110,30 @@ def test_compare_reports_zero_baseline_is_unchanged():
     assert rows[0].delta_ratio is None
 
 
+@pytest.mark.parametrize("median", [float("nan"), float("inf"), -1.0])
+def test_compare_reports_ignores_unusable_baseline_medians(median):
+    baseline = _report(("a", "api", median))
+    current = _report(("a", "api", 100.0))
+
+    rows = compare_reports(baseline, current, warn_ratio=0.10)
+
+    assert rows[0].status == "unchanged"
+    assert rows[0].baseline_median_ns is None
+    assert rows[0].delta_ratio is None
+
+
+@pytest.mark.parametrize("median", [float("nan"), float("inf"), -1.0])
+def test_compare_reports_ignores_unusable_current_medians(median):
+    baseline = _report(("a", "api", 100.0))
+    current = _report(("a", "api", median))
+
+    rows = compare_reports(baseline, current, warn_ratio=0.10)
+
+    assert rows[0].status == "unchanged"
+    assert rows[0].current_median_ns is None
+    assert rows[0].delta_ratio is None
+
+
 def test_compare_reports_rejects_negative_warn_ratio():
     baseline = _report(("a", "api", 100.0))
     current = _report(("a", "api", 100.0))
