@@ -126,6 +126,15 @@ def test_resolve_rabbitmq_url_uses_environment(monkeypatch):
     assert resolve_rabbitmq_url() == "amqp://env"
 
 
+def test_resolve_rabbitmq_url_accepts_amqps_urls_with_options(monkeypatch):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
+
+    assert (
+        resolve_rabbitmq_url("  amqps://broker.example:5671/%2F?heartbeat=30  ")
+        == "amqps://broker.example:5671/%2F?heartbeat=30"
+    )
+
+
 def test_resolve_rabbitmq_url_rejects_missing_value(monkeypatch):
     monkeypatch.delenv("RABBITMQ_URL", raising=False)
 
@@ -135,6 +144,26 @@ def test_resolve_rabbitmq_url_rejects_missing_value(monkeypatch):
 
 @pytest.mark.parametrize("rabbitmq_url", ["", "   ", "\t"])
 def test_resolve_rabbitmq_url_rejects_blank_explicit_values(monkeypatch, rabbitmq_url):
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
+
+    with pytest.raises(ValueError, match="RabbitMQ URL"):
+        resolve_rabbitmq_url(rabbitmq_url)
+
+
+@pytest.mark.parametrize(
+    "rabbitmq_url",
+    [
+        "http://broker",
+        "amqp://",
+        "amqp://broker:",
+        "amqp://broker:0",
+        "amqp://broker:65536",
+        "amqp://bro ker",
+        "amqp://broker\\vhost",
+        "amqp://broker/#fragment",
+    ],
+)
+def test_resolve_rabbitmq_url_rejects_malformed_broker_urls(monkeypatch, rabbitmq_url):
     monkeypatch.setenv("RABBITMQ_URL", "amqp://env")
 
     with pytest.raises(ValueError, match="RabbitMQ URL"):

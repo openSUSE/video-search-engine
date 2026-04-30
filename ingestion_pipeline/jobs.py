@@ -3,10 +3,14 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE = "video.ingestion"
+MIN_TCP_PORT = 1
+MAX_TCP_PORT = 65535
+RABBITMQ_URL_SCHEMES = {"amqp", "amqps"}
 
 
 def normalize_required_string(value: str, field_name: str) -> str:
@@ -35,7 +39,28 @@ def normalize_optional_year(value: Optional[int], field_name: str = "year") -> O
 
 def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
     resolved_url = os.getenv("RABBITMQ_URL") if rabbitmq_url is None else rabbitmq_url
-    return normalize_required_string(resolved_url or "", "RabbitMQ URL")
+    url = normalize_required_string(resolved_url or "", "RabbitMQ URL")
+    invalid_message = "RabbitMQ URL must be an amqp(s) URL with a host and valid port"
+    if any(character.isspace() for character in url) or "\\" in url:
+        raise ValueError(invalid_message)
+
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError as exc:
+        raise ValueError(invalid_message) from exc
+
+    if (
+        parts.scheme.lower() not in RABBITMQ_URL_SCHEMES
+        or not parts.netloc
+        or not parts.hostname
+        or parts.netloc.endswith(":")
+        or parts.fragment
+        or (port is not None and not MIN_TCP_PORT <= port <= MAX_TCP_PORT)
+    ):
+        raise ValueError(invalid_message)
+
+    return url
 
 
 def resolve_ingestion_queue(queue_name: Optional[str] = None) -> str:
