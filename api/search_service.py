@@ -127,6 +127,12 @@ def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
             )
             continue
         segment_id = doc_id.removesuffix(suffix)
+        if not segment_id.strip():
+            logger.warning(
+                "Skipping malformed search query result id %r; segment id is blank.",
+                doc_id,
+            )
+            continue
         if segment_id in seen_segment_ids:
             continue
         seen_segment_ids.add(segment_id)
