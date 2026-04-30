@@ -103,6 +103,8 @@ def _speaker_map_readiness(
         required_speaker_ids = load_transcript_speaker_ids(raw_transcript_path)
     except FileNotFoundError as exc:
         return False, f"raw transcript is not available yet: {exc}"
+    except OSError as exc:
+        return False, f"raw transcript is not readable: {exc}"
     except json.JSONDecodeError as exc:
         return False, f"raw transcript is not valid JSON: {exc}"
     except ValueError as exc:
@@ -131,6 +133,8 @@ def _speaker_map_readiness(
             speaker_map_data = json.load(f)
     except FileNotFoundError as exc:
         return False, f"speaker map is not available yet: {exc}"
+    except OSError as exc:
+        return False, f"speaker map is not readable: {exc}"
     except (json.JSONDecodeError, ValueError) as exc:
         return False, f"speaker map is not readable: {exc}"
 

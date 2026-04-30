@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -155,6 +156,21 @@ def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
 def test_load_speaker_map_returns_empty_map_for_invalid_json(tmp_path):
     speaker_map_path = tmp_path / "speaker_map.json"
     speaker_map_path.write_text('{"SPEAKER_00": ')
+
+    assert load_speaker_map(speaker_map_path) == {}
+
+
+def test_load_speaker_map_returns_empty_map_for_unreadable_file(monkeypatch, tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+    real_open = Path.open
+
+    def unreadable_file(path, *args, **kwargs):
+        if path == speaker_map_path:
+            raise PermissionError("permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", unreadable_file)
 
     assert load_speaker_map(speaker_map_path) == {}
 

@@ -217,7 +217,7 @@ def load_speaker_map(path: str | Path) -> dict[str, str]:
     try:
         with Path(path).open("r") as f:
             speaker_map = json.load(f)
-    except json.JSONDecodeError:
+    except (OSError, json.JSONDecodeError):
         return {}
     return normalize_speaker_map(speaker_map) or {}
 

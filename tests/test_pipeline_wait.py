@@ -1,4 +1,5 @@
 import importlib
+import builtins
 import json
 import logging
 import sys
@@ -95,6 +96,62 @@ def test_external_speaker_map_wait_requires_all_transcript_speakers(monkeypatch,
     )
 
     assert result is None
+
+
+def test_speaker_map_readiness_reports_unreadable_speaker_map(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    transcript_path.write_text(
+        json.dumps([{"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"}])
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    real_open = builtins.open
+
+    def unreadable_speaker_map(path, *args, **kwargs):
+        if path == str(speaker_map_path):
+            raise PermissionError("permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(run_pipeline, "open", unreadable_speaker_map, raising=False)
+
+    is_ready, wait_reason = run_pipeline._speaker_map_readiness(
+        str(speaker_map_path),
+        str(transcript_path),
+    )
+
+    assert is_ready is False
+    assert "speaker map is not readable" in wait_reason
+
+
+def test_speaker_map_readiness_reports_unreadable_raw_transcript(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+
+    def unreadable_transcript(_path):
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "load_transcript_speaker_ids",
+        unreadable_transcript,
+    )
+
+    is_ready, wait_reason = run_pipeline._speaker_map_readiness(
+        str(speaker_map_path),
+        str(transcript_path),
+    )
+
+    assert is_ready is False
+    assert "raw transcript is not readable" in wait_reason
 
 
 def test_speaker_map_readiness_allows_empty_map_for_transcript_without_speakers(
