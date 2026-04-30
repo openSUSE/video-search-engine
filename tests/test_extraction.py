@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -584,6 +585,40 @@ def test_run_extraction_rejects_invalid_required_paths_before_loading_config(
 
     with pytest.raises(ValueError, match=message):
         run_extraction(**kwargs)
+
+
+@pytest.mark.parametrize("video_path", [".", ".."])
+def test_run_extraction_rejects_reserved_video_stems_before_loading_config(
+    monkeypatch,
+    tmp_path,
+    video_path,
+):
+    def fail_load_config():
+        raise AssertionError("config should not load for invalid video output names")
+
+    monkeypatch.setattr(extraction_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match="filename stem"):
+        run_extraction(
+            video_path=video_path,
+            base_output_dir=str(tmp_path / "processed"),
+        )
+
+
+def test_run_extraction_rejects_trailing_directory_video_paths_before_loading_config(
+    monkeypatch,
+    tmp_path,
+):
+    def fail_load_config():
+        raise AssertionError("config should not load for invalid video output names")
+
+    monkeypatch.setattr(extraction_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match="filename stem"):
+        run_extraction(
+            video_path=str(tmp_path / "videos") + os.sep,
+            base_output_dir=str(tmp_path / "processed"),
+        )
 
 
 @pytest.mark.parametrize("video_title", [123, True])

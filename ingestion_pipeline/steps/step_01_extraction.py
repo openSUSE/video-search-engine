@@ -109,6 +109,13 @@ def _get_paths(processed_dir: str, config: Dict[str, Any]) -> dict:
     }
 
 
+def _video_output_stem(video_path: str) -> str:
+    stem = os.path.splitext(os.path.basename(video_path))[0]
+    if not stem.strip() or stem in {".", ".."}:
+        raise ValueError("video_path must include a usable filename stem")
+    return stem
+
+
 def _is_number(value: Any) -> bool:
     return (
         isinstance(value, (int, float))
@@ -874,10 +881,10 @@ def run_extraction(
     base_output_dir = normalize_required_string(base_output_dir, "base_output_dir")
     video_title = normalize_optional_string(video_title, "title")
     video_year = normalize_optional_year(video_year)
+    video_filename = _video_output_stem(video_path)
     if config is None:
         config = _load_config()
 
-    video_filename = os.path.splitext(os.path.basename(video_path))[0]
     video_specific_dir = os.path.join(base_output_dir, video_filename)
     
     logger.info(f"--- Starting Step 1: Data Extraction for '{video_filename}' ---")
