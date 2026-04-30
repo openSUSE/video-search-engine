@@ -233,6 +233,12 @@ def _baseline_error(path: str, exc: Exception) -> str:
     return f"Invalid benchmark baseline {path!r}: {detail}"
 
 
+def _write_json_report(path: str, payload: str) -> None:
+    report_path = Path(path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(payload, encoding="utf-8")
+
+
 def main(argv: List[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -273,9 +279,17 @@ def main(argv: List[str] | None = None) -> int:
     sys.stdout.write(formatter(results, metadata=metadata))
 
     if args.json_path:
-        Path(args.json_path).write_text(
-            format_json_report(results, metadata=metadata)
-        )
+        try:
+            _write_json_report(
+                args.json_path,
+                format_json_report(results, metadata=metadata),
+            )
+        except OSError as exc:
+            print(
+                f"Could not write benchmark JSON report {args.json_path!r}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
         if not args.quiet:
             print(f"Wrote JSON report to {args.json_path}", file=sys.stderr)
 

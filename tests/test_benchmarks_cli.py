@@ -72,6 +72,40 @@ def test_runner_filter_with_json_writes_file(tmp_path):
     assert all(name.startswith("jobs.") for name in names)
 
 
+def test_runner_json_creates_parent_directories(tmp_path):
+    out = tmp_path / "nested" / "reports" / "report.json"
+    result = _run_runner(
+        "--scale",
+        "0.02",
+        "--quiet",
+        "--filter",
+        "^jobs\\.encode_job_message\\(minimal\\)$",
+        "--json",
+        str(out),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(out.read_text())["results"][0]["name"] == (
+        "jobs.encode_job_message(minimal)"
+    )
+
+
+def test_runner_json_write_failure_reports_usage_error(tmp_path):
+    result = _run_runner(
+        "--scale",
+        "0.02",
+        "--quiet",
+        "--filter",
+        "^jobs\\.encode_job_message\\(minimal\\)$",
+        "--json",
+        str(tmp_path),
+    )
+
+    assert result.returncode == 2
+    assert "Could not write benchmark JSON report" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_runner_format_json_writes_to_stdout(tmp_path):
     result = _run_runner(
         "--scale",
