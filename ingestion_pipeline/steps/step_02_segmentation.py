@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from app.ui.speaker_support import normalize_speaker_map, speaker_ids_from_transcript
 from core.atomic_io import atomic_write_json
+from ingestion_pipeline.jobs import normalize_required_string
 
 # --- GET A LOGGER FOR THIS MODULE ---
 logger = logging.getLogger(__name__)
@@ -529,6 +530,10 @@ def run_segmentation(
     Returns:
         The path to the final segments JSON file.
     """
+    video_path = normalize_required_string(video_path, "video_path")
+    analysis_path = normalize_required_string(analysis_path, "analysis_path")
+    speaker_map_path = normalize_required_string(speaker_map_path, "speaker_map_path")
+
     if config is None:
         config = _load_config()
     logger.info("--- Starting Step 2: Intelligent Segmentation with Boundary Scoring ---")

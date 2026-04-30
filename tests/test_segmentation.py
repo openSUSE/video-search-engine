@@ -68,6 +68,49 @@ def test_create_embedding_model_uses_configured_name_and_device(monkeypatch):
     }
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        (
+            {
+                "video_path": "   ",
+                "analysis_path": "analysis.json",
+                "speaker_map_path": "speaker_map.json",
+            },
+            "video_path",
+        ),
+        (
+            {
+                "video_path": "demo.mp4",
+                "analysis_path": "",
+                "speaker_map_path": "speaker_map.json",
+            },
+            "analysis_path",
+        ),
+        (
+            {
+                "video_path": "demo.mp4",
+                "analysis_path": "analysis.json",
+                "speaker_map_path": None,
+            },
+            "speaker_map_path",
+        ),
+    ],
+)
+def test_run_segmentation_rejects_invalid_required_paths_before_loading_config(
+    monkeypatch,
+    kwargs,
+    message,
+):
+    def fail_load_config():
+        raise AssertionError("config should not load for invalid segmentation paths")
+
+    monkeypatch.setattr(segmentation_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match=message):
+        run_segmentation(**kwargs)
+
+
 def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_path):
     analysis_path = tmp_path / "analysis.json"
     speaker_map_path = tmp_path / "speaker_map.json"
