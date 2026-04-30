@@ -79,12 +79,25 @@ def _clean_string(value: Any) -> str | None:
     return value or None
 
 
-def _string_setting(env_name: str, config_value: Any, default: str) -> str:
+def _coerced_setting(env_name: str, config_value: Any, default: str) -> str:
     return _clean_string(os.getenv(env_name)) or _clean_string(config_value) or default
 
 
+def _string_setting(env_name: str, config_value: Any, default: str) -> str:
+    env_value = _clean_string(os.getenv(env_name))
+    if env_value is not None:
+        return env_value
+
+    if config_value is None:
+        return default
+    if not isinstance(config_value, str):
+        raise ValueError(f"{env_name} must be a string")
+
+    return _clean_string(config_value) or default
+
+
 def _port_setting(env_name: str, config_value: Any, default: int) -> int:
-    raw_port = _string_setting(env_name, config_value, str(default))
+    raw_port = _coerced_setting(env_name, config_value, str(default))
     invalid_message = (
         f"{env_name} must be a TCP port between {MIN_TCP_PORT} and {MAX_TCP_PORT}"
     )

@@ -13,12 +13,15 @@ def restore_config_module():
         sys.modules["core.config"] = original_module
 
 
-def _load_config_module(monkeypatch, tmp_path, config_text):
+def _load_config_module(monkeypatch, tmp_path, config_text, ml_device="cpu"):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(config_text)
     monkeypatch.setenv("CONFIG_PATH", str(config_path))
     monkeypatch.setenv("MODEL_CACHE_DIR", str(tmp_path / "models"))
-    monkeypatch.setenv("ML_DEVICE", "cpu")
+    if ml_device is None:
+        monkeypatch.delenv("ML_DEVICE", raising=False)
+    else:
+        monkeypatch.setenv("ML_DEVICE", ml_device)
     sys.modules.pop("core.config", None)
     return importlib.import_module("core.config")
 
@@ -210,6 +213,35 @@ def test_invalid_configured_ports_fail_fast(
 ):
     with pytest.raises(ValueError, match=message):
         _load_config_module(monkeypatch, tmp_path, config_text)
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("general:\n  default_output_dir: 123\n", "OUTPUT_DIR"),
+        ("ui:\n  host: []\n", "UI_HOST"),
+        ("api_server:\n  host: 123\n", "API_HOST"),
+        ("database:\n  host: []\n", "CHROMA_HOST"),
+        ("database:\n  collection_name: 123\n", "CHROMA_COLLECTION"),
+        ("llm_enrichment:\n  provider: []\n", "LLM_PROVIDER"),
+        ("llm_enrichment:\n  ollama:\n    host: []\n", "OLLAMA_HOST"),
+        ("llm_enrichment:\n  ollama:\n    model: []\n", "OLLAMA_MODEL"),
+        ("llm_enrichment:\n  gemini:\n    model: 123\n", "GEMINI_MODEL"),
+    ],
+)
+def test_configured_string_settings_must_be_strings(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
+def test_configured_device_must_be_string_when_not_overridden(monkeypatch, tmp_path):
+    with pytest.raises(ValueError, match="ML_DEVICE"):
+        _load_config_module(monkeypatch, tmp_path, "general:\n  device: []\n", ml_device=None)
 
 
 @pytest.mark.parametrize("config_text", ["[]", "not-a-mapping"])
