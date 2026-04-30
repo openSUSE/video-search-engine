@@ -348,11 +348,14 @@ def run_pipeline(
             return False
 
         # Step 4: Indexing
-        run_indexing(
+        indexed = run_indexing(
             enriched_segments_path=enriched_segments_path,
             video_filename=video_filename, # Pass the filename for metadata
             config=config
         )
+        if not indexed:
+            logger.warning("Indexing step did not index any documents. Halting pipeline.")
+            return False
         
         logger.info("🚀 Ingestion pipeline completed successfully!")
         logger.info("Final enriched segments are available at: %s", enriched_segments_path)

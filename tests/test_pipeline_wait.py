@@ -455,6 +455,7 @@ def test_run_pipeline_uses_injected_config_without_reloading(monkeypatch, tmp_pa
 
     def fake_run_indexing(**kwargs):
         calls["indexing_config"] = kwargs.get("config")
+        return True
 
     def fake_wait_for_speaker_identification(_video_path, _output_dir, config=None):
         calls["speaker_wait_config"] = config
@@ -545,6 +546,62 @@ def test_run_pipeline_halts_before_indexing_when_enrichment_fails(
         config=config,
     )
     assert calls == ["extraction", "segmentation", "enrichment"]
+
+
+def test_run_pipeline_fails_when_indexing_reports_no_documents(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = []
+
+    def fake_run_extraction(*_args, **_kwargs):
+        calls.append("extraction")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text("[]")
+        return str(analysis_path)
+
+    def fake_run_segmentation(**_kwargs):
+        calls.append("segmentation")
+        return str(tmp_path / "segments.json")
+
+    def fake_run_enrichment(_segments_path, _config):
+        calls.append("enrichment")
+        return str(tmp_path / "enriched.json")
+
+    def fake_run_indexing(**_kwargs):
+        calls.append("indexing")
+        return False
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fake_run_segmentation,
+            fake_run_enrichment,
+            fake_run_indexing,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        lambda *_args, **_kwargs: str(tmp_path / "speaker_map.json"),
+    )
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == ["extraction", "segmentation", "enrichment", "indexing"]
 
 
 @pytest.mark.parametrize("return_missing_path", [False, True])

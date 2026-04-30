@@ -332,7 +332,7 @@ def run_indexing(
     config: Dict[str, Any],
     embedding_model: Optional[EmbeddingModel] = None,
     collection: Optional[VectorCollection] = None,
-) -> None:
+) -> bool:
     """
     Takes final enriched segments, creates separate text and visual vector embeddings,
     and indexes them in a single ChromaDB collection with distinct IDs.
@@ -347,7 +347,7 @@ def run_indexing(
 
     if not segments:
         logger.warning("No segments found in the input file. Skipping indexing.")
-        return
+        return False
 
     # 2. Initialize the embedding model and ChromaDB client
     logger.info("2/4: Initializing models and DB client...")
@@ -449,3 +449,4 @@ def run_indexing(
 
     logger.info("--- Indexing Step Complete! ---")
     logger.info(f"Successfully indexed text and visual data for {len(segments)} segments.")
+    return True

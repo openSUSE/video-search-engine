@@ -94,7 +94,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
     embedding_model = FakeEmbeddingModel()
     collection = FakeCollection()
 
-    run_indexing(
+    indexed = run_indexing(
         str(enriched_segments_path),
         "demo-video",
         {"database": {"collection_name": "unused"}},
@@ -102,6 +102,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
         collection=collection,
     )
 
+    assert indexed is True
     assert embedding_model.encode_calls == [
         {
             # Text side joins title + keywords + transcript so long
@@ -185,11 +186,13 @@ def test_run_indexing_skips_empty_segment_files_without_creating_dependencies(tm
     enriched_segments_path = tmp_path / "segments.json"
     enriched_segments_path.write_text("[]")
 
-    run_indexing(
+    indexed = run_indexing(
         str(enriched_segments_path),
         "demo-video",
         {},
     )
+
+    assert indexed is False
 
 
 def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp_path):
