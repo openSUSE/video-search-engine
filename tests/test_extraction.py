@@ -405,6 +405,84 @@ def test_run_extraction_preserves_existing_metadata_when_no_title_is_provided(tm
     assert json.loads(metadata_path.read_text()) == existing_metadata
 
 
+def test_run_extraction_refreshes_existing_final_analysis_from_current_artifacts(tmp_path):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+
+    Path(paths["shots"]).write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "shot_index": 1,
+                    "start_frame": 0,
+                    "end_frame": 24,
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 1.0,
+                }
+            ]
+        )
+    )
+    Path(paths["audio"]).write_text("audio")
+    Path(paths["transcript_raw"]).write_text("[]")
+    Path(paths["transcript_aligned"]).write_text(
+        json.dumps(
+            [
+                {
+                    "start": 0.0,
+                    "end": 0.8,
+                    "text": "current line",
+                    "speaker": "Alice",
+                    "shot_id": "shot_0001",
+                }
+            ]
+        )
+    )
+    Path(paths["visual_details"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "caption": "current caption"}])
+    )
+    Path(paths["audio_events"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "events": [{"event": "speech"}]}])
+    )
+    Path(paths["actions"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "actions": [{"action": "standing"}]}])
+    )
+    Path(paths["final_analysis"]).write_text(
+        json.dumps([{"shot_id": "stale_shot", "visual_caption": "old caption"}])
+    )
+
+    run_extraction(
+        video_path=str(tmp_path / "demo.mp4"),
+        base_output_dir=str(output_dir),
+        config=config,
+    )
+
+    assert json.loads(Path(paths["final_analysis"]).read_text()) == [
+        {
+            "shot_id": "shot_0001",
+            "shot_index": 1,
+            "time_start_sec": 0.0,
+            "time_end_sec": 1.0,
+            "frame_start": 0,
+            "frame_end": 24,
+            "visual_caption": "current caption",
+            "detected_actions": [{"action": "standing"}],
+            "audio_events": [{"event": "speech"}],
+            "transcript_segments": [
+                {
+                    "start": 0.0,
+                    "end": 0.8,
+                    "text": "current line",
+                    "speaker": "Alice",
+                }
+            ],
+        }
+    ]
+
+
 def test_run_extraction_rejects_invalid_cached_shots_before_downstream_work(
     monkeypatch,
     tmp_path,

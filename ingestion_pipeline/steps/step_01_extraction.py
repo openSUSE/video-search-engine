@@ -831,8 +831,7 @@ def run_extraction(
     if not os.path.exists(paths["actions"]):
         detect_actions_per_shot(video_path, scenes, paths["actions"], config)
     
-    if not os.path.exists(paths["final_analysis"]):
-        create_final_analysis_file(paths)
+    create_final_analysis_file(paths)
 
     logger.info(f"--- Extraction Complete for '{video_filename}'! ---")
 
