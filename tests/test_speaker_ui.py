@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app import main as speaker_app
 
 
@@ -52,6 +54,16 @@ def test_speaker_flask_ui_url_uses_runtime_port_override(monkeypatch):
     monkeypatch.setattr(speaker_app, "SERVER_PORT", 6060, raising=False)
 
     assert speaker_app._ui_url() == "http://127.0.0.1:6060"
+
+
+def test_speaker_flask_ui_port_arg_accepts_valid_tcp_port():
+    assert speaker_app._port_arg(" 6060 ") == 6060
+
+
+@pytest.mark.parametrize("raw_port", ["", "0", "-1", "65536", "not-a-port", "5050.5"])
+def test_speaker_flask_ui_port_arg_rejects_invalid_tcp_ports(raw_port):
+    with pytest.raises(ValueError, match="port"):
+        speaker_app._port_arg(raw_port)
 
 
 def test_get_data_returns_validated_transcript(monkeypatch, tmp_path):

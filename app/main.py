@@ -31,6 +31,23 @@ OUTPUT_DIR = None
 CONFIG = None
 SERVER_HOST = None
 SERVER_PORT = None
+MIN_TCP_PORT = 1
+MAX_TCP_PORT = 65535
+
+
+def _port_arg(value):
+    invalid_message = f"port must be a TCP port between {MIN_TCP_PORT} and {MAX_TCP_PORT}"
+    if isinstance(value, bool):
+        raise ValueError(invalid_message)
+
+    try:
+        port = int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError(invalid_message) from exc
+
+    if not MIN_TCP_PORT <= port <= MAX_TCP_PORT:
+        raise ValueError(invalid_message)
+    return port
 
 
 def get_config():
@@ -211,11 +228,11 @@ if __name__ == '__main__':
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument("--transcript", required=True, help="Path to the raw transcript JSON file.")
     parser.add_argument("--output_dir", required=True, help="Base directory to save the speaker_map.json.")
-    
+
     # Add port argument, with the default pulled from the CONFIG
     parser.add_argument(
-        "--port", 
-        type=int, 
+        "--port",
+        type=_port_arg,
         default=config['ui']['port'],
         help="Port to run the server on."
     )
