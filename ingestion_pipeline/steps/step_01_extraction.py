@@ -751,10 +751,11 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
 
                 # Get top N predictions
                 scores = torch.softmax(logits, dim=-1)[0]
-                top_predictions = torch.topk(scores, k=params_cfg['top_n'])
+                prediction_count = min(params_cfg["top_n"], len(scores))
+                top_predictions = torch.topk(scores, k=prediction_count)
 
                 detected_actions = []
-                for i in range(params_cfg['top_n']):
+                for i in range(prediction_count):
                     score = top_predictions.values[i].item()
                     label_id = top_predictions.indices[i].item()
                     action = model.config.id2label[label_id]

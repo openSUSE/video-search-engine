@@ -242,6 +242,124 @@ def test_detect_actions_rejects_unreadable_video_before_model_load(
     assert release_calls == ["bad-video.mp4"]
 
 
+def test_detect_actions_clamps_top_n_to_available_labels(
+    monkeypatch,
+    tmp_path,
+):
+    output_path = tmp_path / "actions.json"
+    calls = {"released": False}
+
+    class FakeVideoCapture:
+        def isOpened(self):
+            return True
+
+        def set(self, _property, _value):
+            pass
+
+        def read(self):
+            return True, "frame"
+
+        def release(self):
+            calls["released"] = True
+
+    class FakeInputs(dict):
+        def to(self, _device):
+            return self
+
+    class FakeProcessor:
+        @classmethod
+        def from_pretrained(cls, _name):
+            return cls()
+
+        def __call__(self, _frames, return_tensors):
+            return FakeInputs(return_tensors=return_tensors)
+
+    class FakeModel:
+        config = types.SimpleNamespace(id2label={0: "walking", 1: "running"})
+
+        @classmethod
+        def from_pretrained(cls, _name):
+            return cls()
+
+        def to(self, _device):
+            return self
+
+        def __call__(self, **_inputs):
+            return types.SimpleNamespace(logits="logits")
+
+    class FakeScalar:
+        def __init__(self, value):
+            self.value = value
+
+        def item(self):
+            return self.value
+
+    class FakeScores:
+        def __init__(self, values):
+            self.values = values
+
+        def __len__(self):
+            return len(self.values)
+
+    class FakeNoGrad:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, _exc_type, _exc, _tb):
+            return False
+
+    def fake_topk(scores, k):
+        if k > len(scores):
+            raise RuntimeError("selected index k out of range")
+        return types.SimpleNamespace(
+            values=[FakeScalar(value) for value in scores.values[:k]],
+            indices=[FakeScalar(index) for index in range(k)],
+        )
+
+    fake_cv2 = types.SimpleNamespace(
+        VideoCapture=lambda _path: FakeVideoCapture(),
+        CAP_PROP_POS_FRAMES=1,
+        COLOR_BGR2RGB=2,
+        cvtColor=lambda frame, _code: f"rgb-{frame}",
+    )
+    fake_np = types.SimpleNamespace(linspace=lambda start, end, count, dtype: range(count))
+    fake_torch = types.SimpleNamespace(
+        no_grad=lambda: FakeNoGrad(),
+        softmax=lambda _logits, dim: [FakeScores([0.75, 0.25])],
+        topk=fake_topk,
+    )
+    fake_transformers = types.ModuleType("transformers")
+    fake_transformers.VideoMAEImageProcessor = FakeProcessor
+    fake_transformers.VideoMAEForVideoClassification = FakeModel
+
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "numpy", fake_np)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    detect_actions_per_shot(
+        "demo.mp4",
+        [{"shot_id": "shot_0001", "start_frame": 0, "end_frame": 4}],
+        str(output_path),
+        {
+            "general": {"device": "cpu"},
+            "models": {"action_recognition": {"name": "videomae"}},
+            "parameters": {"action_recognition": {"num_frames": 2, "top_n": 3}},
+        },
+    )
+
+    assert json.loads(output_path.read_text()) == [
+        {
+            "shot_id": "shot_0001",
+            "actions": [
+                {"action": "walking", "score": 0.75},
+                {"action": "running", "score": 0.25},
+            ],
+        }
+    ]
+    assert calls["released"] is True
+
+
 def test_per_shot_extractors_skip_empty_scenes_without_model_load(
     monkeypatch,
     tmp_path,
