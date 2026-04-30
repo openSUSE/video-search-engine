@@ -112,6 +112,7 @@ def _http_origin_setting(env_name: str, config_value: Any, default: str) -> str:
 
     if (
         any(character.isspace() for character in origin)
+        or "\\" in origin
         or parts.scheme.lower() not in {"http", "https"}
         or not parts.netloc
         or not parts.hostname

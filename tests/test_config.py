@@ -205,6 +205,7 @@ llm_enrichment:
         "http://localhost:11434",
         "http://user@localhost",
         "http://localhost/api",
+        "http://localhost\\api",
         "http://local host",
     ],
 )
