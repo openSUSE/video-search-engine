@@ -713,6 +713,64 @@ def test_run_pipeline_halts_before_enrichment_when_segmentation_path_is_missing(
     assert calls == ["extraction", "segmentation"]
 
 
+def test_run_pipeline_halts_before_enrichment_when_segmentation_path_is_directory(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = []
+
+    def fake_run_extraction(*_args, **_kwargs):
+        calls.append("extraction")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text("[]")
+        return str(analysis_path)
+
+    def fake_run_segmentation(**_kwargs):
+        calls.append("segmentation")
+        segments_path = tmp_path / "segments.json"
+        segments_path.mkdir()
+        return str(segments_path)
+
+    def fail_run_enrichment(*_args, **_kwargs):
+        calls.append("enrichment")
+        raise AssertionError("enrichment should not run after directory segmentation output")
+
+    def fail_run_indexing(**_kwargs):
+        calls.append("indexing")
+        raise AssertionError("indexing should not run after directory segmentation output")
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fake_run_segmentation,
+            fail_run_enrichment,
+            fail_run_indexing,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        lambda *_args, **_kwargs: str(tmp_path / "speaker_map.json"),
+    )
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == ["extraction", "segmentation"]
+
+
 def test_run_pipeline_halts_before_indexing_when_enrichment_path_is_missing(
     monkeypatch,
     tmp_path,
@@ -746,6 +804,66 @@ def test_run_pipeline_halts_before_indexing_when_enrichment_path_is_missing(
     def fail_run_indexing(**_kwargs):
         calls.append("indexing")
         raise AssertionError("indexing should not run after missing enrichment output")
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fake_run_segmentation,
+            fake_run_enrichment,
+            fail_run_indexing,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        lambda *_args, **_kwargs: str(tmp_path / "speaker_map.json"),
+    )
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == ["extraction", "segmentation", "enrichment"]
+
+
+def test_run_pipeline_halts_before_indexing_when_enrichment_path_is_directory(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = []
+
+    def fake_run_extraction(*_args, **_kwargs):
+        calls.append("extraction")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text("[]")
+        return str(analysis_path)
+
+    def fake_run_segmentation(**_kwargs):
+        calls.append("segmentation")
+        segments_path = tmp_path / "segments.json"
+        segments_path.write_text("[]")
+        return str(segments_path)
+
+    def fake_run_enrichment(_segments_path, _config):
+        calls.append("enrichment")
+        enriched_path = tmp_path / "enriched.json"
+        enriched_path.mkdir()
+        return str(enriched_path)
+
+    def fail_run_indexing(**_kwargs):
+        calls.append("indexing")
+        raise AssertionError("indexing should not run after directory enrichment output")
 
     monkeypatch.setattr(
         run_pipeline,
@@ -860,6 +978,58 @@ def test_run_pipeline_halts_before_speaker_wait_when_extraction_fails(
     def fail_run_segmentation(**_kwargs):
         calls.append("segmentation")
         raise AssertionError("segmentation should not run after failed extraction")
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fail_run_segmentation,
+            lambda *_args, **_kwargs: str(tmp_path / "enriched.json"),
+            lambda **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        fail_wait_for_speaker_identification,
+    )
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == ["extraction"]
+
+
+def test_run_pipeline_halts_before_speaker_wait_when_extraction_path_is_directory(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = []
+
+    def fake_run_extraction(*_args, **_kwargs):
+        calls.append("extraction")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.mkdir()
+        return str(analysis_path)
+
+    def fail_wait_for_speaker_identification(*_args, **_kwargs):
+        calls.append("speaker_wait")
+        raise AssertionError("speaker wait should not run after directory extraction output")
+
+    def fail_run_segmentation(**_kwargs):
+        calls.append("segmentation")
+        raise AssertionError("segmentation should not run after directory extraction output")
 
     monkeypatch.setattr(
         run_pipeline,

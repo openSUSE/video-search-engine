@@ -325,7 +325,7 @@ def run_pipeline(
             year,
             config=config,
         )
-        if not final_analysis_path or not os.path.exists(final_analysis_path):
+        if not final_analysis_path or not os.path.isfile(final_analysis_path):
             logger.warning(
                 "Extraction step did not produce a final analysis file at %s. "
                 "Halting pipeline.",
@@ -352,7 +352,7 @@ def run_pipeline(
         if not final_segments_path:
             logger.warning("Segmentation step did not produce an output file. Halting pipeline.")
             return False
-        if not os.path.exists(final_segments_path):
+        if not os.path.isfile(final_segments_path):
             logger.warning(
                 "Segmentation step did not produce an output file at %s. "
                 "Halting pipeline.",
@@ -366,7 +366,7 @@ def run_pipeline(
         if not enriched_segments_path:
             logger.warning("Enrichment step failed or was skipped. Halting pipeline.")
             return False
-        if not os.path.exists(enriched_segments_path):
+        if not os.path.isfile(enriched_segments_path):
             logger.warning(
                 "Enrichment step did not produce an output file at %s. "
                 "Halting pipeline.",
