@@ -18,6 +18,8 @@ def text_metadata_by_segment_id(
             continue
         if segment_id != segment_id.strip():
             continue
+        if segment_id in metadata_by_segment_id:
+            continue
         metadata_by_segment_id[segment_id] = metadata
 
     return metadata_by_segment_id

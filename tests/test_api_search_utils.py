@@ -60,3 +60,23 @@ def test_text_metadata_lookup_skips_whitespace_padded_segment_ids():
     )
 
     assert metadata == {"valid": {"title": "valid"}}
+
+
+def test_text_metadata_lookup_preserves_first_duplicate_segment_metadata():
+    metadata = text_metadata_by_segment_id(
+        ids=[
+            "duplicate_text",
+            "duplicate_text",
+            "fallback_text",
+        ],
+        metadatas=[
+            {"title": "first usable"},
+            {"title": "later stale duplicate"},
+            {"title": "fallback"},
+        ],
+    )
+
+    assert metadata == {
+        "duplicate": {"title": "first usable"},
+        "fallback": {"title": "fallback"},
+    }
