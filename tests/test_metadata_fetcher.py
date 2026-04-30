@@ -109,6 +109,46 @@ def test_fetch_movie_metadata_skips_results_with_unparsable_release_date(monkeyp
     assert metadata["title"] == "Demo (2024)"
 
 
+def test_fetch_movie_metadata_year_filter_accepts_attribute_only_results(monkeypatch):
+    monkeypatch.setenv("TMDB_API_KEY", "test-key")
+
+    fake_module = types.ModuleType("tmdbv3api")
+
+    class FakeTMDb:
+        api_key = None
+
+    class _Result:
+        def __init__(self, id_, title, release_date):
+            self.id = id_
+            self.title = title
+            self.release_date = release_date
+
+    wrong = _Result(1, "Demo (1999)", "1999-06-30")
+    right = _Result(2, "Demo (2024)", "2024-01-01")
+
+    class FakeDetails:
+        title = "Demo (2024)"
+        overview = "The right release."
+        genres = [{"name": "Drama"}]
+
+    class FakeMovie:
+        def search(self, title):
+            return [wrong, right]
+
+        def details(self, movie_id):
+            assert movie_id == 2
+            return FakeDetails()
+
+    fake_module.TMDb = FakeTMDb
+    fake_module.Movie = FakeMovie
+    monkeypatch.setitem(sys.modules, "tmdbv3api", fake_module)
+
+    metadata = fetch_movie_metadata("Demo", 2024)
+
+    assert metadata is not None
+    assert metadata["title"] == "Demo (2024)"
+
+
 def test_fetch_movie_metadata_warns_when_year_does_not_match_any_result(
     monkeypatch, caplog
 ):

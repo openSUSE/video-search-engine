@@ -2,9 +2,38 @@
 
 import os
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _metadata_field(item: Any, field_name: str) -> Any:
+    if isinstance(item, dict):
+        return item.get(field_name)
+    return getattr(item, field_name, None)
+
+
+def _release_year(result: Any) -> Optional[int]:
+    release_date = _metadata_field(result, "release_date")
+    if not release_date:
+        return None
+
+    try:
+        return int(str(release_date).split("-")[0])
+    except ValueError:
+        # Some TMDb rows return non-numeric prefixes ("TBD", "Q1 2024");
+        # skip them rather than failing the whole fetch.
+        return None
+
+
+def _genre_names(details: Any) -> str:
+    names = []
+    for genre in _metadata_field(details, "genres") or []:
+        genre_name = _metadata_field(genre, "name")
+        if isinstance(genre_name, str) and genre_name.strip():
+            names.append(genre_name.strip())
+    return ", ".join(names)
+
 
 def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dict]:
     """
@@ -34,16 +63,9 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
         best_match = None
         if year:
             for result in search_results:
-                if 'release_date' in result and result.release_date:
-                    try:
-                        release_year = int(result.release_date.split('-')[0])
-                    except ValueError:
-                        # Some TMDb rows return non-numeric prefixes ("TBD", "Q1 2024");
-                        # skip them rather than failing the whole fetch.
-                        continue
-                    if release_year == year:
-                        best_match = result
-                        break
+                if _release_year(result) == year:
+                    best_match = result
+                    break
 
         # If no year match was found or no year was provided, take the first result
         if not best_match:
@@ -53,21 +75,25 @@ def fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Dic
                     "TMDb year %s not found for title %r; using first result %r (%s).",
                     year,
                     title,
-                    getattr(fallback, "title", "?"),
-                    getattr(fallback, "release_date", "?"),
+                    _metadata_field(fallback, "title") or "?",
+                    _metadata_field(fallback, "release_date") or "?",
                 )
             best_match = fallback
 
-        logger.info("Found TMDb match: %r (%s)", best_match.title, best_match.release_date)
+        logger.info(
+            "Found TMDb match: %r (%s)",
+            _metadata_field(best_match, "title"),
+            _metadata_field(best_match, "release_date"),
+        )
         
         # Fetch full details for the matched movie
-        details = movie_api.details(best_match.id)
+        details = movie_api.details(_metadata_field(best_match, "id"))
 
         # Format the data into our desired structure
         metadata = {
-            "title": details.title,
-            "synopsis": details.overview,
-            "genre": ", ".join([genre['name'] for genre in details.genres]),
+            "title": _metadata_field(details, "title"),
+            "synopsis": _metadata_field(details, "overview"),
+            "genre": _genre_names(details),
         }
         return metadata
 
