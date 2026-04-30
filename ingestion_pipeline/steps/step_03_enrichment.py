@@ -235,6 +235,7 @@ def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
         raise ValueError("segments file must contain a JSON array")
 
     seen_segment_ids = set()
+    previous_end_time: float | None = None
     for index, segment in enumerate(segments):
         if not isinstance(segment, dict):
             raise ValueError(f"segment at index {index} must be a JSON object")
@@ -264,6 +265,9 @@ def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
                 f"segment at index {index} "
                 "end_time must be greater than or equal to start_time"
             )
+        if previous_end_time is not None and start_time < previous_end_time:
+            raise ValueError(f"segment at index {index} overlaps previous segment")
+        previous_end_time = end_time
         segment["start_time"] = start_time
         segment["end_time"] = end_time
 

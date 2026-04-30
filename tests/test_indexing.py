@@ -670,6 +670,44 @@ def test_run_indexing_rejects_duplicate_segment_ids_after_normalization(
         )
 
 
+def test_run_indexing_rejects_overlapping_segments_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                _enriched_segment(
+                    segment_id="segment-1",
+                    start_time=5.0,
+                    end_time=6.0,
+                ),
+                _enriched_segment(
+                    segment_id="segment-2",
+                    start_time=4.0,
+                    end_time=5.0,
+                ),
+            ]
+        )
+    )
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for overlapping segments"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match="overlaps previous segment"):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
+
+
 @pytest.mark.parametrize(
     ("segments", "message"),
     [

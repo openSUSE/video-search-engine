@@ -725,6 +725,10 @@ def test_run_enrichment_rejects_empty_source_segments_before_copying_or_calling_
             {"segment_id": "segment_0001", "start_time": 0.0, "end_time": 1.0},
             {"segment_id": " segment_0001 ", "start_time": 1.0, "end_time": 2.0},
         ],
+        [
+            {"segment_id": "segment_0001", "start_time": 5.0, "end_time": 6.0},
+            {"segment_id": "segment_0002", "start_time": 4.0, "end_time": 5.0},
+        ],
     ],
 )
 def test_run_enrichment_rejects_invalid_source_segments_before_copying_or_calling_provider(
