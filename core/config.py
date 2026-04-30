@@ -481,9 +481,9 @@ def load_config() -> Dict[str, Any]:
     )
 
     # ------- networking -------
-    cfg["ui"]["host"] = _string_setting("UI_HOST", cfg["ui"].get("host"), "0.0.0.0")
+    cfg["ui"]["host"] = _host_setting("UI_HOST", cfg["ui"].get("host"), "0.0.0.0")
     cfg["ui"]["port"] = _port_setting("UI_PORT", cfg["ui"].get("port"), 5050)
-    cfg["api_server"]["host"] = _string_setting(
+    cfg["api_server"]["host"] = _host_setting(
         "API_HOST",
         cfg["api_server"].get("host"),
         "0.0.0.0",

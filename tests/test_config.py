@@ -447,6 +447,51 @@ def test_invalid_chroma_host_environment_overrides_fail_fast(
         _load_config_module(monkeypatch, tmp_path, "{}")
 
 
+@pytest.mark.parametrize("env_name", ["UI_HOST", "API_HOST"])
+@pytest.mark.parametrize(
+    "raw_host",
+    [
+        "http://localhost",
+        "localhost:5050",
+        "localhost:",
+        "localhost/path",
+        "localhost\\path",
+        "local host",
+        "user@localhost",
+        "localhost?tenant=demo",
+    ],
+)
+def test_invalid_ui_api_host_environment_overrides_fail_fast(
+    monkeypatch,
+    tmp_path,
+    env_name,
+    raw_host,
+):
+    monkeypatch.setenv(env_name, raw_host)
+
+    with pytest.raises(ValueError, match=env_name):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("ui:\n  host: http://localhost\n", "UI_HOST"),
+        ("ui:\n  host: localhost:5050\n", "UI_HOST"),
+        ("api_server:\n  host: api/path\n", "API_HOST"),
+        ("api_server:\n  host: user@api\n", "API_HOST"),
+    ],
+)
+def test_invalid_configured_ui_api_hosts_fail_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 @pytest.mark.parametrize(
     "config_text",
     [
