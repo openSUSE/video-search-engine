@@ -379,6 +379,8 @@ def test_run_segmentation_recomputes_cached_output_when_analysis_content_changed
         ({"segment_id": "segment_0001"}, "JSON array"),
         (["not a segment"], "index 0"),
         ([_cached_segment(segment_id=" ")], "segment_id"),
+        ([_cached_segment(segment_id="custom-segment")], "segment_id"),
+        ([_cached_segment(segment_index=2)], "segment_index"),
         ([_cached_segment(start_time=-1)], "start_time"),
         ([_cached_segment(start_time=float("nan"))], "start_time"),
         ([_cached_segment(start_time=2, end_time=1)], "end_time"),

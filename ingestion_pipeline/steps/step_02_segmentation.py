@@ -256,7 +256,24 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
         seen_segment_ids.add(segment_id)
         segment["segment_id"] = segment_id
 
-        _validate_cached_positive_int(segment, segment_index, "segment_index")
+        expected_segment_index = segment_index + 1
+        expected_segment_id = f"segment_{expected_segment_index:04d}"
+        if segment_id != expected_segment_id:
+            raise ValueError(
+                f"cached segment at index {segment_index} "
+                f"segment_id must be {expected_segment_id}"
+            )
+
+        reported_segment_index = _validate_cached_positive_int(
+            segment,
+            segment_index,
+            "segment_index",
+        )
+        if reported_segment_index != expected_segment_index:
+            raise ValueError(
+                f"cached segment at index {segment_index} "
+                f"segment_index must be {expected_segment_index}"
+            )
         shot_count = _validate_cached_positive_int(segment, segment_index, "shot_count")
 
         start_time = _validate_cached_segment_time(segment, segment_index, "start_time")
