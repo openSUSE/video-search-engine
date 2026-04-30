@@ -378,6 +378,29 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
     assert "logline" not in metadata
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"video_path": "   ", "base_output_dir": "processed"}, "video_path"),
+        ({"video_path": "demo.mp4", "base_output_dir": ""}, "base_output_dir"),
+        ({"video_path": None, "base_output_dir": "processed"}, "video_path"),
+        ({"video_path": "demo.mp4", "base_output_dir": None}, "base_output_dir"),
+    ],
+)
+def test_run_extraction_rejects_invalid_required_paths_before_loading_config(
+    monkeypatch,
+    kwargs,
+    message,
+):
+    def fail_load_config():
+        raise AssertionError("config should not load for invalid required paths")
+
+    monkeypatch.setattr(extraction_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match=message):
+        run_extraction(**kwargs)
+
+
 @pytest.mark.parametrize("video_year", [0, -1, True])
 def test_run_extraction_rejects_invalid_year_before_metadata_lookup(
     tmp_path,

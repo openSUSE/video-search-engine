@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
 
 from core.atomic_io import atomic_write_json
-from ingestion_pipeline.jobs import normalize_optional_year
+from ingestion_pipeline.jobs import normalize_optional_year, normalize_required_string
 
 logger = logging.getLogger(__name__)
 
@@ -779,6 +779,8 @@ def run_extraction(
     metadata_fetcher: Optional[MetadataFetcher] = None,
 ):
     """Runs the full data extraction pipeline for a given video."""
+    video_path = normalize_required_string(video_path, "video_path")
+    base_output_dir = normalize_required_string(base_output_dir, "base_output_dir")
     video_year = normalize_optional_year(video_year)
     if config is None:
         config = _load_config()
