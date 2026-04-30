@@ -276,10 +276,10 @@ def _load_segments_file(path: str) -> list[Dict[str, Any]]:
 
 
 def _clean_llm_string(value: Any) -> Optional[str]:
-    if value is None:
+    if not isinstance(value, str):
         return None
 
-    cleaned = str(value).strip()
+    cleaned = value.strip()
     return cleaned or None
 
 
