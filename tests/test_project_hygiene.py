@@ -168,11 +168,10 @@ def test_env_example_documents_log_level():
 def test_log_level_propagated_through_deployment_manifests():
     # The runtime read of LOG_LEVEL only matters if the deployment surface
     # actually passes the variable into the container. Lock in every touch
-    # point: docker-compose api + ingestion-worker (both call setup_logging,
-    # so both need the var) and the k8s configmap that envFrom-mounts into
-    # the same containers.
+    # point: docker-compose Python services that call setup_logging and the
+    # k8s configmap that envFrom-mounts into those same containers.
     compose = yaml.safe_load(Path("docker-compose.yml").read_text())
-    for service in ("api", "ingestion-worker"):
+    for service in ("api", "ui-search", "ui-speaker", "ingestion-worker"):
         env = compose["services"][service]["environment"]
         assert env.get("LOG_LEVEL", "").startswith("${LOG_LEVEL"), (
             f"docker-compose service {service!r} must pass LOG_LEVEL through"
@@ -201,6 +200,8 @@ def test_api_root_endpoint_exposes_version():
     [
         "api/main.py",
         "app/main.py",
+        "app/ui/search_app.py",
+        "app/ui/speaker_id_tool.py",
         "ingestion_pipeline/publisher.py",
         "ingestion_pipeline/worker.py",
     ],

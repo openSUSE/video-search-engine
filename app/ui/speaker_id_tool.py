@@ -16,9 +16,12 @@ from app.ui.speaker_support import (
     speaker_ids_from_transcript,
 )
 from core.atomic_io import atomic_write_json
+from core.logger import setup_logging
 
 OUTPUT_DIR = env_path_setting("OUTPUT_DIR", "data/processed")
 VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
+
+setup_logging()
 
 
 def get_config():

@@ -70,6 +70,7 @@ services:
       SEARCH_API_TIMEOUT_SECONDS: "${SEARCH_API_TIMEOUT_SECONDS:-10}"
       VIDEO_DATA_PATH: /data/videos
       ML_DEVICE: "${ML_DEVICE:-cpu}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - ./data/videos:/data/videos:ro
     depends_on:
@@ -91,6 +92,7 @@ services:
     environment:
       OUTPUT_DIR: /data/processed
       VIDEO_DATA_PATH: /data/videos
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - ./data/videos:/data/videos:ro
       - ./data/processed:/data/processed

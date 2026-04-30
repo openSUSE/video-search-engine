@@ -20,8 +20,11 @@ from app.ui.search_state import (
     ensure_search_session_state,
     reset_search_session_for_video,
 )
+from core.logger import setup_logging
 
 VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
+
+setup_logging()
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
