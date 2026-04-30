@@ -172,6 +172,56 @@ def test_detect_shot_boundaries_rejects_invalid_video_before_model_load(
     assert release_calls == ["bad-video.mp4"]
 
 
+def test_detect_shot_boundaries_validates_generated_scenes_before_writing(
+    monkeypatch,
+    tmp_path,
+):
+    output_path = tmp_path / "shots.json"
+
+    class FakeVideoCapture:
+        def isOpened(self):
+            return True
+
+        def get(self, _property):
+            return 10.0
+
+        def release(self):
+            pass
+
+    class FakePredictions:
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return "predictions"
+
+    class FakeScenes:
+        def tolist(self):
+            return [[10, 0]]
+
+    class FakeTransNetV2:
+        def predict_video(self, video_path):
+            return None, None, FakePredictions()
+
+        def predictions_to_scenes(self, predictions):
+            assert predictions == "predictions"
+            return FakeScenes()
+
+    fake_cv2 = types.SimpleNamespace(
+        VideoCapture=lambda _path: FakeVideoCapture(),
+        CAP_PROP_FPS=5,
+    )
+    fake_transnet = types.ModuleType("transnetv2_pytorch")
+    fake_transnet.TransNetV2 = FakeTransNetV2
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "transnetv2_pytorch", fake_transnet)
+
+    with pytest.raises(ValueError, match="end_frame"):
+        detect_shot_boundaries("demo.mp4", str(output_path))
+
+    assert not output_path.exists()
+
+
 def test_generate_visual_captions_rejects_unreadable_video_before_model_load(
     monkeypatch,
     tmp_path,

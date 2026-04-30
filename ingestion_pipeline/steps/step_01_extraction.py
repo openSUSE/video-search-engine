@@ -618,9 +618,10 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
             "end_time_sec": round(end_frame / fps, 3)
         })
 
+    scenes_data = _validate_shot_boundaries(scenes_data)
     atomic_write_json(shots_path, scenes_data)
     logger.info(f"    -> Shot boundaries saved to {shots_path}")
-    return _validate_shot_boundaries(scenes_data)
+    return scenes_data
 
 def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, Any]], aligned_transcript_path: str):
     """Aligns transcript segments to shots and saves the new transcript."""
