@@ -31,6 +31,21 @@ def test_speaker_flask_ui_url_uses_loopback_for_wildcard_host(monkeypatch):
     assert speaker_app._ui_url() == "http://127.0.0.1:5050"
 
 
+def test_speaker_flask_ui_url_uses_runtime_port_override(monkeypatch):
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "0.0.0.0", "port": 5050},
+        },
+    )
+    monkeypatch.setattr(speaker_app, "SERVER_HOST", "0.0.0.0", raising=False)
+    monkeypatch.setattr(speaker_app, "SERVER_PORT", 6060, raising=False)
+
+    assert speaker_app._ui_url() == "http://127.0.0.1:6060"
+
+
 def test_get_data_returns_validated_transcript(monkeypatch, tmp_path):
     video_path = tmp_path / "videos" / "demo.mp4"
     video_path.parent.mkdir()

@@ -29,6 +29,8 @@ VIDEO_PATH = None
 TRANSCRIPT_PATH = None
 OUTPUT_DIR = None
 CONFIG = None
+SERVER_HOST = None
+SERVER_PORT = None
 
 
 def get_config():
@@ -42,7 +44,10 @@ def get_config():
 
 def _ui_url() -> str:
     config = get_config()
-    return local_http_url(config['ui']['host'], config['ui']['port'])
+    return local_http_url(
+        SERVER_HOST if SERVER_HOST is not None else config['ui']['host'],
+        SERVER_PORT if SERVER_PORT is not None else config['ui']['port'],
+    )
 
 
 @app.route('/')
@@ -192,6 +197,8 @@ if __name__ == '__main__':
     # Get host and port from CONFIG
     host = config['ui']['host']
     port = args.port # Use the port from command-line args
+    SERVER_HOST = host
+    SERVER_PORT = port
 
     logger.info("Starting server for video: %s", VIDEO_PATH)
     logger.info("Please open %s in your browser.", local_http_url(host, port))
