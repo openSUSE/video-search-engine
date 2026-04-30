@@ -242,6 +242,55 @@ def test_hybrid_search_service_skips_results_with_blank_title_or_summary(blank_f
     assert [result["id"] for result in results] == ["demo.mp4::segment-b"]
 
 
+def test_hybrid_search_service_skips_stringified_time_metadata():
+    class CollectionWithStringifiedTimes(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::string-time_text",
+                            "demo.mp4::primary_text",
+                            "demo.mp4::fallback_text",
+                        ]
+                    ]
+                }
+            return {"ids": [[]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": [
+                    "demo.mp4::string-time_text",
+                    "demo.mp4::primary_text",
+                    "demo.mp4::fallback_text",
+                ],
+                "metadatas": [
+                    _metadata(title="String time", start_time="1", end_time="2"),
+                    _metadata(title="Primary", summary="top valid candidate"),
+                    _metadata(title="Fallback", summary="lower valid candidate"),
+                ],
+            }
+
+    service = HybridSearchService(FakeEmbeddingModel(), CollectionWithStringifiedTimes())
+
+    results = service.search("find highlights", top_k=2)
+
+    assert [result["id"] for result in results] == [
+        "demo.mp4::primary",
+        "demo.mp4::fallback",
+    ]
+
+
 def test_hybrid_search_service_skips_malformed_fetched_metadata_ids():
     class CollectionWithMalformedFetchedMetadataIds(FakeCollection):
         def get(self, *, ids, include):

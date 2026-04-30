@@ -143,12 +143,9 @@ def _metadata_string(metadata: Dict[str, Any], field_name: str) -> Optional[str]
 
 def _metadata_time(metadata: Dict[str, Any], field_name: str) -> Optional[float]:
     value = metadata.get(field_name)
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    try:
-        time_value = float(value)
-    except (TypeError, ValueError):
-        return None
+    time_value = float(value)
     if not math.isfinite(time_value) or time_value < 0:
         return None
     return time_value
