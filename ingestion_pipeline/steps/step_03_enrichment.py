@@ -307,6 +307,14 @@ def _normalize_llm_keywords(value: Any) -> list[str]:
     if not keyword:
         return []
 
+    if keyword.startswith("[") and keyword.endswith("]"):
+        try:
+            decoded_keyword_list = json.loads(keyword)
+        except json.JSONDecodeError:
+            decoded_keyword_list = None
+        if isinstance(decoded_keyword_list, list):
+            return _normalize_llm_keywords(decoded_keyword_list)
+
     return [
         keyword_part
         for keyword_part in (

@@ -588,6 +588,46 @@ def test_run_enrichment_splits_delimited_llm_keyword_strings(tmp_path):
     assert segment["keywords"] == ["platform", "station", "announcement", "crowd"]
 
 
+def test_run_enrichment_parses_json_encoded_llm_keyword_strings(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "dialogue",
+                    "speakers": ["Alice"],
+                    "consolidated_visual_captions": ["station platform"],
+                    "consolidated_actions": ["waiting"],
+                    "consolidated_audio_events": ["announcement"],
+                }
+            ]
+        )
+    )
+
+    def fake_ollama_client(_prompt, _config):
+        return {
+            "title": "Generated Title",
+            "summary": "Generated summary.",
+            "keywords": '["platform", "station", "announcement"]',
+        }
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    [segment] = json.loads((tmp_path / "enriched.json").read_text())
+    assert segment["keywords"] == ["platform", "station", "announcement"]
+
+
 def test_run_enrichment_does_not_stringify_malformed_llm_text_fields(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(
