@@ -659,8 +659,11 @@ def test_run_segmentation_rejects_nonfinite_embeddings_before_scoring(tmp_path):
     assert not output_path.exists()
 
 
-@pytest.mark.parametrize("encoded_vector", ["12", b"12", bytearray(b"12")])
-def test_run_segmentation_rejects_string_like_embedding_vectors_before_scoring(
+@pytest.mark.parametrize(
+    "encoded_vector",
+    ["12", b"12", bytearray(b"12"), {0: 0.25, 1: 0.75}],
+)
+def test_run_segmentation_rejects_invalid_embedding_vector_containers_before_scoring(
     tmp_path,
     encoded_vector,
 ):

@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import math
+from collections.abc import Mapping
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -413,7 +414,7 @@ def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
 def _vector_to_floats(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
-    if isinstance(vector, (str, bytes, bytearray)):
+    if isinstance(vector, (str, bytes, bytearray, Mapping)):
         raise ValueError("embedding vector values must be numeric")
     raw_values = list(vector)
     if any(isinstance(value, bool) for value in raw_values):
@@ -431,6 +432,8 @@ def _encoded_vectors_to_lists(
 ) -> List[List[float]]:
     if hasattr(encoded_vectors, "tolist"):
         encoded_vectors = encoded_vectors.tolist()
+    if isinstance(encoded_vectors, Mapping):
+        raise ValueError(f"{embedding_type} embeddings must be numeric vectors")
 
     try:
         vectors = [_vector_to_floats(vector) for vector in encoded_vectors]

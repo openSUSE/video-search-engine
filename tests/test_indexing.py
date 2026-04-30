@@ -515,8 +515,11 @@ def test_run_indexing_rejects_nonfinite_embeddings_before_upsert(tmp_path):
     assert collection.upsert_call is None
 
 
-@pytest.mark.parametrize("encoded_vector", ["12", b"12", bytearray(b"12")])
-def test_run_indexing_rejects_string_like_embedding_vectors_before_upsert(
+@pytest.mark.parametrize(
+    "encoded_vector",
+    ["12", b"12", bytearray(b"12"), {0: 0.25, 1: 0.75}],
+)
+def test_run_indexing_rejects_invalid_embedding_vector_containers_before_upsert(
     tmp_path,
     encoded_vector,
 ):

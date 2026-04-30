@@ -1,5 +1,6 @@
 import logging
 import math
+from collections.abc import Mapping
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -38,7 +39,7 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
         encoded = encoded.tolist()
 
     invalid = ValueError("query embedding must be a non-empty numeric vector")
-    if isinstance(encoded, (str, bytes, bytearray)):
+    if isinstance(encoded, (str, bytes, bytearray, Mapping)):
         raise invalid
 
     try:

@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def _vector_to_list(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
 
-    if isinstance(vector, (str, bytes, bytearray)):
+    if isinstance(vector, (str, bytes, bytearray, Mapping)):
         raise ValueError("embedding vector values must be numeric")
 
     values = list(vector)
@@ -71,6 +72,8 @@ def _encoded_vectors_to_lists(
 ) -> List[List[float]]:
     if hasattr(encoded_vectors, "tolist"):
         encoded_vectors = encoded_vectors.tolist()
+    if isinstance(encoded_vectors, Mapping):
+        raise ValueError(f"{embedding_type} embeddings must be numeric vectors")
     try:
         vectors = [_vector_to_list(vector) for vector in encoded_vectors]
     except (TypeError, ValueError) as exc:
