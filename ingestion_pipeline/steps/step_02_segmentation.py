@@ -117,6 +117,7 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
         raise ValueError("final analysis file must contain a JSON array")
 
     seen_shot_ids = set()
+    previous_time_end_sec: float | None = None
     for shot_index, shot in enumerate(raw_analysis_data):
         if not isinstance(shot, dict):
             raise ValueError(f"shot at index {shot_index} must be a JSON object")
@@ -137,6 +138,12 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
                 f"shot at index {shot_index} "
                 "time_end_sec must be greater than or equal to time_start_sec"
             )
+        if (
+            previous_time_end_sec is not None
+            and time_start_sec < previous_time_end_sec
+        ):
+            raise ValueError(f"shot at index {shot_index} overlaps previous shot")
+        previous_time_end_sec = time_end_sec
 
         visual_caption = shot.get("visual_caption")
         if not isinstance(visual_caption, str):

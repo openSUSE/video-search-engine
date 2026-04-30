@@ -736,6 +736,25 @@ def test_run_segmentation_rejects_string_like_embedding_vectors_before_scoring(
             [
                 {
                     "shot_id": "shot_0001",
+                    "time_start_sec": 5.0,
+                    "time_end_sec": 6.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                },
+                {
+                    "shot_id": "shot_0002",
+                    "time_start_sec": 4.0,
+                    "time_end_sec": 5.0,
+                    "visual_caption": "same room",
+                    "transcript_segments": [],
+                },
+            ],
+            "overlaps previous shot",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
                     "time_start_sec": 0.0,
                     "time_end_sec": 1.0,
                     "visual_caption": "quiet room",
