@@ -334,6 +334,56 @@ def test_run_enrichment_does_not_apply_structural_llm_fields(tmp_path):
     assert segment["keywords"] == ["safe", "42"]
 
 
+def test_run_enrichment_returns_none_when_any_segment_remains_incomplete(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "first dialogue",
+                },
+                {
+                    "segment_id": "segment_0002",
+                    "start_time": 5.0,
+                    "end_time": 10.0,
+                    "full_transcript": "second dialogue",
+                },
+            ]
+        )
+    )
+    calls = []
+
+    def flaky_ollama_client(_prompt, _config):
+        calls.append(len(calls))
+        if len(calls) == 1:
+            return {
+                "title": "Generated Title",
+                "summary": "Generated summary.",
+                "keywords": ["complete"],
+            }
+        return None
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": flaky_ollama_client},
+    )
+
+    assert result is None
+    enriched_segments = json.loads((tmp_path / "enriched.json").read_text())
+    assert enriched_segments[0]["title"] == "Generated Title"
+    assert enriched_segments[0]["keywords"] == ["complete"]
+    assert enriched_segments[1]["title"] == "Error"
+    assert enriched_segments[1]["summary"] == "Failed to generate"
+    assert enriched_segments[1]["keywords"] == []
+
+
 def test_call_gemini_api_missing_key_does_not_require_google_sdk(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
@@ -449,5 +499,4 @@ def test_run_enrichment_rejects_invalid_resume_state_before_calling_provider(tmp
 
     assert result is None
     assert calls == []
-
 

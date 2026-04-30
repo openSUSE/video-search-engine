@@ -423,5 +423,20 @@ def run_enrichment(
             logger.error(f"FATAL: Could not write progress to {output_path}. Halting. Error: {e}")
             return None # Stop if we can't save
 
+    incomplete_segment_ids = [
+        segment["segment_id"]
+        for segment in segments
+        if not _has_complete_enrichment(segment)
+    ]
+    if incomplete_segment_ids:
+        logger.error(
+            "Enrichment incomplete for %s segment(s); saved progress remains at %s. "
+            "Retry before indexing. Segment IDs: %s",
+            len(incomplete_segment_ids),
+            output_path,
+            ", ".join(incomplete_segment_ids[:10]),
+        )
+        return None
+
     logger.info(f"--- Enrichment Step Complete! Final data is in {output_path} ---")
     return output_path
