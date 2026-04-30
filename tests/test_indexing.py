@@ -52,29 +52,42 @@ class FakeCollection:
         }
 
 
+def _enriched_segment(**updates):
+    segment = {
+        "segment_id": "segment-1",
+        "title": "Segment Title",
+        "summary": "Segment summary.",
+        "keywords": ["keyword"],
+        "start_time": 1.5,
+        "end_time": 4.0,
+    }
+    segment.update(updates)
+    return segment
+
+
 def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(tmp_path):
     enriched_segments_path = tmp_path / "segments.json"
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "full_transcript": "spoken words",
-                    "summary": "person enters",
-                    "speakers": ["Alice", "Bob"],
-                    "keywords": ["arrival"],
-                    "consolidated_actions": ["walking"],
-                    "consolidated_visual_captions": ["a doorway"],
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                },
-                {
-                    "segment_id": "segment-2",
-                    "full_transcript": "",
-                    "summary": "fallback summary",
-                    "start_time": 5,
-                    "end_time": 8,
-                },
+                _enriched_segment(
+                    title="  Arrival  ",
+                    full_transcript="spoken words",
+                    summary="  person enters  ",
+                    speakers=["Alice", "Bob"],
+                    keywords=["arrival"],
+                    consolidated_actions=["walking"],
+                    consolidated_visual_captions=["a doorway"],
+                ),
+                _enriched_segment(
+                    segment_id="segment-2",
+                    title="Fallback Title",
+                    full_transcript="",
+                    summary="fallback summary",
+                    keywords=["fallback"],
+                    start_time=5,
+                    end_time=8,
+                ),
             ]
         )
     )
@@ -91,10 +104,13 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
 
     assert embedding_model.encode_calls == [
         {
-            # Text side joins title (none here) + keywords + transcript so
-            # long transcripts truncate their own tail instead of dropping
-            # the LLM-derived anchors.
-            "texts": ["arrival. spoken words", "fallback summary"],
+            # Text side joins title + keywords + transcript so long
+            # transcripts truncate their own tail instead of dropping the
+            # LLM-derived anchors.
+            "texts": [
+                "Arrival. arrival. spoken words",
+                "Fallback Title. fallback. fallback summary",
+            ],
             "show_progress_bar": True,
         },
         {
@@ -119,7 +135,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
     ]
     assert collection.upsert_call["metadatas"] == [
         {
-            "title": "",
+            "title": "Arrival",
             "summary": "person enters",
             "speakers": "Alice,Bob",
             "keywords": "arrival",
@@ -130,7 +146,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "type": "text",
         },
         {
-            "title": "",
+            "title": "Arrival",
             "summary": "person enters",
             "speakers": "Alice,Bob",
             "keywords": "arrival",
@@ -141,10 +157,10 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "type": "visual",
         },
         {
-            "title": "",
+            "title": "Fallback Title",
             "summary": "fallback summary",
             "speakers": "",
-            "keywords": "",
+            "keywords": "fallback",
             "actions": "",
             "start_time": 5.0,
             "end_time": 8.0,
@@ -152,10 +168,10 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
             "type": "text",
         },
         {
-            "title": "",
+            "title": "Fallback Title",
             "summary": "fallback summary",
             "speakers": "",
-            "keywords": "",
+            "keywords": "fallback",
             "actions": "",
             "start_time": 5.0,
             "end_time": 8.0,
@@ -181,12 +197,7 @@ def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -211,12 +222,7 @@ def test_run_indexing_normalizes_segment_ids_before_building_document_ids(tmp_pa
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "  segment-1  ",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(segment_id="  segment-1  ", summary="person enters")
             ]
         )
     )
@@ -241,12 +247,7 @@ def test_run_indexing_deletes_stale_documents_for_reindexed_video(tmp_path):
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -287,12 +288,7 @@ def test_run_indexing_does_not_delete_when_reindexed_video_has_no_stale_document
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -331,12 +327,7 @@ def test_run_indexing_rejects_embedding_count_mismatch_before_upsert(
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -381,18 +372,14 @@ def test_run_indexing_rejects_embedding_dimension_mismatch_before_upsert(
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                },
-                {
-                    "segment_id": "segment-2",
-                    "summary": "person exits",
-                    "start_time": 5.0,
-                    "end_time": 7.0,
-                },
+                _enriched_segment(summary="person enters"),
+                _enriched_segment(
+                    segment_id="segment-2",
+                    summary="person exits",
+                    keywords=["exit"],
+                    start_time=5.0,
+                    end_time=7.0,
+                ),
             ]
         )
     )
@@ -437,12 +424,7 @@ def test_run_indexing_rejects_nonnumeric_embeddings_before_upsert(
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -476,12 +458,7 @@ def test_run_indexing_rejects_nonfinite_embeddings_before_upsert(tmp_path):
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.5,
-                    "end_time": 4.0,
-                }
+                _enriched_segment(summary="person enters")
             ]
         )
     )
@@ -574,6 +551,51 @@ def test_run_indexing_rejects_invalid_segments_before_creating_dependencies(
         )
 
 
+@pytest.mark.parametrize(
+    ("segment_updates", "message"),
+    [
+        ({"title": ""}, "title"),
+        ({"title": "   "}, "title"),
+        ({"summary": ""}, "summary"),
+        ({"summary": "   "}, "summary"),
+        ({"keywords": []}, "keywords"),
+        ({"keywords": ["", "  "]}, "keywords"),
+    ],
+)
+def test_run_indexing_rejects_incomplete_enrichment_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+    segment_updates,
+    message,
+):
+    segment = {
+        "segment_id": "segment-1",
+        "title": "Complete Title",
+        "summary": "Complete summary.",
+        "keywords": ["complete"],
+        "start_time": 1.0,
+        "end_time": 2.0,
+    }
+    segment.update(segment_updates)
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(json.dumps([segment]))
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for incomplete enrichment"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match=message):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
+
+
 def test_run_indexing_rejects_duplicate_segment_ids_after_normalization(
     monkeypatch,
     tmp_path,
@@ -582,18 +604,18 @@ def test_run_indexing_rejects_duplicate_segment_ids_after_normalization(
     enriched_segments_path.write_text(
         json.dumps(
             [
-                {
-                    "segment_id": "segment-1",
-                    "summary": "person enters",
-                    "start_time": 1.0,
-                    "end_time": 2.0,
-                },
-                {
-                    "segment_id": " segment-1 ",
-                    "summary": "person exits",
-                    "start_time": 3.0,
-                    "end_time": 4.0,
-                },
+                _enriched_segment(
+                    segment_id="segment-1",
+                    summary="person enters",
+                    start_time=1.0,
+                    end_time=2.0,
+                ),
+                _enriched_segment(
+                    segment_id=" segment-1 ",
+                    summary="person exits",
+                    start_time=3.0,
+                    end_time=4.0,
+                ),
             ]
         )
     )
@@ -659,6 +681,7 @@ def test_run_indexing_text_context_includes_title_and_keywords(tmp_path):
                 {
                     "segment_id": "segment-1",
                     "title": "Arriving at the Station",
+                    "summary": "Arrival summary.",
                     "full_transcript": "I just got here.",
                     "keywords": ["arrival", "station"],
                     "start_time": 0.0,
@@ -692,6 +715,7 @@ def test_run_indexing_drops_blank_keyword_entries_from_embedding(tmp_path):
                 {
                     "segment_id": "segment-1",
                     "title": "Padded Title",
+                    "summary": "Padded summary.",
                     "full_transcript": "spoken text",
                     # Validators only require list-of-string. Blank and
                     # whitespace-only keywords used to leak ". ." artefacts

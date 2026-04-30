@@ -196,6 +196,50 @@ def _validate_optional_string_list_field(
             )
 
 
+def _normalize_required_string_field(
+    segment: Dict[str, Any],
+    index: int,
+    field_name: str,
+) -> None:
+    value = segment.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} "
+            "must be a non-empty string"
+        )
+    segment[field_name] = value.strip()
+
+
+def _normalize_required_string_list_field(
+    segment: Dict[str, Any],
+    index: int,
+    field_name: str,
+) -> None:
+    value = segment.get(field_name)
+    if not isinstance(value, list):
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} must be a JSON array"
+        )
+
+    normalized_values = []
+    for item_index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(
+                f"enriched segment at index {index} {field_name} item at index "
+                f"{item_index} must be a string"
+            )
+        item = item.strip()
+        if item:
+            normalized_values.append(item)
+
+    if not normalized_values:
+        raise ValueError(
+            f"enriched segment at index {index} {field_name} "
+            "must include at least one non-empty string"
+        )
+    segment[field_name] = normalized_values
+
+
 def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
     if not isinstance(segments, list):
         raise ValueError("enriched segments file must contain a JSON array")
@@ -235,6 +279,9 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
             )
         segment["start_time"] = start_time
         segment["end_time"] = end_time
+        _normalize_required_string_field(segment, index, "title")
+        _normalize_required_string_field(segment, index, "summary")
+        _normalize_required_string_list_field(segment, index, "keywords")
 
     return segments
 
