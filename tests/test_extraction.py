@@ -957,7 +957,7 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
         )
     )
     Path(paths["visual_details"]).write_text(
-        json.dumps([{"shot_id": "shot_0001", "caption": "a station platform"}])
+        json.dumps([{"shot_id": "shot_0001", "caption": "  a station platform  "}])
     )
     Path(paths["audio_events"]).write_text(
         json.dumps(

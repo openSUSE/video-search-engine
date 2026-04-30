@@ -205,6 +205,59 @@ def test_run_segmentation_preserves_empty_speakers_for_transcripts_without_ids(t
     assert segments[0]["consolidated_actions"] == ["walking"]
 
 
+def test_run_segmentation_normalizes_visual_captions_before_embedding_and_output(tmp_path):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "  quiet room  ",
+                    "transcript_segments": [{"text": "ambient"}],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+                {
+                    "shot_id": "shot_0002",
+                    "time_start_sec": 1.0,
+                    "time_end_sec": 2.0,
+                    "visual_caption": "   ",
+                    "transcript_segments": [{"text": "ambient"}],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+            ]
+        )
+    )
+    speaker_map_path.write_text("{}")
+
+    class StableEmbeddingModel:
+        def __init__(self):
+            self.calls = []
+
+        def encode(self, texts, **kwargs):
+            self.calls.append({"texts": texts, "kwargs": kwargs})
+            return [[1.0, 0.0] for _text in texts]
+
+    embedding_model = StableEmbeddingModel()
+
+    output_path = run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(analysis_path),
+        speaker_map_path=str(speaker_map_path),
+        config={"filenames": {"final_segments": "segments.json"}},
+        embedding_model=embedding_model,
+    )
+
+    segments = json.loads((tmp_path / "segments.json").read_text())
+    assert output_path == str(tmp_path / "segments.json")
+    assert embedding_model.calls[1]["texts"] == ["quiet room", ""]
+    assert segments[0]["consolidated_visual_captions"] == ["quiet room"]
+
+
 def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
     output_path = tmp_path / "custom_segments.json"
     output_path.write_text(json.dumps([_cached_segment()]))

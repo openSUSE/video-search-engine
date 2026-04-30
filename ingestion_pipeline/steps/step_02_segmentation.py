@@ -141,6 +141,7 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
         visual_caption = shot.get("visual_caption")
         if not isinstance(visual_caption, str):
             raise ValueError(f"shot at index {shot_index} must have string visual_caption")
+        shot["visual_caption"] = visual_caption.strip()
 
         transcript_segments = shot.get("transcript_segments")
         if not isinstance(transcript_segments, list):
@@ -675,8 +676,8 @@ def _merge_shots_into_segment(shots_to_merge: List[Dict[str, Any]]) -> Dict[str,
     
     for shot in shots_to_merge:
         all_speakers.update(shot['speakers'])
-        if shot['visual_caption'] not in all_visual_captions:
-             all_visual_captions.append(shot['visual_caption'])
+        if shot['visual_caption'] and shot['visual_caption'] not in all_visual_captions:
+            all_visual_captions.append(shot['visual_caption'])
         all_audio_events.update(shot['audio_events'])
         all_actions.update(shot['actions']) 
 

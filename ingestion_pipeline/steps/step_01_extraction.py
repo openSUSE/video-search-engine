@@ -319,7 +319,7 @@ def _validate_visual_details(raw_visual_data: Any) -> List[Dict[str, Any]]:
                 f"visual details item at index {item_index} must have string caption"
             )
 
-        normalized_visual_data.append({"shot_id": shot_id, "caption": caption})
+        normalized_visual_data.append({"shot_id": shot_id, "caption": caption.strip()})
 
     return normalized_visual_data
 
