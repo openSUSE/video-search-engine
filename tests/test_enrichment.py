@@ -232,6 +232,57 @@ def test_run_enrichment_ignores_non_object_video_metadata(tmp_path):
     assert "- Synopsis: N/A" in calls[0]
 
 
+def test_run_enrichment_ignores_unreadable_video_metadata(
+    monkeypatch,
+    tmp_path,
+):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "dialogue",
+                    "speakers": [],
+                    "consolidated_visual_captions": [],
+                    "consolidated_actions": [],
+                    "consolidated_audio_events": [],
+                }
+            ]
+        )
+    )
+    metadata_path = tmp_path / "video_metadata.json"
+    metadata_path.write_text(json.dumps({"title": "Demo Movie"}))
+    real_open = builtins.open
+
+    def unreadable_metadata(path, *args, **kwargs):
+        if path == str(metadata_path):
+            raise PermissionError("permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", unreadable_metadata)
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {"title": "Generated", "summary": "Summary.", "keywords": ["demo"]}
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    assert "- Title: N/A" in calls[0]
+    assert "- Synopsis: N/A" in calls[0]
+
+
 def test_run_enrichment_retries_partially_enriched_segments(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(

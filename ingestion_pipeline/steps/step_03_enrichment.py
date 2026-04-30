@@ -153,6 +153,9 @@ def _load_video_metadata(path: str) -> Dict[str, Any]:
     try:
         with open(path, 'r') as f:
             video_metadata = json.load(f)
+    except OSError as exc:
+        logger.warning(f"Could not read {path}: {exc}. Proceeding without it.")
+        return {}
     except json.JSONDecodeError:
         logger.warning(f"Could not parse {path}. Proceeding without it.")
         return {}
