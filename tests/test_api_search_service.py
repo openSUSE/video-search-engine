@@ -130,6 +130,104 @@ def test_hybrid_search_service_skips_malformed_text_metadata():
     assert results[0]["summary"] == "valid result"
 
 
+def test_hybrid_search_service_skips_metadata_for_wrong_video_filter():
+    class CollectionWithWrongVideoMetadata(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::wrong-video_text",
+                            "demo.mp4::valid_text",
+                        ]
+                    ]
+                }
+            return {"ids": [[]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": [
+                    "demo.mp4::wrong-video_text",
+                    "demo.mp4::valid_text",
+                ],
+                "metadatas": [
+                    _metadata(title="Wrong video", video_filename="other.mp4"),
+                    _metadata(title="Valid", summary="matching selected video"),
+                ],
+            }
+
+    service = HybridSearchService(
+        FakeEmbeddingModel(),
+        CollectionWithWrongVideoMetadata(),
+    )
+
+    results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    assert [result["id"] for result in results] == ["demo.mp4::valid"]
+    assert results[0]["summary"] == "matching selected video"
+
+
+def test_hybrid_search_service_skips_metadata_mismatching_scoped_document_id():
+    class CollectionWithMismatchedDocumentScope(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::wrong-scope_text",
+                            "other.mp4::valid_text",
+                        ]
+                    ]
+                }
+            return {"ids": [[]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": [
+                    "demo.mp4::wrong-scope_text",
+                    "other.mp4::valid_text",
+                ],
+                "metadatas": [
+                    _metadata(title="Wrong scope", video_filename="other.mp4"),
+                    _metadata(
+                        title="Other video",
+                        summary="metadata matches document scope",
+                        video_filename="other.mp4",
+                    ),
+                ],
+            }
+
+    service = HybridSearchService(
+        FakeEmbeddingModel(),
+        CollectionWithMismatchedDocumentScope(),
+    )
+
+    results = service.search("find highlights", top_k=2)
+
+    assert [result["id"] for result in results] == ["other.mp4::valid"]
+    assert results[0]["summary"] == "metadata matches document scope"
+
+
 def test_hybrid_search_service_backfills_from_lower_ranked_candidates_when_top_metadata_stale():
     class CollectionWithStaleTopCandidate(FakeCollection):
         def query(self, *, query_embeddings, n_results, where, include):

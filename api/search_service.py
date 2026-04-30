@@ -157,10 +157,20 @@ def _metadata_time(metadata: Dict[str, Any], field_name: str) -> Optional[float]
     return time_value
 
 
+def _scoped_video_filename(segment_id: str) -> Optional[str]:
+    if "::" not in segment_id:
+        return None
+
+    video_filename, _segment_name = segment_id.rsplit("::", 1)
+    video_filename = video_filename.strip()
+    return video_filename or None
+
+
 def _format_search_result(
     segment_id: str,
     score: float,
     metadata: Any,
+    requested_video_filename: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     if not isinstance(metadata, dict):
         return None
@@ -185,6 +195,12 @@ def _format_search_result(
         or end_time is None
         or end_time < start_time
     ):
+        return None
+
+    segment_video_filename = _scoped_video_filename(segment_id)
+    if requested_video_filename and video_filename != requested_video_filename:
+        return None
+    if segment_video_filename and video_filename != segment_video_filename:
         return None
 
     return {
@@ -255,6 +271,7 @@ class HybridSearchService:
                 segment_id,
                 fused_scores[segment_id],
                 metadata,
+                requested_video_filename=video_filename,
             )
             if result is None:
                 logger.warning(
