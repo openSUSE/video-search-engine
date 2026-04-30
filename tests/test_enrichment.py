@@ -68,6 +68,55 @@ def test_run_enrichment_uses_injected_provider_and_preserves_completed_segments(
     assert calls[0]["config"] == config
 
 
+def test_run_enrichment_normalizes_context_lists_before_prompting(tmp_path):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment_0001",
+                    "start_time": 0.0,
+                    "end_time": 5.0,
+                    "full_transcript": "dialogue",
+                    "speakers": [" Alice ", "", "  Bob  "],
+                    "consolidated_visual_captions": [" platform ", "   "],
+                    "consolidated_actions": [" waiting ", ""],
+                    "consolidated_audio_events": [" announcement ", "\t"],
+                }
+            ]
+        )
+    )
+    calls = []
+
+    def fake_ollama_client(prompt, _config):
+        calls.append(prompt)
+        return {
+            "title": "Generated Title",
+            "summary": "Generated summary.",
+            "keywords": ["platform"],
+        }
+
+    output_path = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": fake_ollama_client},
+    )
+
+    assert output_path == str(tmp_path / "enriched.json")
+    assert "- Speakers: Alice, Bob" in calls[0]
+    assert "- Key Visuals: platform" in calls[0]
+    assert "- Key Actions: waiting" in calls[0]
+    assert "- Background Audio Events: announcement" in calls[0]
+    enriched_segments = json.loads((tmp_path / "enriched.json").read_text())
+    assert enriched_segments[0]["speakers"] == ["Alice", "Bob"]
+    assert enriched_segments[0]["consolidated_visual_captions"] == ["platform"]
+    assert enriched_segments[0]["consolidated_actions"] == ["waiting"]
+    assert enriched_segments[0]["consolidated_audio_events"] == ["announcement"]
+
+
 def test_run_enrichment_normalizes_provider_name(tmp_path):
     segments_path = tmp_path / "final_segments.json"
     segments_path.write_text(

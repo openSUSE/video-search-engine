@@ -196,6 +196,11 @@ def _validate_optional_string_list_field(
                 f"segment at index {index} field {field_name} item at index "
                 f"{item_index} must be a string"
             )
+    segment[field_name] = [
+        item
+        for item in (item.strip() for item in value)
+        if item
+    ]
 
 
 def _segment_time_value(segment: Dict[str, Any], index: int, field_name: str) -> float:
