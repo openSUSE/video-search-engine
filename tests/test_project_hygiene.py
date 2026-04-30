@@ -124,6 +124,21 @@ def test_search_streamlit_ui_uses_shared_video_file_filter():
     assert "supported_video_filenames" in body_text
 
 
+def test_search_streamlit_ui_uses_positioned_result_button_keys():
+    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    imported_client_names = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.ui.search_client"
+        for alias in node.names
+    }
+    body_text = ast.unparse(tree)
+
+    assert "search_result_play_button_key" in imported_client_names
+    assert "for result_index, result in enumerate(results)" in body_text
+    assert "search_result_play_button_key(result['id'], result_index)" in body_text
+
+
 def test_speaker_streamlit_ui_uses_support_path_boundary():
     tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
     imported_modules = _top_level_import_modules("app/ui/speaker_id_tool.py")

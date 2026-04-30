@@ -14,6 +14,7 @@ from app.ui.search_client import (
     post_search,
     search_api_url,
     search_payload,
+    search_result_play_button_key,
     search_results_from_response,
 )
 from app.ui.search_state import (
@@ -133,7 +134,7 @@ st.divider()
 st.header("Results")
 if st.session_state.search_results:
     results = st.session_state.search_results
-    for result in results:
+    for result_index, result in enumerate(results):
         with st.container(border=True):
             res_col1, res_col2 = st.columns([4, 1])
             with res_col1:
@@ -145,8 +146,10 @@ if st.session_state.search_results:
                     f"{result['speakers'] or 'N/A'}"
                 )
             with res_col2:
-                # Use a unique key for each button to avoid conflicts
-                if st.button("▶️ Play", key=f"play_{result['id']}"):
+                if st.button(
+                    "▶️ Play",
+                    key=search_result_play_button_key(result['id'], result_index),
+                ):
                     st.session_state.start_time = int(result['start_time'])
                     # st.rerun() is essential to force the UI to update immediately
                     # with the new video start time.

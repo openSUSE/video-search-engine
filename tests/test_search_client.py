@@ -114,6 +114,17 @@ def test_search_payload_uses_null_for_omitted_video_filter(video_filename):
     }
 
 
+def test_search_result_play_button_keys_include_result_position_for_duplicates():
+    assert (
+        search_client.search_result_play_button_key("segment-a", 0)
+        == "play_0_segment-a"
+    )
+    assert (
+        search_client.search_result_play_button_key("segment-a", 1)
+        == "play_1_segment-a"
+    )
+
+
 def test_request_exception_is_exposed_by_client_boundary():
     assert search_client.RequestException is search_client.requests.exceptions.RequestException
 

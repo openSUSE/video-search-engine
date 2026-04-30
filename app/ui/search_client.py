@@ -124,6 +124,10 @@ def search_payload(
     }
 
 
+def search_result_play_button_key(result_id: str, result_index: int) -> str:
+    return f"play_{result_index}_{result_id}"
+
+
 def search_timeout_seconds(raw_value: str | None = None) -> float:
     raw_timeout = os.getenv("SEARCH_API_TIMEOUT_SECONDS") if raw_value is None else raw_value
     if raw_timeout is None:
