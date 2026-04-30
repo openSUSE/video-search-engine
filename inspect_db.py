@@ -58,24 +58,28 @@ def inspect_collection(fetch_limit: int = FETCH_LIMIT) -> None:
         print(f"Failed to connect to ChromaDB. Is the Docker container running? Error: {e}")
         return
 
-    # 3. Get the total number of items in the collection
-    total_items = collection.count()
-    print(f"\nCollection contains {total_items} total items (vectors).")
+    try:
+        # 3. Get the total number of items in the collection
+        total_items = collection.count()
+        print(f"\nCollection contains {total_items} total items (vectors).")
 
-    if total_items == 0:
-        print("The collection is empty.")
+        if total_items == 0:
+            print("The collection is empty.")
+            return
+
+        # 4. Fetch a sample of items from the collection
+        print(f"\nFetching the first {fetch_limit} items...")
+
+        # Use collection.get() to retrieve records.
+        # We include 'metadatas' because that's where all our human-readable info is.
+        # We EXCLUDE 'embeddings' because they are just giant arrays of numbers.
+        results = collection.get(
+            limit=fetch_limit,
+            include=["metadatas"]
+        )
+    except Exception as e:
+        print(f"Failed to inspect ChromaDB collection. Error: {e}")
         return
-
-    # 4. Fetch a sample of items from the collection
-    print(f"\nFetching the first {fetch_limit} items...")
-
-    # Use collection.get() to retrieve records.
-    # We include 'metadatas' because that's where all our human-readable info is.
-    # We EXCLUDE 'embeddings' because they are just giant arrays of numbers.
-    results = collection.get(
-        limit=fetch_limit,
-        include=["metadatas"]
-    )
 
     # 5. Print the results in a nicely formatted way
     print("\n--- Sample Records ---")

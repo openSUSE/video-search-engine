@@ -53,6 +53,71 @@ def test_inspect_collection_rejects_invalid_limit_before_config(monkeypatch, cap
     assert "Invalid fetch limit" in capsys.readouterr().out
 
 
+def test_inspect_collection_handles_count_failures(monkeypatch, capsys):
+    def fake_load_config():
+        return {
+            "database": {
+                "host": "localhost",
+                "port": 8000,
+                "collection_name": "video_search_engine",
+            }
+        }
+
+    class FakeCollection:
+        def count(self):
+            raise RuntimeError("count unavailable")
+
+    class FakeClient:
+        def __init__(self, host, port):
+            pass
+
+        def get_collection(self, name):
+            return FakeCollection()
+
+    monkeypatch.setattr(inspect_db, "_load_config", fake_load_config)
+    monkeypatch.setitem(sys.modules, "chromadb", SimpleNamespace(HttpClient=FakeClient))
+
+    inspect_db.inspect_collection(fetch_limit=3)
+
+    output = capsys.readouterr().out
+    assert "Failed to inspect ChromaDB collection" in output
+    assert "count unavailable" in output
+
+
+def test_inspect_collection_handles_sample_fetch_failures(monkeypatch, capsys):
+    def fake_load_config():
+        return {
+            "database": {
+                "host": "localhost",
+                "port": 8000,
+                "collection_name": "video_search_engine",
+            }
+        }
+
+    class FakeCollection:
+        def count(self):
+            return 2
+
+        def get(self, *, limit, include):
+            raise RuntimeError("sample fetch unavailable")
+
+    class FakeClient:
+        def __init__(self, host, port):
+            pass
+
+        def get_collection(self, name):
+            return FakeCollection()
+
+    monkeypatch.setattr(inspect_db, "_load_config", fake_load_config)
+    monkeypatch.setitem(sys.modules, "chromadb", SimpleNamespace(HttpClient=FakeClient))
+
+    inspect_db.inspect_collection(fetch_limit=3)
+
+    output = capsys.readouterr().out
+    assert "Failed to inspect ChromaDB collection" in output
+    assert "sample fetch unavailable" in output
+
+
 def test_inspect_db_main_rejects_invalid_limit_argument(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["inspect_db", "--limit", "0"])
 
