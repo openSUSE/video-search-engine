@@ -401,6 +401,51 @@ def test_run_extraction_rejects_invalid_required_paths_before_loading_config(
         run_extraction(**kwargs)
 
 
+@pytest.mark.parametrize("video_title", [123, True])
+def test_run_extraction_rejects_invalid_title_before_loading_config(
+    monkeypatch,
+    tmp_path,
+    video_title,
+):
+    def fail_load_config():
+        raise AssertionError("config should not load for an invalid title")
+
+    monkeypatch.setattr(extraction_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match="title"):
+        run_extraction(
+            video_path=str(tmp_path / "demo.mp4"),
+            base_output_dir=str(tmp_path / "processed"),
+            video_title=video_title,
+        )
+
+
+def test_run_extraction_treats_blank_title_as_missing_before_metadata_lookup(tmp_path):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+
+    for path in paths.values():
+        Path(path).write_text("[]")
+
+    def fail_metadata_fetcher(_title, _year):
+        raise AssertionError("blank titles should not trigger metadata lookup")
+
+    run_extraction(
+        video_path=str(tmp_path / "demo.mp4"),
+        base_output_dir=str(output_dir),
+        video_title="   ",
+        config=config,
+        metadata_fetcher=fail_metadata_fetcher,
+    )
+
+    metadata = json.loads((video_dir / "video_metadata.json").read_text())
+    assert metadata["title"] == "demo"
+    assert metadata["synopsis"] == "No synopsis provided."
+
+
 @pytest.mark.parametrize("video_year", [0, -1, True])
 def test_run_extraction_rejects_invalid_year_before_metadata_lookup(
     tmp_path,
