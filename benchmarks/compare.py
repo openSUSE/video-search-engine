@@ -84,9 +84,25 @@ def _median_by_name(report: Mapping[str, object]) -> Dict[str, Dict[str, object]
 
         indexed[name] = {
             "category": category.strip(),
-            "median": ns.get("median"),
+            "median": _required_median(ns.get("median"), index),
         }
     return indexed
+
+
+def _required_median(value: object, result_index: int) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"report result at index {result_index} ns.median must be a "
+            "finite non-negative number"
+        )
+
+    median = float(value)
+    if not math.isfinite(median) or median < 0:
+        raise ValueError(
+            f"report result at index {result_index} ns.median must be a "
+            "finite non-negative number"
+        )
+    return median
 
 
 def compare_reports(

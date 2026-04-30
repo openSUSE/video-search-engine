@@ -259,6 +259,20 @@ def test_runner_baseline_with_forced_regression_exits_one(tmp_path):
             ),
             "duplicate benchmark result name",
         ),
+        (
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "name": "jobs.encode_job_message(minimal)",
+                            "category": "jobs",
+                            "ns": {"median": None},
+                        }
+                    ]
+                }
+            ),
+            "median",
+        ),
     ],
 )
 def test_runner_invalid_baseline_reports_usage_error(

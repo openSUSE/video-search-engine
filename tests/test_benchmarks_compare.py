@@ -22,6 +22,11 @@ from benchmarks.reporters import RunMetadata, format_markdown_report
 
 
 def _report(*entries):
+    def total_for(median):
+        if isinstance(median, (int, float)) and not isinstance(median, bool):
+            return median * 10
+        return 0
+
     return {
         "metadata": {
             "python_version": "3.12",
@@ -45,7 +50,7 @@ def _report(*entries):
                     "p99": median,
                     "max": median,
                     "stdev": 0.0,
-                    "total": median * 10,
+                    "total": total_for(median),
                 },
             }
             for (name, category, median) in entries
@@ -110,28 +115,22 @@ def test_compare_reports_zero_baseline_is_unchanged():
     assert rows[0].delta_ratio is None
 
 
-@pytest.mark.parametrize("median", [float("nan"), float("inf"), -1.0])
-def test_compare_reports_ignores_unusable_baseline_medians(median):
+@pytest.mark.parametrize("median", [None, "100", True, float("nan"), float("inf"), -1.0])
+def test_compare_reports_rejects_unusable_baseline_medians(median):
     baseline = _report(("a", "api", median))
     current = _report(("a", "api", 100.0))
 
-    rows = compare_reports(baseline, current, warn_ratio=0.10)
-
-    assert rows[0].status == "unchanged"
-    assert rows[0].baseline_median_ns is None
-    assert rows[0].delta_ratio is None
+    with pytest.raises(ValueError, match="median"):
+        compare_reports(baseline, current, warn_ratio=0.10)
 
 
-@pytest.mark.parametrize("median", [float("nan"), float("inf"), -1.0])
-def test_compare_reports_ignores_unusable_current_medians(median):
+@pytest.mark.parametrize("median", [None, "100", True, float("nan"), float("inf"), -1.0])
+def test_compare_reports_rejects_unusable_current_medians(median):
     baseline = _report(("a", "api", 100.0))
     current = _report(("a", "api", median))
 
-    rows = compare_reports(baseline, current, warn_ratio=0.10)
-
-    assert rows[0].status == "unchanged"
-    assert rows[0].current_median_ns is None
-    assert rows[0].delta_ratio is None
+    with pytest.raises(ValueError, match="median"):
+        compare_reports(baseline, current, warn_ratio=0.10)
 
 
 @pytest.mark.parametrize("warn_ratio", [-0.5, float("nan"), float("inf")])
