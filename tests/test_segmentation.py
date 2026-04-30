@@ -659,6 +659,60 @@ def test_run_segmentation_rejects_nonfinite_embeddings_before_scoring(tmp_path):
     assert not output_path.exists()
 
 
+def test_run_segmentation_handles_large_finite_embeddings_without_losing_boundaries(
+    tmp_path,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [{"text": "hello there"}],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+                {
+                    "shot_id": "shot_0002",
+                    "time_start_sec": 1.0,
+                    "time_end_sec": 2.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [{"text": "still hello"}],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+            ]
+        )
+    )
+    speaker_map_path.write_text("{}")
+
+    class LargeMagnitudeEmbeddingModel:
+        def encode(self, texts, **kwargs):
+            return [
+                [1e308, 1e308],
+                [-1e308, -1e308],
+            ]
+
+    run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(analysis_path),
+        speaker_map_path=str(speaker_map_path),
+        config={"filenames": {"final_segments": output_path.name}},
+        embedding_model=LargeMagnitudeEmbeddingModel(),
+    )
+
+    segments = json.loads(output_path.read_text())
+    assert [segment["shot_ids"] for segment in segments] == [
+        ["shot_0001"],
+        ["shot_0002"],
+    ]
+
+
 @pytest.mark.parametrize(
     "encoded_vector",
     ["12", b"12", bytearray(b"12"), {0: 0.25, 1: 0.75}],

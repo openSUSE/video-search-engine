@@ -1,7 +1,8 @@
-import logging
 import json
-import os
+import logging
 import math
+import os
+import sys
 from collections.abc import Mapping
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
@@ -465,14 +466,32 @@ def _cosine_similarity(left: Any, right: Any) -> float:
     if len(left_values) != len(right_values):
         raise ValueError("embedding vectors must have the same dimensions")
 
-    numerator = sum(left_value * right_value for left_value, right_value in zip(left_values, right_values))
-    left_norm = math.sqrt(sum(value * value for value in left_values))
-    right_norm = math.sqrt(sum(value * value for value in right_values))
+    max_abs_value = max(
+        max((abs(value) for value in left_values), default=0.0),
+        max((abs(value) for value in right_values), default=0.0),
+    )
+    if max_abs_value == 0:
+        return 0.0
+
+    safe_component = math.sqrt(sys.float_info.max / len(left_values))
+    if max_abs_value > safe_component:
+        left_values = [value / max_abs_value for value in left_values]
+        right_values = [value / max_abs_value for value in right_values]
+
+    numerator = math.fsum(
+        left_value * right_value
+        for left_value, right_value in zip(left_values, right_values)
+    )
+    left_norm = math.sqrt(math.fsum(value * value for value in left_values))
+    right_norm = math.sqrt(math.fsum(value * value for value in right_values))
 
     if left_norm == 0 or right_norm == 0:
         return 0.0
 
-    return numerator / (left_norm * right_norm)
+    similarity = numerator / (left_norm * right_norm)
+    if not math.isfinite(similarity):
+        raise ValueError("embedding cosine similarity must be finite")
+    return max(-1.0, min(1.0, similarity))
 
 
 def run_segmentation(
