@@ -114,6 +114,20 @@ llm_enrichment:
     assert config["llm_enrichment"]["gemini"]["model"] == "gemini-flash"
 
 
+def test_chroma_collection_environment_override_allows_chroma_name_characters(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv("CHROMA_COLLECTION", " video-segments.v2_2026 ")
+
+    config_module = _load_config_module(monkeypatch, tmp_path, "{}")
+
+    assert (
+        config_module.CONFIG["database"]["collection_name"]
+        == "video-segments.v2_2026"
+    )
+
+
 def test_blank_environment_overrides_fall_back_to_config_values(monkeypatch, tmp_path):
     for env_name in [
         "UI_HOST",
@@ -538,6 +552,52 @@ def test_invalid_port_environment_overrides_fail_fast(
     ],
 )
 def test_invalid_configured_ports_fail_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
+@pytest.mark.parametrize(
+    "raw_collection",
+    [
+        "ab",
+        "A_bad_name",
+        "-bad-name",
+        "bad-name-",
+        ".bad-name",
+        "bad-name.",
+        "bad..name",
+        "bad/name",
+        "bad name",
+        "192.168.0.1",
+        "a" * 513,
+    ],
+)
+def test_invalid_chroma_collection_environment_overrides_fail_fast(
+    monkeypatch,
+    tmp_path,
+    raw_collection,
+):
+    monkeypatch.setenv("CHROMA_COLLECTION", raw_collection)
+
+    with pytest.raises(ValueError, match="CHROMA_COLLECTION"):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("database:\n  collection_name: ab\n", "CHROMA_COLLECTION"),
+        ("database:\n  collection_name: BadName\n", "CHROMA_COLLECTION"),
+        ("database:\n  collection_name: bad..name\n", "CHROMA_COLLECTION"),
+        ("database:\n  collection_name: 10.0.0.1\n", "CHROMA_COLLECTION"),
+    ],
+)
+def test_invalid_configured_chroma_collection_names_fail_fast(
     monkeypatch,
     tmp_path,
     config_text,

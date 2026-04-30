@@ -3,6 +3,7 @@ import ipaddress
 import logging
 import math
 import os
+import re
 from typing import Dict, Any
 from urllib.parse import urlsplit
 
@@ -23,6 +24,9 @@ CONFIG_SECTIONS = [
 ]
 MIN_TCP_PORT = 1
 MAX_TCP_PORT = 65535
+MIN_CHROMA_COLLECTION_NAME_LENGTH = 3
+MAX_CHROMA_COLLECTION_NAME_LENGTH = 512
+CHROMA_COLLECTION_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*[a-z0-9]$")
 DEFAULT_FILENAMES = {
     "audio": "normalized_audio.mp3",
     "raw_transcript": "transcript_raw.json",
@@ -282,6 +286,37 @@ def _port_setting(env_name: str, config_value: Any, default: int) -> int:
     return port
 
 
+def _chroma_collection_setting(
+    env_name: str,
+    config_value: Any,
+    default: str,
+) -> str:
+    collection_name = _string_setting(env_name, config_value, default)
+    invalid_message = (
+        f"{env_name} must be a valid Chroma collection name: "
+        f"{MIN_CHROMA_COLLECTION_NAME_LENGTH}-"
+        f"{MAX_CHROMA_COLLECTION_NAME_LENGTH} lowercase letters, digits, dots, "
+        "dashes, or underscores; start/end with a letter or digit; no '..'; "
+        "not an IPv4 address"
+    )
+    if (
+        not MIN_CHROMA_COLLECTION_NAME_LENGTH
+        <= len(collection_name)
+        <= MAX_CHROMA_COLLECTION_NAME_LENGTH
+        or not CHROMA_COLLECTION_NAME_PATTERN.fullmatch(collection_name)
+        or ".." in collection_name
+    ):
+        raise ValueError(invalid_message)
+
+    try:
+        ip_address = ipaddress.ip_address(collection_name)
+    except ValueError:
+        return collection_name
+    if ip_address.version == 4:
+        raise ValueError(invalid_message)
+    return collection_name
+
+
 def _filename_setting(key: str, config_value: Any, default: str) -> str:
     invalid_message = f"filenames.{key} must be a non-empty filename"
     if config_value is None:
@@ -509,7 +544,7 @@ def load_config() -> Dict[str, Any]:
         cfg["database"].get("port"),
         8000,
     )
-    cfg["database"]["collection_name"] = _string_setting(
+    cfg["database"]["collection_name"] = _chroma_collection_setting(
         "CHROMA_COLLECTION",
         cfg["database"].get("collection_name"),
         "video_search_engine",
