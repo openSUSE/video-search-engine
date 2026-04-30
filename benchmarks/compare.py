@@ -81,8 +81,8 @@ def compare_reports(
     than 10% relative to the baseline median.
     """
 
-    if warn_ratio < 0:
-        raise ValueError("warn_ratio must be non-negative")
+    if not math.isfinite(warn_ratio) or warn_ratio < 0:
+        raise ValueError("warn_ratio must be a finite non-negative number")
 
     baseline_index = _median_by_name(baseline)
     current_index = _median_by_name(current)

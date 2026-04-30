@@ -199,10 +199,17 @@ def test_runner_no_match_filter_exits_two():
     assert "No benchmarks selected" in result.stderr
 
 
-@pytest.mark.parametrize("flag", ["--scale=0", "--scale=-1"])
+@pytest.mark.parametrize("flag", ["--scale=0", "--scale=-1", "--scale=nan"])
 def test_runner_invalid_scale_is_handled(flag: str):
     result = _run_runner(flag, "--quiet", "--filter", "^jobs\\.")
 
-    # argparse accepts the value, but run_benchmark rejects it with ValueError.
-    # Either way the runner must not silently produce a misleading report.
-    assert result.returncode != 0
+    assert result.returncode == 2
+    assert "finite positive number" in result.stderr
+
+
+@pytest.mark.parametrize("flag", ["--warn-ratio=-0.1", "--warn-ratio=nan", "--warn-ratio=inf"])
+def test_runner_invalid_warn_ratio_is_handled(flag: str):
+    result = _run_runner(flag, "--list")
+
+    assert result.returncode == 2
+    assert "finite non-negative number" in result.stderr

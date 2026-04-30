@@ -134,12 +134,13 @@ def test_compare_reports_ignores_unusable_current_medians(median):
     assert rows[0].delta_ratio is None
 
 
-def test_compare_reports_rejects_negative_warn_ratio():
+@pytest.mark.parametrize("warn_ratio", [-0.5, float("nan"), float("inf")])
+def test_compare_reports_rejects_unusable_warn_ratio(warn_ratio):
     baseline = _report(("a", "api", 100.0))
     current = _report(("a", "api", 100.0))
 
-    with pytest.raises(ValueError):
-        compare_reports(baseline, current, warn_ratio=-0.5)
+    with pytest.raises(ValueError, match="warn_ratio"):
+        compare_reports(baseline, current, warn_ratio=warn_ratio)
 
 
 def test_compare_reports_rejects_invalid_payload():

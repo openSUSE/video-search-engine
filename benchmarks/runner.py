@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -100,7 +101,7 @@ def _parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--scale",
-        type=float,
+        type=_finite_positive_float,
         default=1.0,
         help=(
             "Multiplier applied to the iteration count of every benchmark. "
@@ -131,7 +132,7 @@ def _parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--warn-ratio",
-        type=float,
+        type=_finite_non_negative_float,
         default=0.10,
         help=(
             "Symmetric threshold for regression/improvement when comparing "
@@ -181,6 +182,32 @@ def _print_listing(benchmarks: Iterable[Benchmark]) -> None:
             print(f"  - {benchmark.name} (iters={benchmark.iterations})")
             if benchmark.description:
                 print(f"      {benchmark.description}")
+
+
+def _finite_positive_float(raw_value: str) -> float:
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "must be a finite positive number"
+        ) from exc
+
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError("must be a finite positive number")
+    return value
+
+
+def _finite_non_negative_float(raw_value: str) -> float:
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "must be a finite non-negative number"
+        ) from exc
+
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError("must be a finite non-negative number")
+    return value
 
 
 def main(argv: List[str] | None = None) -> int:
