@@ -883,6 +883,7 @@ def run_extraction(
     create_final_analysis_file(paths)
 
     logger.info(f"--- Extraction Complete for '{video_filename}'! ---")
+    return paths["final_analysis"]
 
 
 if __name__ == '__main__':

@@ -286,11 +286,15 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
 
     calls = {}
 
+    analysis_path = tmp_path / "analysis.json"
     extraction_module = types.ModuleType("ingestion_pipeline.steps.step_01_extraction")
-    extraction_module.run_extraction = lambda *args, **kwargs: calls.setdefault(
-        "extraction_config",
-        kwargs.get("config"),
-    )
+
+    def fake_module_run_extraction(*args, **kwargs):
+        calls["extraction_config"] = kwargs.get("config")
+        analysis_path.write_text("[]")
+        return str(analysis_path)
+
+    extraction_module.run_extraction = fake_module_run_extraction
     monkeypatch.setitem(
         sys.modules,
         "ingestion_pipeline.steps.step_01_extraction",
@@ -301,6 +305,7 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
 
     def fake_run_segmentation(**kwargs):
         calls["segmentation_config"] = kwargs.get("config")
+        calls["segmentation_analysis_path"] = kwargs.get("analysis_path")
         return str(tmp_path / "segments.json")
 
     segmentation_module.run_segmentation = fake_run_segmentation
@@ -350,6 +355,7 @@ def test_run_pipeline_threads_loaded_config_into_segmentation(monkeypatch, tmp_p
     assert calls == {
         "extraction_config": config,
         "segmentation_config": config,
+        "segmentation_analysis_path": str(analysis_path),
         "enrichment_config": config,
         "indexing_config": config,
     }
@@ -371,6 +377,9 @@ def test_run_pipeline_uses_injected_config_without_reloading(monkeypatch, tmp_pa
 
     def fake_run_extraction(*args, **kwargs):
         calls["extraction_config"] = kwargs.get("config")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text("[]")
+        return str(analysis_path)
 
     def fake_run_segmentation(**kwargs):
         calls["segmentation_config"] = kwargs.get("config")
@@ -434,6 +443,9 @@ def test_run_pipeline_halts_before_indexing_when_enrichment_fails(
 
     def fake_run_extraction(*_args, **_kwargs):
         calls.append("extraction")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text("[]")
+        return str(analysis_path)
 
     def fake_run_segmentation(**_kwargs):
         calls.append("segmentation")
@@ -469,6 +481,60 @@ def test_run_pipeline_halts_before_indexing_when_enrichment_fails(
         config=config,
     )
     assert calls == ["extraction", "segmentation", "enrichment"]
+
+
+@pytest.mark.parametrize("return_missing_path", [False, True])
+def test_run_pipeline_halts_before_speaker_wait_when_extraction_fails(
+    monkeypatch,
+    tmp_path,
+    return_missing_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    config = {
+        "filenames": {
+            "raw_transcript": "transcript_raw.json",
+            "speaker_map": "speaker_map.json",
+            "final_analysis": "analysis.json",
+        }
+    }
+    calls = []
+
+    def fake_run_extraction(*_args, **_kwargs):
+        calls.append("extraction")
+        if return_missing_path:
+            return str(tmp_path / "missing-analysis.json")
+        return None
+
+    def fail_wait_for_speaker_identification(*_args, **_kwargs):
+        calls.append("speaker_wait")
+        raise AssertionError("speaker wait should not run after failed extraction")
+
+    def fail_run_segmentation(**_kwargs):
+        calls.append("segmentation")
+        raise AssertionError("segmentation should not run after failed extraction")
+
+    monkeypatch.setattr(
+        run_pipeline,
+        "_load_pipeline_steps",
+        lambda: (
+            fake_run_extraction,
+            fail_run_segmentation,
+            lambda *_args, **_kwargs: str(tmp_path / "enriched.json"),
+            lambda **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(
+        run_pipeline,
+        "wait_for_speaker_identification",
+        fail_wait_for_speaker_identification,
+    )
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        config=config,
+    )
+    assert calls == ["extraction"]
 
 
 def test_run_pipeline_rejects_blank_video_path_before_loading_runtime(monkeypatch, tmp_path):

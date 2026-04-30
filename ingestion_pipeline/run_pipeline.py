@@ -301,7 +301,20 @@ def run_pipeline(
 
     try:
         # Step 1: Data Extraction
-        run_extraction(video_path, output_dir, title, year, config=config)
+        final_analysis_path = run_extraction(
+            video_path,
+            output_dir,
+            title,
+            year,
+            config=config,
+        )
+        if not final_analysis_path or not os.path.exists(final_analysis_path):
+            logger.warning(
+                "Extraction step did not produce a final analysis file at %s. "
+                "Halting pipeline.",
+                final_analysis_path,
+            )
+            return False
 
         # Step 1.5: Manual Speaker Identification
         speaker_map_path = wait_for_speaker_identification(video_path, output_dir, config=config)
@@ -310,9 +323,6 @@ def run_pipeline(
             raise RuntimeError("Speaker identification step failed. Halting pipeline.")
 
         video_filename = os.path.splitext(os.path.basename(video_path))[0]
-        video_specific_dir = os.path.join(output_dir, video_filename)
-        
-        final_analysis_path = os.path.join(video_specific_dir, config["filenames"]["final_analysis"])
 
         # Step 2: Intelligent Segmentation
         final_segments_path = run_segmentation(

@@ -362,7 +362,7 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
         calls.append({"title": title, "year": year})
         return {"title": "Fetched Demo", "synopsis": "Fetched synopsis."}
 
-    run_extraction(
+    result = run_extraction(
         video_path=str(tmp_path / "demo.mp4"),
         base_output_dir=str(output_dir),
         video_title="Demo",
@@ -371,6 +371,7 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
         metadata_fetcher=fake_metadata_fetcher,
     )
 
+    assert result == paths["final_analysis"]
     assert calls == [{"title": "Demo", "year": 2024}]
     metadata = json.loads((video_dir / "video_metadata.json").read_text())
     assert metadata["title"] == "Fetched Demo"
