@@ -290,21 +290,26 @@ def _validate_labeled_artifact_data(
                 "must be a JSON array"
             )
 
+        normalized_labeled_items = []
         for label_index, labeled_item in enumerate(labeled_items):
             if not isinstance(labeled_item, dict):
                 raise ValueError(
                     f"{artifact_name} item at index {item_index} field "
                     f"{collection_field} item at index {label_index} must be a JSON object"
                 )
-            if not isinstance(labeled_item.get(label_field), str):
+            label = labeled_item.get(label_field)
+            if not isinstance(label, str) or not label.strip():
                 raise ValueError(
                     f"{artifact_name} item at index {item_index} field "
                     f"{collection_field} item at index {label_index} "
-                    f"must have string {label_field}"
+                    f"must have non-empty string {label_field}"
                 )
+            normalized_labeled_item = dict(labeled_item)
+            normalized_labeled_item[label_field] = label.strip()
+            normalized_labeled_items.append(normalized_labeled_item)
 
         normalized_artifact_data.append(
-            {"shot_id": shot_id, collection_field: labeled_items}
+            {"shot_id": shot_id, collection_field: normalized_labeled_items}
         )
 
     return normalized_artifact_data

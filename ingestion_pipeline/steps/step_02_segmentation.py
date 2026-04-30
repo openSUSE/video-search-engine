@@ -104,11 +104,12 @@ def _validate_labeled_items(
                 "must be a JSON object"
             )
         label = item.get(label_name)
-        if not isinstance(label, str):
+        if not isinstance(label, str) or not label.strip():
             raise ValueError(
                 f"{field_name} item at shot index {shot_index}, index {item_index} "
-                f"must have string {label_name}"
+                f"must have non-empty string {label_name}"
             )
+        item[label_name] = label.strip()
 
 
 def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:

@@ -846,7 +846,14 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
         json.dumps([{"shot_id": "shot_0001", "caption": "a station platform"}])
     )
     Path(paths["audio_events"]).write_text(
-        json.dumps([{"shot_id": "shot_0001", "events": [{"event": "speech", "score": 0.9}]}])
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "events": [{"event": " speech ", "score": 0.9}],
+                }
+            ]
+        )
     )
     Path(paths["transcript_aligned"]).write_text(
         json.dumps(
@@ -862,7 +869,14 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
         )
     )
     Path(paths["actions"]).write_text(
-        json.dumps([{"shot_id": "shot_0001", "actions": [{"action": "standing", "score": 0.8}]}])
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "actions": [{"action": " standing ", "score": 0.8}],
+                }
+            ]
+        )
     )
 
     create_final_analysis_file(paths)
@@ -900,8 +914,18 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
             "audio events",
         ),
         (
+            "audio_events",
+            [{"shot_id": "shot_0001", "events": [{"event": "   "}]}],
+            "audio events",
+        ),
+        (
             "actions",
             [{"shot_id": "shot_0001", "actions": [{"score": 0.8}]}],
+            "actions",
+        ),
+        (
+            "actions",
+            [{"shot_id": "shot_0001", "actions": [{"action": ""}]}],
             "actions",
         ),
         (

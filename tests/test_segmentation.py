@@ -177,8 +177,8 @@ def test_run_segmentation_preserves_empty_speakers_for_transcripts_without_ids(t
                             "speaker": "  ",
                         },
                     ],
-                    "audio_events": [],
-                    "detected_actions": [],
+                    "audio_events": [{"event": " music "}],
+                    "detected_actions": [{"action": " walking "}],
                 }
             ]
         )
@@ -201,6 +201,8 @@ def test_run_segmentation_preserves_empty_speakers_for_transcripts_without_ids(t
     assert output_path == str(tmp_path / "segments.json")
     assert segments[0]["speakers"] == []
     assert segments[0]["full_transcript"] == "ambient music wind rises"
+    assert segments[0]["consolidated_audio_events"] == ["music"]
+    assert segments[0]["consolidated_actions"] == ["walking"]
 
 
 def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
@@ -654,6 +656,34 @@ def test_run_segmentation_rejects_nonfinite_embeddings_before_scoring(tmp_path):
                 }
             ],
             "text",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                    "audio_events": [{"event": "   "}],
+                    "detected_actions": [],
+                }
+            ],
+            "audio_events",
+        ),
+        (
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                    "audio_events": [],
+                    "detected_actions": [{"action": ""}],
+                }
+            ],
+            "detected_actions",
         ),
     ],
 )
