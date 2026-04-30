@@ -289,6 +289,61 @@ def _load_cached_segments(path: str) -> List[Dict[str, Any]]:
         raise ValueError(f"cached segments file at {path} must be valid JSON") from exc
 
 
+def _numeric_cache_values_match(left: Any, right: Any) -> bool:
+    return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=1e-9)
+
+
+def _cached_segment_matches_expected(
+    cached_segment: Dict[str, Any],
+    expected_segment: Dict[str, Any],
+) -> bool:
+    for field_name in ("start_time", "end_time", "duration_sec"):
+        if not _numeric_cache_values_match(
+            cached_segment[field_name],
+            expected_segment[field_name],
+        ):
+            return False
+
+    for field_name in (
+        "speakers",
+        "full_transcript",
+        "consolidated_visual_captions",
+        "consolidated_audio_events",
+        "consolidated_actions",
+        "shot_count",
+        "shot_ids",
+    ):
+        if cached_segment[field_name] != expected_segment[field_name]:
+            return False
+
+    return True
+
+
+def _cached_segments_match_analysis(
+    cached_segments: List[Dict[str, Any]],
+    analysis_data: List[Dict[str, Any]],
+    speaker_map: Dict[str, str],
+) -> bool:
+    rich_shots = _prepare_rich_shots(analysis_data, speaker_map)
+    rich_shots_by_id = {shot["shot_id"]: shot for shot in rich_shots}
+    expected_shot_ids = [shot["shot_id"] for shot in rich_shots]
+    cached_shot_ids = []
+
+    for cached_segment in cached_segments:
+        shot_ids = cached_segment["shot_ids"]
+        if any(shot_id not in rich_shots_by_id for shot_id in shot_ids):
+            return False
+
+        expected_segment = _merge_shots_into_segment(
+            [rich_shots_by_id[shot_id] for shot_id in shot_ids]
+        )
+        cached_shot_ids.extend(shot_ids)
+        if not _cached_segment_matches_expected(cached_segment, expected_segment):
+            return False
+
+    return cached_shot_ids == expected_shot_ids
+
+
 def _load_config() -> Dict[str, Any]:
     from core.config import CONFIG
 
@@ -398,21 +453,45 @@ def run_segmentation(
         'final_segments.json',
     )
     output_path = os.path.join(processed_dir, output_filename)
+    analysis_data = None
+    speaker_map = None
 
     # --- CHECK IF ALREADY COMPLETED ---
     if os.path.exists(output_path):
-        _load_cached_segments(output_path)
-        logger.info(f"    -> Skipping segmentation. Output already exists at {output_path}")
-        logger.info("--- Segmentation Step Complete (Skipped)! ---")
-        return output_path
+        cached_segments = _load_cached_segments(output_path)
+        if os.path.exists(analysis_path) and os.path.exists(speaker_map_path):
+            with open(analysis_path, 'r') as f:
+                analysis_data = _validate_analysis_data(json.load(f))
+            with open(speaker_map_path, 'r') as f:
+                speaker_map = _validate_speaker_map(json.load(f))
+            _validate_speaker_map_coverage(analysis_data, speaker_map)
+            if _cached_segments_match_analysis(
+                cached_segments,
+                analysis_data,
+                speaker_map,
+            ):
+                logger.info(f"    -> Skipping segmentation. Output already exists at {output_path}")
+                logger.info("--- Segmentation Step Complete (Skipped)! ---")
+                return output_path
+            logger.info(
+                "    -> Cached segmentation at %s is stale for current analysis. "
+                "Recomputing.",
+                output_path,
+            )
+        else:
+            logger.info(f"    -> Skipping segmentation. Output already exists at {output_path}")
+            logger.info("--- Segmentation Step Complete (Skipped)! ---")
+            return output_path
     
     # 1. Load all necessary data
     logger.info("1/4: Loading input data...")
-    with open(analysis_path, 'r') as f:
-        analysis_data = _validate_analysis_data(json.load(f))
-    with open(speaker_map_path, 'r') as f:
-        speaker_map = _validate_speaker_map(json.load(f))
-    _validate_speaker_map_coverage(analysis_data, speaker_map)
+    if analysis_data is None:
+        with open(analysis_path, 'r') as f:
+            analysis_data = _validate_analysis_data(json.load(f))
+    if speaker_map is None:
+        with open(speaker_map_path, 'r') as f:
+            speaker_map = _validate_speaker_map(json.load(f))
+        _validate_speaker_map_coverage(analysis_data, speaker_map)
 
     if not analysis_data:
         logger.warning("The 'final_analysis.json' file is empty. Cannot perform segmentation.")

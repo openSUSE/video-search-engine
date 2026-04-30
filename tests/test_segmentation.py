@@ -215,6 +215,109 @@ def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
     ) == str(output_path)
 
 
+def test_run_segmentation_skips_cached_output_when_current_analysis_matches(
+    monkeypatch,
+    tmp_path,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "custom_segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "room",
+                    "transcript_segments": [
+                        {"text": "hello", "speaker": "SPEAKER_00"}
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+    output_path.write_text(json.dumps([_cached_segment()]))
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("matching cached segmentation should skip model loading")
+
+    monkeypatch.setattr(
+        segmentation_step,
+        "create_embedding_model",
+        fail_create_embedding_model,
+    )
+
+    assert run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(analysis_path),
+        speaker_map_path=str(speaker_map_path),
+        config={"filenames": {"final_segments": output_path.name}},
+    ) == str(output_path)
+
+
+def test_run_segmentation_recomputes_cached_output_when_analysis_content_changed(
+    tmp_path,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "custom_segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "current room",
+                    "transcript_segments": [
+                        {"text": "current line", "speaker": "SPEAKER_00"}
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+    output_path.write_text(
+        json.dumps(
+            [
+                _cached_segment(
+                    full_transcript="old line",
+                    consolidated_visual_captions=["old room"],
+                )
+            ]
+        )
+    )
+
+    class AnyTextEmbeddingModel:
+        def __init__(self):
+            self.calls = []
+
+        def encode(self, texts, **kwargs):
+            self.calls.append({"texts": texts, "kwargs": kwargs})
+            return [[1.0, 0.0] for _text in texts]
+
+    embedding_model = AnyTextEmbeddingModel()
+
+    assert run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(analysis_path),
+        speaker_map_path=str(speaker_map_path),
+        config={"filenames": {"final_segments": output_path.name}},
+        embedding_model=embedding_model,
+    ) == str(output_path)
+
+    [segment] = json.loads(output_path.read_text())
+    assert segment["full_transcript"] == "current line"
+    assert segment["consolidated_visual_captions"] == ["current room"]
+    assert embedding_model.calls
+
+
 @pytest.mark.parametrize(
     ("cached_segments", "message"),
     [
