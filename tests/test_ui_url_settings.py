@@ -29,6 +29,7 @@ def test_local_http_url_rejects_invalid_ports(port):
         "http://localhost",
         "localhost:5050",
         "api/search",
+        "api\\search",
         "user@api",
         "bad host",
         "[localhost]",

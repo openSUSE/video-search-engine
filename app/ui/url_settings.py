@@ -36,7 +36,7 @@ def _browser_host(value: Any) -> str:
 
     if (
         "://" in host_text
-        or any(char in host_text for char in "/?#@")
+        or any(char in host_text for char in "/\\?#@")
         or any(char.isspace() for char in host_text)
     ):
         raise ValueError(HOST_INVALID_MESSAGE)
