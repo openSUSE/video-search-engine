@@ -30,6 +30,23 @@ def _fetch_movie_metadata(title: str, year: Optional[int] = None) -> Optional[Di
     return fetch_movie_metadata(title, year)
 
 
+def _clean_fetched_metadata(metadata: Any) -> Dict[str, str]:
+    if not isinstance(metadata, dict):
+        return {}
+
+    cleaned_metadata = {}
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not key.strip():
+            continue
+        if not isinstance(value, str):
+            continue
+        value = value.strip()
+        if value:
+            cleaned_metadata[key.strip()] = value
+
+    return cleaned_metadata
+
+
 def _write_video_metadata(
     metadata_path: str,
     video_filename: str,
@@ -54,8 +71,16 @@ def _write_video_metadata(
         fetched_metadata = metadata_fetcher(video_title, video_year)
 
         if fetched_metadata:
-            logger.info("Successfully fetched metadata from TMDb.")
-            video_metadata.update(fetched_metadata)
+            cleaned_fetched_metadata = _clean_fetched_metadata(fetched_metadata)
+            if cleaned_fetched_metadata:
+                logger.info("Successfully fetched metadata from TMDb.")
+                video_metadata.update(cleaned_fetched_metadata)
+            else:
+                logger.warning(
+                    "Fetched metadata for '%s' had no usable fields. "
+                    "Proceeding with title only.",
+                    video_title,
+                )
         else:
             logger.warning(f"Could not fetch metadata for '{video_title}'. Proceeding with title only.")
     else:
