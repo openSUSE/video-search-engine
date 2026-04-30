@@ -12,11 +12,23 @@ DEFAULT_API_PORT = "1234"
 RequestException = requests.exceptions.RequestException
 
 
-def _response_string(result: Mapping[str, Any], field_name: str, result_index: int) -> str:
+def _response_string(
+    result: Mapping[str, Any],
+    field_name: str,
+    result_index: int,
+    *,
+    allow_empty: bool = False,
+) -> str:
     value = result.get(field_name)
     if not isinstance(value, str):
         raise ValueError(
             f"search result at index {result_index} must have string {field_name}"
+        )
+    value = value.strip()
+    if not allow_empty and not value:
+        raise ValueError(
+            f"search result at index {result_index} must have non-empty string "
+            f"{field_name}"
         )
     return value
 
@@ -60,7 +72,12 @@ def _search_result_from_payload(result: Any, result_index: int) -> dict[str, Any
         "title": _response_string(result, "title", result_index),
         "summary": _response_string(result, "summary", result_index),
         "video_filename": _response_string(result, "video_filename", result_index),
-        "speakers": _response_string(result, "speakers", result_index),
+        "speakers": _response_string(
+            result,
+            "speakers",
+            result_index,
+            allow_empty=True,
+        ),
     }
 
 

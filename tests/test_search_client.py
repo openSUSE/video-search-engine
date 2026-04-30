@@ -157,6 +157,35 @@ def test_search_results_from_response_validates_and_normalizes_results():
     ]
 
 
+def test_search_results_from_response_strips_display_strings_and_allows_empty_speakers():
+    response = FakeSearchResponse(
+        {
+            "results": [
+                _search_result(
+                    id="  segment-a  ",
+                    title="  Opening  ",
+                    summary="  A calm opening scene.  ",
+                    video_filename="  demo.mp4  ",
+                    speakers="  ",
+                )
+            ]
+        }
+    )
+
+    assert search_client.search_results_from_response(response) == [
+        {
+            "id": "segment-a",
+            "score": 0.5,
+            "start_time": 1.0,
+            "end_time": 2.5,
+            "title": "Opening",
+            "summary": "A calm opening scene.",
+            "video_filename": "demo.mp4",
+            "speakers": "",
+        }
+    ]
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -166,6 +195,10 @@ def test_search_results_from_response_validates_and_normalizes_results():
         ({"results": "not a list"}, "results list"),
         ({"results": ["not an object"]}, "result at index 0"),
         ({"results": [_search_result(title=123)]}, "title"),
+        ({"results": [_search_result(id=" ")]}, "id"),
+        ({"results": [_search_result(title=" ")]}, "title"),
+        ({"results": [_search_result(summary="")]}, "summary"),
+        ({"results": [_search_result(video_filename="\t")]}, "video_filename"),
         ({"results": [_search_result(score=-0.1)]}, "score"),
         ({"results": [_search_result(start_time=True)]}, "start_time"),
         ({"results": [_search_result(start_time=float("nan"))]}, "start_time"),
