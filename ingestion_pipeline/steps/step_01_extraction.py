@@ -126,6 +126,7 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
         raise ValueError("shot boundaries file must contain a JSON array")
 
     seen_shot_ids = set()
+    previous_shot = None
     for index, shot in enumerate(raw_scenes):
         if not isinstance(shot, dict):
             raise ValueError(f"shot boundary at index {index} must be a JSON object")
@@ -178,6 +179,15 @@ def _validate_shot_boundaries(raw_scenes: Any) -> List[Dict[str, Any]]:
                 f"shot boundary at index {index} end_time_sec "
                 "must be greater than or equal to start_time_sec"
             )
+
+        if previous_shot is not None and (
+            shot["start_frame"] < previous_shot["end_frame"]
+            or shot["start_time_sec"] < previous_shot["end_time_sec"]
+        ):
+            raise ValueError(
+                f"shot boundary at index {index} overlaps previous shot"
+            )
+        previous_shot = shot
 
     return raw_scenes
 
