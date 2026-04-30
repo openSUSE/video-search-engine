@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, template_folder='ui', static_folder='ui/static')
 
 # --- Global variables to hold paths from command line ---
-# These are set in the `if __name__ == '__main__':` block
+# These are set by main() before the Flask development server starts.
 VIDEO_PATH = None
 TRANSCRIPT_PATH = None
 OUTPUT_DIR = None
@@ -48,6 +48,13 @@ def _port_arg(value):
     if not MIN_TCP_PORT <= port <= MAX_TCP_PORT:
         raise ValueError(invalid_message)
     return port
+
+
+def _path_arg(value):
+    normalized_value = str(value).strip()
+    if not normalized_value:
+        raise argparse.ArgumentTypeError("path must be a non-empty string")
+    return normalized_value
 
 
 def get_config():
@@ -222,12 +229,30 @@ def shutdown():
     shutdown_server()
     return "Server is shutting down."
 
-if __name__ == '__main__':
+
+def main(argv=None):
+    global VIDEO_PATH, TRANSCRIPT_PATH, OUTPUT_DIR, SERVER_HOST, SERVER_PORT
+
     config = get_config()
     parser = argparse.ArgumentParser(description="Run Speaker ID UI Server.")
-    parser.add_argument("--video", required=True, help="Path to the video file.")
-    parser.add_argument("--transcript", required=True, help="Path to the raw transcript JSON file.")
-    parser.add_argument("--output_dir", required=True, help="Base directory to save the speaker_map.json.")
+    parser.add_argument(
+        "--video",
+        required=True,
+        type=_path_arg,
+        help="Path to the video file.",
+    )
+    parser.add_argument(
+        "--transcript",
+        required=True,
+        type=_path_arg,
+        help="Path to the raw transcript JSON file.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        required=True,
+        type=_path_arg,
+        help="Base directory to save the speaker_map.json.",
+    )
 
     # Add port argument, with the default pulled from the CONFIG
     parser.add_argument(
@@ -236,7 +261,7 @@ if __name__ == '__main__':
         default=config['ui']['port'],
         help="Port to run the server on."
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     VIDEO_PATH = os.path.abspath(args.video)
     TRANSCRIPT_PATH = os.path.abspath(args.transcript)
@@ -253,3 +278,7 @@ if __name__ == '__main__':
 
     # Run the app with host and port from config/args
     app.run(host=host, port=port, debug=False, use_reloader=False)
+
+
+if __name__ == '__main__':
+    main()

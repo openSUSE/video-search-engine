@@ -66,6 +66,51 @@ def test_speaker_flask_ui_port_arg_rejects_invalid_tcp_ports(raw_port):
         speaker_app._port_arg(raw_port)
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        [
+            "--video",
+            "   ",
+            "--transcript",
+            "/tmp/transcript.json",
+            "--output_dir",
+            "/tmp/out",
+        ],
+        [
+            "--video",
+            "/tmp/demo.mp4",
+            "--transcript",
+            "   ",
+            "--output_dir",
+            "/tmp/out",
+        ],
+        [
+            "--video",
+            "/tmp/demo.mp4",
+            "--transcript",
+            "/tmp/transcript.json",
+            "--output_dir",
+            "   ",
+        ],
+    ],
+)
+def test_speaker_flask_ui_rejects_blank_required_path_args(monkeypatch, args):
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "127.0.0.1", "port": 5050},
+        },
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        speaker_app.main(args)
+
+    assert exc_info.value.code == 2
+
+
 def test_get_data_returns_validated_transcript(monkeypatch, tmp_path):
     video_path = tmp_path / "videos" / "demo.mp4"
     video_path.parent.mkdir()
