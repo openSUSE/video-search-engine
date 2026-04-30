@@ -200,6 +200,54 @@ def test_run_indexing_skips_empty_segment_files_without_creating_dependencies(tm
     assert indexed is False
 
 
+def test_run_indexing_returns_false_for_unreadable_segment_file_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.mkdir()
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for unreadable segment files"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    indexed = run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+    )
+
+    assert indexed is False
+
+
+def test_run_indexing_returns_false_for_malformed_json_before_creating_dependencies(
+    monkeypatch,
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text("[")
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for malformed JSON"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    indexed = run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+    )
+
+    assert indexed is False
+
+
 def test_run_indexing_normalizes_video_filename_before_building_document_ids(tmp_path):
     enriched_segments_path = tmp_path / "segments.json"
     enriched_segments_path.write_text(

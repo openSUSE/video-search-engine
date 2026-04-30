@@ -371,8 +371,18 @@ def run_indexing(
 
     # 1. Load the enriched segments data
     logger.info(f"1/4: Loading enriched segments from {enriched_segments_path}...")
-    with open(enriched_segments_path, "r") as f:
-        segments = _validate_segments(json.load(f))
+    try:
+        with open(enriched_segments_path, "r") as f:
+            loaded_segments = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error(
+            "Could not read or parse enriched segments at %s: %s",
+            enriched_segments_path,
+            exc,
+        )
+        return False
+
+    segments = _validate_segments(loaded_segments)
 
     if not segments:
         logger.warning("No segments found in the input file. Skipping indexing.")
