@@ -9,6 +9,10 @@ from app.ui.url_settings import local_http_url
 DEFAULT_SEARCH_TIMEOUT_SECONDS = 10.0
 DEFAULT_API_HOST = "localhost"
 DEFAULT_API_PORT = "1234"
+MAX_QUERY_LENGTH = 1000
+MAX_VIDEO_FILENAME_LENGTH = 512
+MIN_SEARCH_LIMIT = 1
+MAX_SEARCH_LIMIT = 50
 RequestException = requests.exceptions.RequestException
 
 
@@ -89,15 +93,43 @@ def _url_component(value: Any, default: str) -> str:
     return value or default
 
 
-def _payload_text(value: Any) -> str:
+def _required_payload_text(value: Any, field_name: str, max_length: int) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"search payload {field_name} must be a string")
+
+    normalized_value = value.strip()
+    if not normalized_value:
+        raise ValueError(f"search payload {field_name} must be non-empty")
+    if len(normalized_value) > max_length:
+        raise ValueError(
+            f"search payload {field_name} must be at most {max_length} characters"
+        )
+    return normalized_value
+
+
+def _optional_payload_text(value: Any, field_name: str, max_length: int) -> str | None:
     if value is None:
-        return ""
-    return str(value).strip()
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"search payload {field_name} must be a string")
 
-
-def _optional_payload_text(value: Any) -> str | None:
-    normalized_value = _payload_text(value)
+    normalized_value = value.strip()
+    if len(normalized_value) > max_length:
+        raise ValueError(
+            f"search payload {field_name} must be at most {max_length} characters"
+        )
     return normalized_value or None
+
+
+def _search_limit(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("search payload top_k must be an integer")
+    if value < MIN_SEARCH_LIMIT or value > MAX_SEARCH_LIMIT:
+        raise ValueError(
+            f"search payload top_k must be between {MIN_SEARCH_LIMIT} "
+            f"and {MAX_SEARCH_LIMIT}"
+        )
+    return value
 
 
 def search_api_url(config: Mapping[str, Any] | None = None) -> str:
@@ -113,14 +145,18 @@ def search_api_url(config: Mapping[str, Any] | None = None) -> str:
 
 
 def search_payload(
-    query: str,
-    video_filename: str | None,
-    top_k: int = 5,
+    query: Any,
+    video_filename: Any,
+    top_k: Any = 5,
 ) -> dict[str, Any]:
     return {
-        "query": _payload_text(query),
-        "top_k": top_k,
-        "video_filename": _optional_payload_text(video_filename),
+        "query": _required_payload_text(query, "query", MAX_QUERY_LENGTH),
+        "top_k": _search_limit(top_k),
+        "video_filename": _optional_payload_text(
+            video_filename,
+            "video_filename",
+            MAX_VIDEO_FILENAME_LENGTH,
+        ),
     }
 
 

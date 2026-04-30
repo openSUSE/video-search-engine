@@ -114,6 +114,24 @@ def test_search_payload_uses_null_for_omitted_video_filter(video_filename):
     }
 
 
+@pytest.mark.parametrize("query", [None, 123, "", "  ", "x" * 1001])
+def test_search_payload_rejects_unusable_queries(query):
+    with pytest.raises(ValueError, match="query"):
+        search_client.search_payload(query, "demo")
+
+
+@pytest.mark.parametrize("top_k", [0, 51, True, "5", 1.5])
+def test_search_payload_rejects_unusable_limits(top_k):
+    with pytest.raises(ValueError, match="top_k"):
+        search_client.search_payload("opening scene", "demo", top_k=top_k)
+
+
+@pytest.mark.parametrize("video_filename", [123, "v" * 513])
+def test_search_payload_rejects_unusable_video_filters(video_filename):
+    with pytest.raises(ValueError, match="video_filename"):
+        search_client.search_payload("opening scene", video_filename)
+
+
 def test_search_result_play_button_keys_include_result_position_for_duplicates():
     assert (
         search_client.search_result_play_button_key("segment-a", 0)
