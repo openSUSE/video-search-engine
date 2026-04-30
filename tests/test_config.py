@@ -537,6 +537,11 @@ def test_config_file_root_must_be_mapping(monkeypatch, tmp_path, config_text):
         _load_config_module(monkeypatch, tmp_path, config_text)
 
 
+def test_config_file_must_be_valid_yaml(monkeypatch, tmp_path):
+    with pytest.raises(ValueError, match="valid YAML"):
+        _load_config_module(monkeypatch, tmp_path, "general: [unterminated")
+
+
 @pytest.mark.parametrize("section_value", ["[]", "not-a-mapping"])
 def test_config_sections_must_be_mappings(monkeypatch, tmp_path, section_value):
     with pytest.raises(ValueError, match="general"):
