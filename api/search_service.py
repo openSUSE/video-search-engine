@@ -225,6 +225,19 @@ def _format_search_result(
     }
 
 
+def _fetched_text_metadata_by_segment_id(results: Any) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(results, dict):
+        logger.warning(
+            "Skipping malformed search metadata fetch results: expected a mapping."
+        )
+        return {}
+
+    return text_metadata_by_segment_id(
+        results.get("ids", []),
+        results.get("metadatas", []),
+    )
+
+
 class HybridSearchService:
     def __init__(self, embedding_model: EmbeddingModel, collection: VectorCollection):
         self.embedding_model = embedding_model
@@ -269,10 +282,7 @@ class HybridSearchService:
             ids=[f"{segment_id}_text" for segment_id in ranked_segment_ids],
             include=["metadatas"],
         )
-        metadata_by_segment_id = text_metadata_by_segment_id(
-            final_results_data.get("ids", []),
-            final_results_data.get("metadatas", []),
-        )
+        metadata_by_segment_id = _fetched_text_metadata_by_segment_id(final_results_data)
 
         formatted_results = []
         for segment_id in ranked_segment_ids:

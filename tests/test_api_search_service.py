@@ -421,6 +421,30 @@ def test_hybrid_search_service_skips_malformed_fetched_metadata_ids():
     assert results[0]["summary"] == "valid fetched result"
 
 
+def test_hybrid_search_service_handles_malformed_metadata_fetch_payload(caplog):
+    class CollectionWithMalformedMetadataFetch(FakeCollection):
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return "not a metadata payload"
+
+    collection = CollectionWithMalformedMetadataFetch()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    with caplog.at_level(logging.WARNING, logger="api.search_service"):
+        results = service.search("find highlights", top_k=2, video_filename="demo.mp4")
+
+    assert results == []
+    assert collection.get_call == {
+        "ids": [
+            "demo.mp4::segment-b_text",
+            "demo.mp4::segment-a_text",
+            "demo.mp4::segment-c_text",
+        ],
+        "include": ["metadatas"],
+    }
+    assert any("metadata fetch" in record.message for record in caplog.records)
+
+
 def test_hybrid_search_service_skips_malformed_query_result_ids_before_fusion():
     class CollectionWithMalformedQueryIds(FakeCollection):
         def query(self, *, query_embeddings, n_results, where, include):
