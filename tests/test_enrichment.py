@@ -708,6 +708,7 @@ def test_run_enrichment_rejects_empty_source_segments_before_copying_or_calling_
         ["not a segment"],
         [{"summary": "missing id"}],
         [{"segment_id": " "}],
+        [{"segment_id": "chapter::segment_0001", "start_time": 0.0, "end_time": 1.0}],
         [{"segment_id": "segment_0001", "full_transcript": 42}],
         [{"segment_id": "segment_0001", "speakers": "Alice"}],
         [{"segment_id": "segment_0001", "consolidated_visual_captions": [42]}],

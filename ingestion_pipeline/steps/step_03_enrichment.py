@@ -10,6 +10,8 @@ from core.atomic_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
+DOCUMENT_ID_SCOPE_DELIMITER = "::"
+
 LLMClient = Callable[[str, Dict[str, Any]], Optional[Dict[str, Any]]]
 ENRICHMENT_FIELDS = {"title", "summary", "keywords"}
 
@@ -244,6 +246,11 @@ def _validate_segments(segments: Any) -> list[Dict[str, Any]]:
         if not isinstance(segment_id, str) or not segment_id.strip():
             raise ValueError(f"segment at index {index} must have a segment_id")
         segment_id = segment_id.strip()
+        if DOCUMENT_ID_SCOPE_DELIMITER in segment_id:
+            raise ValueError(
+                f"segment at index {index} segment_id must not contain "
+                f"{DOCUMENT_ID_SCOPE_DELIMITER}"
+            )
         if segment_id in seen_segment_ids:
             raise ValueError(f"segment at index {index} has duplicate segment_id")
         seen_segment_ids.add(segment_id)
