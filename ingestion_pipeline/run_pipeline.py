@@ -10,6 +10,7 @@ from core.logger import setup_logging
 from app.ui.speaker_support import (
     load_transcript_speaker_ids,
     normalize_speaker_map,
+    save_speaker_map_if_complete,
 )
 from app.ui.url_settings import local_http_url
 from ingestion_pipeline.jobs import (
@@ -73,13 +74,32 @@ def _speaker_map_readiness(
     speaker_map_path: str,
     raw_transcript_path: str,
 ) -> tuple[bool, str | None]:
+    try:
+        required_speaker_ids = load_transcript_speaker_ids(raw_transcript_path)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+        return False, f"speaker map or transcript is not readable: {exc}"
+
     if not os.path.exists(speaker_map_path):
+        if not required_speaker_ids:
+            try:
+                os.makedirs(os.path.dirname(speaker_map_path), exist_ok=True)
+                if save_speaker_map_if_complete(
+                    speaker_map_path,
+                    {},
+                    required_speaker_ids,
+                ):
+                    logger.info(
+                        "Transcript has no speaker IDs; wrote empty speaker map to %s.",
+                        speaker_map_path,
+                    )
+                    return True, None
+            except OSError as exc:
+                return False, f"could not create empty speaker map: {exc}"
         return False, f"{speaker_map_path} does not exist yet"
 
     try:
         with open(speaker_map_path, "r") as f:
             speaker_map_data = json.load(f)
-        required_speaker_ids = load_transcript_speaker_ids(raw_transcript_path)
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
         return False, f"speaker map or transcript is not readable: {exc}"
 
