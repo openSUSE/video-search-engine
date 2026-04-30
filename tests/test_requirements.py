@@ -58,3 +58,23 @@ def test_pydantic_requirement_matches_schema_validator_floor():
         pydantic_requirement = direct_requirements["pydantic"]
         assert ">=2" in str(pydantic_requirement.specifier)
         assert "<2.10" in str(pydantic_requirement.specifier)
+
+
+def test_logging_dependency_is_available_to_setup_logging_entrypoints():
+    for requirements_file in [
+        "requirements-api.txt",
+        "requirements-dev.txt",
+        "requirements-ingestion.txt",
+        "requirements-ui.txt",
+    ]:
+        direct_requirement_names = {
+            Requirement(line).name.lower()
+            for _line_number, line in _iter_parseable_requirement_lines(
+                Path(requirements_file)
+            )
+        }
+
+        assert "colorlog" in direct_requirement_names, (
+            f"{requirements_file} must install colorlog because shipped entrypoints "
+            "import core.logger.setup_logging"
+        )

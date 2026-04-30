@@ -5,3 +5,4 @@ sentence-transformers
 pydantic>=2,<2.10
 PyYAML
 python-dotenv
+colorlog
