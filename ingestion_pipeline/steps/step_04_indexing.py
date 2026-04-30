@@ -50,6 +50,9 @@ def _vector_to_list(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
 
+    if isinstance(vector, (str, bytes, bytearray)):
+        raise ValueError("embedding vector values must be numeric")
+
     values = list(vector)
     if any(isinstance(value, bool) for value in values):
         raise ValueError("embedding vector values must be numeric")

@@ -483,6 +483,37 @@ def test_run_indexing_rejects_nonfinite_embeddings_before_upsert(tmp_path):
     assert collection.upsert_call is None
 
 
+@pytest.mark.parametrize("encoded_vector", ["12", b"12", bytearray(b"12")])
+def test_run_indexing_rejects_string_like_embedding_vectors_before_upsert(
+    tmp_path,
+    encoded_vector,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                _enriched_segment(summary="person enters")
+            ]
+        )
+    )
+    collection = FakeCollection()
+
+    class StringLikeVectorEmbeddingModel:
+        def encode(self, texts, show_progress_bar):
+            return [encoded_vector for _text in texts]
+
+    with pytest.raises(ValueError, match="text embeddings must be numeric vectors"):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+            embedding_model=StringLikeVectorEmbeddingModel(),
+            collection=collection,
+        )
+
+    assert collection.upsert_call is None
+
+
 @pytest.mark.parametrize("video_filename", ["", "   ", None])
 def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
     monkeypatch,

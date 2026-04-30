@@ -37,15 +37,18 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
     if hasattr(encoded, "tolist"):
         encoded = encoded.tolist()
 
+    invalid = ValueError("query embedding must be a non-empty numeric vector")
+    if isinstance(encoded, (str, bytes, bytearray)):
+        raise invalid
+
     try:
         vector = list(encoded)
     except TypeError as exc:
-        raise ValueError("query embedding must be a non-empty numeric vector") from exc
+        raise invalid from exc
 
     if not vector:
-        raise ValueError("query embedding must be a non-empty numeric vector")
+        raise invalid
 
-    invalid = ValueError("query embedding must be a non-empty numeric vector")
     float_vector: List[float] = []
     for value in vector:
         if isinstance(value, bool):

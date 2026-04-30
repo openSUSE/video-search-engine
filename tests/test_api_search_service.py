@@ -695,6 +695,9 @@ def test_hybrid_search_service_rejects_invalid_video_filter_before_embedding(
     "encoded_query",
     [
         [],
+        "12",
+        b"12",
+        bytearray(b"12"),
         [0.25, "bad"],
         [0.25, float("inf")],
         [0.25, float("nan")],
