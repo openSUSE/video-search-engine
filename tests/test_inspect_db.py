@@ -1,6 +1,8 @@
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 import inspect_db
 
 
@@ -38,3 +40,23 @@ def test_inspect_collection_loads_config_without_path_argument(monkeypatch, caps
     assert calls["client"] == {"host": "localhost", "port": 8000}
     assert calls["collection"] == "video_search_engine"
     assert "The collection is empty." in capsys.readouterr().out
+
+
+def test_inspect_collection_rejects_invalid_limit_before_config(monkeypatch, capsys):
+    def fail_load_config():
+        raise AssertionError("invalid limits should fail before loading config")
+
+    monkeypatch.setattr(inspect_db, "_load_config", fail_load_config)
+
+    inspect_db.inspect_collection(fetch_limit=0)
+
+    assert "Invalid fetch limit" in capsys.readouterr().out
+
+
+def test_inspect_db_main_rejects_invalid_limit_argument(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["inspect_db", "--limit", "0"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        inspect_db.main()
+
+    assert exc_info.value.code == 2
