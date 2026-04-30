@@ -504,6 +504,25 @@ def _write_empty_per_shot_output_if_needed(
     return True
 
 
+def _aligned_transcript_needs_refresh(paths: Dict[str, str]) -> bool:
+    aligned_path = paths["transcript_aligned"]
+    if not os.path.exists(aligned_path):
+        return True
+
+    try:
+        aligned_mtime = os.path.getmtime(aligned_path)
+        return any(
+            os.path.getmtime(paths[source_name]) > aligned_mtime
+            for source_name in ("shots", "transcript_raw")
+        )
+    except OSError as exc:
+        logger.warning(
+            "Could not check aligned transcript freshness: %s. Rebuilding it.",
+            exc,
+        )
+        return True
+
+
 def extract_audio(video_path: str, audio_path: str):
     """Extracts and normalizes audio from a video file."""
     logger.info("    -> Extracting and normalizing audio...")
@@ -894,8 +913,12 @@ def run_extraction(
         transcribe_and_diarize(paths["audio"], paths["transcript_raw"], config)
 
     # 4. Align the transcript to the shots
-    if not os.path.exists(paths["transcript_aligned"]):
+    if _aligned_transcript_needs_refresh(paths):
         align_transcript_to_shots(paths["transcript_raw"], scenes, paths["transcript_aligned"])
+    else:
+        logger.info(
+            f"    -> Skipping transcript alignment, loading from {paths['transcript_aligned']}."
+        )
     
     # 5. Run per-shot analysis for audio events
     if not os.path.exists(paths["audio_events"]):

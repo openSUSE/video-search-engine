@@ -775,6 +775,103 @@ def test_run_extraction_refreshes_existing_final_analysis_from_current_artifacts
     ]
 
 
+def test_run_extraction_rebuilds_stale_aligned_transcript_before_final_analysis(
+    monkeypatch,
+    tmp_path,
+):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+
+    Path(paths["shots"]).write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "shot_index": 1,
+                    "start_frame": 0,
+                    "end_frame": 24,
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 1.0,
+                }
+            ]
+        )
+    )
+    Path(paths["audio"]).write_text("audio")
+    Path(paths["transcript_raw"]).write_text(
+        json.dumps(
+            [
+                {
+                    "start": 0.2,
+                    "end": 0.4,
+                    "text": "fresh line",
+                    "speaker": "SPEAKER_00",
+                }
+            ]
+        )
+    )
+    Path(paths["transcript_aligned"]).write_text(
+        json.dumps(
+            [
+                {
+                    "start": 0.2,
+                    "end": 0.4,
+                    "text": "stale line",
+                    "speaker": "SPEAKER_00",
+                    "shot_id": "shot_0001",
+                }
+            ]
+        )
+    )
+    Path(paths["visual_details"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "caption": "current caption"}])
+    )
+    Path(paths["audio_events"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "events": []}])
+    )
+    Path(paths["actions"]).write_text(
+        json.dumps([{"shot_id": "shot_0001", "actions": []}])
+    )
+
+    mtimes = {
+        paths["transcript_aligned"]: 10.0,
+        paths["shots"]: 20.0,
+        paths["transcript_raw"]: 30.0,
+    }
+
+    def fake_getmtime(path):
+        return mtimes[str(path)]
+
+    monkeypatch.setattr(extraction_step.os.path, "getmtime", fake_getmtime)
+
+    run_extraction(
+        video_path=str(tmp_path / "demo.mp4"),
+        base_output_dir=str(output_dir),
+        config=config,
+    )
+
+    assert json.loads(Path(paths["transcript_aligned"]).read_text()) == [
+        {
+            "start": 0.2,
+            "end": 0.4,
+            "text": "fresh line",
+            "speaker": "SPEAKER_00",
+            "shot_id": "shot_0001",
+        }
+    ]
+    [final_shot] = json.loads(Path(paths["final_analysis"]).read_text())
+    assert final_shot["transcript_segments"] == [
+        {
+            "start": 0.2,
+            "end": 0.4,
+            "text": "fresh line",
+            "speaker": "SPEAKER_00",
+        }
+    ]
+
+
 def test_run_extraction_rejects_invalid_cached_shots_before_downstream_work(
     monkeypatch,
     tmp_path,
