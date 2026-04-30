@@ -1033,6 +1033,26 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
             "audio events",
         ),
         (
+            "audio_events",
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "events": [{"event": "speech", "score": "0.9"}],
+                }
+            ],
+            "audio events",
+        ),
+        (
+            "audio_events",
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "events": [{"event": "speech", "score": True}],
+                }
+            ],
+            "audio events",
+        ),
+        (
             "actions",
             [{"shot_id": "shot_0001", "actions": [{"score": 0.8}]}],
             "actions",
@@ -1040,6 +1060,26 @@ def test_create_final_analysis_file_combines_intermediate_outputs(tmp_path):
         (
             "actions",
             [{"shot_id": "shot_0001", "actions": [{"action": ""}]}],
+            "actions",
+        ),
+        (
+            "actions",
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "actions": [{"action": "standing", "score": -0.1}],
+                }
+            ],
+            "actions",
+        ),
+        (
+            "actions",
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "actions": [{"action": "standing", "score": float("nan")}],
+                }
+            ],
             "actions",
         ),
         (

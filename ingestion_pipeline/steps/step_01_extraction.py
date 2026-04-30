@@ -284,6 +284,26 @@ def _reject_duplicate_artifact_shot_id(
     seen_shot_ids.add(shot_id)
 
 
+def _validate_optional_artifact_score(
+    item: Dict[str, Any],
+    artifact_name: str,
+    item_index: int,
+    collection_field: str,
+    label_index: int,
+) -> None:
+    if "score" not in item:
+        return
+
+    score = item["score"]
+    if not _is_number(score) or score < 0:
+        raise ValueError(
+            f"{artifact_name} item at index {item_index} field "
+            f"{collection_field} item at index {label_index} "
+            "must have non-negative numeric score"
+        )
+    item["score"] = float(score)
+
+
 def _validate_visual_details(raw_visual_data: Any) -> List[Dict[str, Any]]:
     visual_data = _validate_artifact_object_array(raw_visual_data, "visual details")
     seen_shot_ids: set[str] = set()
@@ -341,6 +361,13 @@ def _validate_labeled_artifact_data(
                 )
             normalized_labeled_item = dict(labeled_item)
             normalized_labeled_item[label_field] = label.strip()
+            _validate_optional_artifact_score(
+                normalized_labeled_item,
+                artifact_name,
+                item_index,
+                collection_field,
+                label_index,
+            )
             normalized_labeled_items.append(normalized_labeled_item)
 
         normalized_artifact_data.append(
