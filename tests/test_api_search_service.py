@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from api.search_service import HybridSearchService, _first_id_list
+from api.search_service import HybridSearchService, RRF_K, _first_id_list
 
 
 def _metadata(**updates):
@@ -327,6 +327,71 @@ def test_hybrid_search_service_skips_malformed_query_result_ids_before_fusion():
     ]
     assert collection.get_call == {
         "ids": ["demo.mp4::segment-a_text", "demo.mp4::segment-b_text"],
+        "include": ["metadatas"],
+    }
+
+
+def test_hybrid_search_service_deduplicates_query_ids_before_fusion():
+    class CollectionWithDuplicateQueryIds(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::duplicate_text",
+                            "demo.mp4::duplicate_text",
+                            "demo.mp4::text-only_text",
+                        ]
+                    ]
+                }
+            return {
+                "ids": [
+                    [
+                        "demo.mp4::visual-only_visual",
+                        "demo.mp4::visual-only_visual",
+                    ]
+                ]
+            }
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ids,
+                "metadatas": [
+                    _metadata(title="Duplicate"),
+                    _metadata(title="Visual only"),
+                    _metadata(title="Text only"),
+                ],
+            }
+
+    collection = CollectionWithDuplicateQueryIds()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    results = service.search("find highlights", top_k=3)
+
+    assert [result["id"] for result in results] == [
+        "demo.mp4::duplicate",
+        "demo.mp4::visual-only",
+        "demo.mp4::text-only",
+    ]
+    assert results[0]["score"] == pytest.approx(1 / RRF_K)
+    assert results[1]["score"] == pytest.approx(1 / RRF_K)
+    assert results[2]["score"] == pytest.approx(1 / (RRF_K + 1))
+    assert collection.get_call == {
+        "ids": [
+            "demo.mp4::duplicate_text",
+            "demo.mp4::visual-only_text",
+            "demo.mp4::text-only_text",
+        ],
         "include": ["metadatas"],
     }
 

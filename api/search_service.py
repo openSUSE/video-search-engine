@@ -117,6 +117,7 @@ def _first_id_list(results: Dict[str, Any]) -> List[Any]:
 
 def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
     segment_ids = []
+    seen_segment_ids = set()
     for doc_id in _first_id_list(results):
         if not isinstance(doc_id, str) or not doc_id.endswith(suffix):
             logger.warning(
@@ -125,7 +126,11 @@ def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
                 suffix,
             )
             continue
-        segment_ids.append(doc_id.removesuffix(suffix))
+        segment_id = doc_id.removesuffix(suffix)
+        if segment_id in seen_segment_ids:
+            continue
+        seen_segment_ids.add(segment_id)
+        segment_ids.append(segment_id)
     return segment_ids
 
 
