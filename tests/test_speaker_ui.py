@@ -111,6 +111,72 @@ def test_speaker_flask_ui_rejects_blank_required_path_args(monkeypatch, args):
     assert exc_info.value.code == 2
 
 
+@pytest.mark.parametrize(
+    ("invalid_arg", "invalid_is_directory"),
+    [
+        ("video", False),
+        ("transcript", False),
+        ("video", True),
+        ("transcript", True),
+    ],
+    ids=[
+        "missing-video",
+        "missing-transcript",
+        "video-directory",
+        "transcript-directory",
+    ],
+)
+def test_speaker_flask_ui_rejects_invalid_input_files_before_startup(
+    monkeypatch,
+    tmp_path,
+    invalid_arg,
+    invalid_is_directory,
+):
+    video_path = tmp_path / "demo.mp4"
+    transcript_path = tmp_path / "transcript.json"
+    if invalid_arg == "video" and invalid_is_directory:
+        video_path.mkdir()
+    elif invalid_arg != "video":
+        video_path.write_bytes(b"video")
+    if invalid_arg == "transcript" and invalid_is_directory:
+        transcript_path.mkdir()
+    elif invalid_arg != "transcript":
+        transcript_path.write_text("[]")
+
+    monkeypatch.setattr(
+        speaker_app,
+        "CONFIG",
+        {
+            "filenames": {"speaker_map": "speaker_map.json"},
+            "ui": {"host": "127.0.0.1", "port": 5050},
+        },
+    )
+
+    def fail_run(*_args, **_kwargs):
+        raise AssertionError("speaker UI server should not start with invalid input files")
+
+    monkeypatch.setattr(speaker_app.app, "run", fail_run)
+
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            speaker_app.main(
+                [
+                    "--video",
+                    str(video_path),
+                    "--transcript",
+                    str(transcript_path),
+                    "--output_dir",
+                    str(tmp_path / "processed"),
+                ]
+            )
+    finally:
+        speaker_app.VIDEO_PATH = None
+        speaker_app.TRANSCRIPT_PATH = None
+        speaker_app.OUTPUT_DIR = None
+
+    assert exc_info.value.code == 2
+
+
 def test_get_data_returns_validated_transcript(monkeypatch, tmp_path):
     video_path = tmp_path / "videos" / "demo.mp4"
     video_path.parent.mkdir()

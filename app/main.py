@@ -57,6 +57,13 @@ def _path_arg(value):
     return normalized_value
 
 
+def _file_path_arg(value):
+    normalized_value = _path_arg(value)
+    if not os.path.isfile(normalized_value):
+        raise argparse.ArgumentTypeError("path must point to an existing file")
+    return normalized_value
+
+
 def get_config():
     global CONFIG
     if CONFIG is None:
@@ -238,13 +245,13 @@ def main(argv=None):
     parser.add_argument(
         "--video",
         required=True,
-        type=_path_arg,
+        type=_file_path_arg,
         help="Path to the video file.",
     )
     parser.add_argument(
         "--transcript",
         required=True,
-        type=_path_arg,
+        type=_file_path_arg,
         help="Path to the raw transcript JSON file.",
     )
     parser.add_argument(
