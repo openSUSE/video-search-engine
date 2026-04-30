@@ -4,7 +4,7 @@ from pydantic import BaseModel, confloat, conint, constr, field_validator, model
 
 QueryString = constr(strip_whitespace=True, min_length=1, max_length=1000)
 VideoFilenameString = constr(strip_whitespace=True, min_length=1, max_length=512)
-SearchLimit = conint(ge=1, le=50)
+SearchLimit = conint(strict=True, ge=1, le=50)
 ResultString = constr(strip_whitespace=True, min_length=1)
 SpeakersString = constr(strip_whitespace=True)
 NonNegativeFiniteFloat = confloat(ge=0, allow_inf_nan=False)
@@ -29,7 +29,7 @@ class SearchResult(BaseModel):
     @field_validator("score", "start_time", "end_time", mode="before")
     @classmethod
     def reject_bool_numbers(cls, value, info):
-        if isinstance(value, bool):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f"{info.field_name} must be a number")
         return value
 
