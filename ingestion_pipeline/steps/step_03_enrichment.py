@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import re
 from typing import Any, Callable, Dict, Optional
 
 from core.atomic_io import atomic_write_json
@@ -303,7 +304,17 @@ def _normalize_llm_keywords(value: Any) -> list[str]:
         ]
 
     keyword = _clean_llm_string(value)
-    return [keyword] if keyword else []
+    if not keyword:
+        return []
+
+    return [
+        keyword_part
+        for keyword_part in (
+            part.strip()
+            for part in re.split(r"[,;\n]+", keyword)
+        )
+        if keyword_part
+    ]
 
 
 def _safe_llm_updates(llm_data: Any) -> Optional[Dict[str, Any]]:
