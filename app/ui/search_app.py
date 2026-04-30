@@ -20,7 +20,7 @@ from app.ui.search_state import (
     ensure_search_session_state,
     reset_search_session_for_video,
 )
-from app.ui.speaker_support import is_supported_video_file
+from app.ui.speaker_support import supported_video_filenames
 from core.logger import setup_logging
 
 VIDEO_DATA_DIR = env_path_setting("VIDEO_DATA_PATH", "data/videos")
@@ -48,9 +48,7 @@ with st.sidebar:
     st.header("Video Selection")
     
     try:
-        video_files = sorted(
-            f for f in os.listdir(VIDEO_DATA_DIR) if is_supported_video_file(f)
-        )
+        video_files = supported_video_filenames(VIDEO_DATA_DIR)
         if not video_files:
             st.warning(f"No video files found in '{VIDEO_DATA_DIR}'.")
             st.stop()

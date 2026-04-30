@@ -29,6 +29,15 @@ def is_supported_video_file(filename: str | Path) -> bool:
     return bool(path.suffix and path.stem and path.suffix.lower() in VIDEO_EXTENSIONS)
 
 
+def supported_video_filenames(video_data_dir: str | Path) -> list[str]:
+    video_dir = Path(video_data_dir)
+    return sorted(
+        path.name
+        for path in video_dir.iterdir()
+        if path.is_file() and is_supported_video_file(path.name)
+    )
+
+
 def resolve_video_path(
     video_data_dir: str | Path,
     video_stem: str,

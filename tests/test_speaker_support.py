@@ -14,6 +14,7 @@ from app.ui.speaker_support import (
     save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
+    supported_video_filenames,
     validate_speaker_ids_from_transcript,
 )
 
@@ -69,6 +70,15 @@ def test_resolve_video_path_matches_existing_extension_case_insensitively(tmp_pa
     (tmp_path / "demo.MP4").write_bytes(b"video")
 
     assert resolve_video_path(tmp_path, "demo") == tmp_path / "demo.MP4"
+
+
+def test_supported_video_filenames_returns_sorted_supported_files_only(tmp_path):
+    (tmp_path / "zeta.MP4").write_bytes(b"video")
+    (tmp_path / "alpha.mov").write_bytes(b"video")
+    (tmp_path / "notes.txt").write_text("ignore me")
+    (tmp_path / "folder.avi").mkdir()
+
+    assert supported_video_filenames(tmp_path) == ["alpha.mov", "zeta.MP4"]
 
 
 def test_reset_speaker_session_for_video_clears_previous_video_state():

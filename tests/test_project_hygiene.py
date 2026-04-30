@@ -120,8 +120,8 @@ def test_search_streamlit_ui_uses_shared_video_file_filter():
     }
     body_text = ast.unparse(tree)
 
-    assert "is_supported_video_file" in imported_support_names
-    assert "is_supported_video_file" in body_text
+    assert "supported_video_filenames" in imported_support_names
+    assert "supported_video_filenames" in body_text
 
 
 def test_speaker_streamlit_ui_uses_support_path_boundary():
