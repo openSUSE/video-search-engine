@@ -15,6 +15,7 @@ from app.ui.speaker_support import (
     save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
+    speaker_segment_button_key,
     supported_video_filenames,
     validate_speaker_ids_from_transcript,
 )
@@ -304,6 +305,16 @@ def test_validate_speaker_ids_from_transcript_returns_sorted_non_empty_strings()
         "SPEAKER_00",
         "SPEAKER_01",
     ]
+
+
+def test_speaker_segment_button_key_is_unique_for_duplicate_start_times():
+    keys = [
+        speaker_segment_button_key("SPEAKER_00", segment_index)
+        for segment_index in range(2)
+    ]
+
+    assert keys == ["seg_SPEAKER_00_0", "seg_SPEAKER_00_1"]
+    assert len(set(keys)) == 2
 
 
 @pytest.mark.parametrize(

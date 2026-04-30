@@ -14,6 +14,7 @@ from app.ui.speaker_support import (
     save_speaker_map_if_complete,
     speaker_artifact_paths,
     speaker_ids_from_transcript,
+    speaker_segment_button_key,
 )
 from core.atomic_io import atomic_write_json
 from core.logger import setup_logging
@@ -142,12 +143,20 @@ else:
                     st.write("Click a segment to play it in the video.")
                     
                     # Display clickable dialogue segments for the selected speaker
-                    for segment in st.session_state.current_transcript_data:
+                    for segment_index, segment in enumerate(
+                        st.session_state.current_transcript_data
+                    ):
                         if segment.get('speaker') == selected_speaker_label:
                             start_time = segment['start']
                             text = segment['text']
                             preview = text if len(text) <= 70 else text[:70] + "..."
-                            if st.button(f"[{start_time:.1f}s] {preview}", key=f"seg_{start_time}"):
+                            if st.button(
+                                f"[{start_time:.1f}s] {preview}",
+                                key=speaker_segment_button_key(
+                                    selected_speaker_label,
+                                    segment_index,
+                                ),
+                            ):
                                 st.session_state.video_start_time = int(start_time)
 
             with right_col:

@@ -156,6 +156,20 @@ def test_speaker_streamlit_ui_requires_video_path_to_be_a_file():
     assert "paths.video.is_file()" in body_text
 
 
+def test_speaker_streamlit_ui_uses_unique_segment_button_keys():
+    tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
+    imported_support_names = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.ui.speaker_support"
+        for alias in node.names
+    }
+    body_text = ast.unparse(tree)
+
+    assert "speaker_segment_button_key" in imported_support_names
+    assert "speaker_segment_button_key(selected_speaker_label, segment_index)" in body_text
+
+
 def test_speaker_flask_ui_defers_config_import():
     imported_modules = _top_level_import_modules("app/main.py")
 

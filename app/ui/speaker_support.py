@@ -91,6 +91,10 @@ def speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
     return sorted(speaker_ids)
 
 
+def speaker_segment_button_key(speaker_label: str, segment_index: int) -> str:
+    return f"seg_{speaker_label}_{segment_index}"
+
+
 def validate_speaker_ids_from_transcript(transcript_segments: Any) -> list[str]:
     if not isinstance(transcript_segments, list):
         raise ValueError("transcript must be a JSON array")
