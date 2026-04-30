@@ -152,6 +152,13 @@ def test_load_speaker_map_returns_empty_map_for_invalid_existing_map(tmp_path):
     assert load_speaker_map(speaker_map_path) == {}
 
 
+def test_load_speaker_map_returns_empty_map_for_invalid_json(tmp_path):
+    speaker_map_path = tmp_path / "speaker_map.json"
+    speaker_map_path.write_text('{"SPEAKER_00": ')
+
+    assert load_speaker_map(speaker_map_path) == {}
+
+
 def test_load_transcript_segments_validates_display_fields(tmp_path):
     transcript_path = tmp_path / "transcript.json"
     transcript_path.write_text(

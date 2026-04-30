@@ -214,8 +214,11 @@ def normalize_speaker_map(raw_speaker_map: Any) -> dict[str, str] | None:
 
 
 def load_speaker_map(path: str | Path) -> dict[str, str]:
-    with Path(path).open("r") as f:
-        speaker_map = json.load(f)
+    try:
+        with Path(path).open("r") as f:
+            speaker_map = json.load(f)
+    except json.JSONDecodeError:
+        return {}
     return normalize_speaker_map(speaker_map) or {}
 
 
