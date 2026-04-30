@@ -124,6 +124,19 @@ def test_search_streamlit_ui_uses_shared_video_file_filter():
     assert "supported_video_filenames" in body_text
 
 
+def test_search_streamlit_ui_handles_ambiguous_video_discovery():
+    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    handled_exceptions = {
+        _qualified_name(node.type)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler) and node.type is not None
+    }
+    body_text = ast.unparse(tree)
+
+    assert "ValueError" in handled_exceptions
+    assert "Ambiguous video selection" in body_text
+
+
 def test_search_streamlit_ui_uses_positioned_result_button_keys():
     tree = ast.parse(Path("app/ui/search_app.py").read_text())
     imported_client_names = {

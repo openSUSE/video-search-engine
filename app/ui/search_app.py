@@ -69,6 +69,9 @@ with st.sidebar:
     except FileNotFoundError:
         st.error(f"Video directory not found at '{VIDEO_DATA_DIR}'. Please create it and add videos.")
         st.stop()
+    except ValueError as e:
+        st.error(f"Ambiguous video selection: {e}")
+        st.stop()
 
 # --- MAIN CONTENT AREA ---
 # Create two columns: one for search results, one for the video player

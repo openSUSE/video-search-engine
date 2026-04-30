@@ -90,6 +90,14 @@ def test_supported_video_filenames_returns_sorted_supported_files_only(tmp_path)
     assert supported_video_filenames(tmp_path) == ["alpha.mov", "zeta.MP4"]
 
 
+def test_supported_video_filenames_rejects_duplicate_stems(tmp_path):
+    (tmp_path / "demo.mp4").write_bytes(b"video")
+    (tmp_path / "demo.mov").write_bytes(b"video")
+
+    with pytest.raises(ValueError, match="duplicate video stem"):
+        supported_video_filenames(tmp_path)
+
+
 def test_supported_video_filenames_rejects_non_directory_paths(tmp_path):
     video_data_path = tmp_path / "videos.mp4"
     video_data_path.write_bytes(b"not a directory")

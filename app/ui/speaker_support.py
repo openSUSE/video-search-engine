@@ -34,11 +34,31 @@ def supported_video_filenames(video_data_dir: str | Path) -> list[str]:
     if not video_dir.is_dir():
         raise FileNotFoundError(f"Video directory not found: {video_dir}")
 
-    return sorted(
-        path.name
-        for path in video_dir.iterdir()
-        if path.is_file() and is_supported_video_file(path.name)
+    video_paths = sorted(
+        (
+            path
+            for path in video_dir.iterdir()
+            if path.is_file() and is_supported_video_file(path.name)
+        ),
+        key=lambda path: path.name,
     )
+    filenames_by_stem: dict[str, list[str]] = {}
+    for path in video_paths:
+        filenames_by_stem.setdefault(path.stem, []).append(path.name)
+
+    duplicate_groups = [
+        filenames
+        for filenames in filenames_by_stem.values()
+        if len(filenames) > 1
+    ]
+    if duplicate_groups:
+        duplicates = "; ".join(", ".join(filenames) for filenames in duplicate_groups)
+        raise ValueError(
+            "duplicate video stem found; search filters use the filename stem, "
+            f"so each supported video must have a unique stem: {duplicates}"
+        )
+
+    return [path.name for path in video_paths]
 
 
 def resolve_video_path(
