@@ -203,18 +203,12 @@ def _segment_time_value(segment: Dict[str, Any], index: int, field_name: str) ->
         raise ValueError(f"segment at index {index} must have {field_name}")
 
     value = segment[field_name]
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(
             f"segment at index {index} field {field_name} must be a number"
         )
 
-    try:
-        time_value = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"segment at index {index} field {field_name} must be a number"
-        ) from exc
-
+    time_value = float(value)
     if not math.isfinite(time_value):
         raise ValueError(
             f"segment at index {index} field {field_name} must be a finite number"

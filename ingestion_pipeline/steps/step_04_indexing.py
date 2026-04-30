@@ -140,18 +140,12 @@ def _segment_time_value(segment: Dict[str, Any], field_name: str, index: int) ->
         )
 
     value = segment[field_name]
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(
             f"enriched segment at index {index} {field_name} must be a number"
         )
 
-    try:
-        time_value = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"enriched segment at index {index} {field_name} must be a number"
-        ) from exc
-
+    time_value = float(value)
     if not math.isfinite(time_value):
         raise ValueError(
             f"enriched segment at index {index} {field_name} must be a finite number"

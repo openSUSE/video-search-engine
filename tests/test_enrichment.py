@@ -556,6 +556,8 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
         [{"segment_id": "segment_0001", "consolidated_audio_events": ["music", 7]}],
         [{"segment_id": "segment_0001", "end_time": 1.0}],
         [{"segment_id": "segment_0001", "start_time": 0.0}],
+        [{"segment_id": "segment_0001", "start_time": "0", "end_time": 1.0}],
+        [{"segment_id": "segment_0001", "start_time": 0.0, "end_time": "1"}],
         [{"segment_id": "segment_0001", "start_time": True, "end_time": 1.0}],
         [{"segment_id": "segment_0001", "start_time": float("nan"), "end_time": 1.0}],
         [{"segment_id": "segment_0001", "start_time": 2.0, "end_time": 1.0}],
