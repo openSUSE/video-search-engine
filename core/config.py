@@ -35,6 +35,13 @@ DEFAULT_FILENAMES = {
     "final_segments": "final_segments.json",
     "enriched_segments": "final_enriched_segments.json",
 }
+DEFAULT_PARAMETERS = {
+    "transcription": {"batch_size": 32},
+    "audio": {"sample_rate": 16000},
+    "audio_events": {"top_n": 3, "confidence_threshold": 0.1},
+    "visual_captioning": {"max_new_tokens": 50},
+    "action_recognition": {"num_frames": 16, "top_n": 3},
+}
 LLM_PROVIDERS = {"gemini", "ollama"}
 
 
@@ -159,6 +166,36 @@ def _positive_number_setting(
     return config_value
 
 
+def _positive_int_setting(
+    dotted_name: str,
+    config_value: Any,
+    default: int,
+) -> int:
+    invalid_message = f"{dotted_name} must be a positive integer"
+    if config_value is None:
+        return default
+    if type(config_value) is not int or config_value <= 0:
+        raise ValueError(invalid_message)
+    return config_value
+
+
+def _unit_interval_setting(
+    dotted_name: str,
+    config_value: Any,
+    default: float,
+) -> float | int:
+    invalid_message = f"{dotted_name} must be a finite number between 0 and 1"
+    if config_value is None:
+        return default
+    if isinstance(config_value, bool) or not isinstance(config_value, (int, float)):
+        raise ValueError(invalid_message)
+
+    number = float(config_value)
+    if not math.isfinite(number) or not 0 <= number <= 1:
+        raise ValueError(invalid_message)
+    return config_value
+
+
 def _port_setting(env_name: str, config_value: Any, default: int) -> int:
     raw_port = _coerced_setting(env_name, config_value, str(default))
     invalid_message = (
@@ -199,6 +236,73 @@ def _normalize_filenames(filenames_config: Dict[str, Any]) -> None:
             filenames_config.get(key),
             default,
         )
+
+
+def _normalize_parameters(parameters_config: Dict[str, Any]) -> None:
+    transcription_config = _ensure_nested_config_section(
+        parameters_config,
+        "transcription",
+        "parameters.transcription",
+    )
+    transcription_config["batch_size"] = _positive_int_setting(
+        "parameters.transcription.batch_size",
+        transcription_config.get("batch_size"),
+        DEFAULT_PARAMETERS["transcription"]["batch_size"],
+    )
+
+    audio_config = _ensure_nested_config_section(
+        parameters_config,
+        "audio",
+        "parameters.audio",
+    )
+    audio_config["sample_rate"] = _positive_int_setting(
+        "parameters.audio.sample_rate",
+        audio_config.get("sample_rate"),
+        DEFAULT_PARAMETERS["audio"]["sample_rate"],
+    )
+
+    audio_events_config = _ensure_nested_config_section(
+        parameters_config,
+        "audio_events",
+        "parameters.audio_events",
+    )
+    audio_events_config["top_n"] = _positive_int_setting(
+        "parameters.audio_events.top_n",
+        audio_events_config.get("top_n"),
+        DEFAULT_PARAMETERS["audio_events"]["top_n"],
+    )
+    audio_events_config["confidence_threshold"] = _unit_interval_setting(
+        "parameters.audio_events.confidence_threshold",
+        audio_events_config.get("confidence_threshold"),
+        DEFAULT_PARAMETERS["audio_events"]["confidence_threshold"],
+    )
+
+    visual_captioning_config = _ensure_nested_config_section(
+        parameters_config,
+        "visual_captioning",
+        "parameters.visual_captioning",
+    )
+    visual_captioning_config["max_new_tokens"] = _positive_int_setting(
+        "parameters.visual_captioning.max_new_tokens",
+        visual_captioning_config.get("max_new_tokens"),
+        DEFAULT_PARAMETERS["visual_captioning"]["max_new_tokens"],
+    )
+
+    action_recognition_config = _ensure_nested_config_section(
+        parameters_config,
+        "action_recognition",
+        "parameters.action_recognition",
+    )
+    action_recognition_config["num_frames"] = _positive_int_setting(
+        "parameters.action_recognition.num_frames",
+        action_recognition_config.get("num_frames"),
+        DEFAULT_PARAMETERS["action_recognition"]["num_frames"],
+    )
+    action_recognition_config["top_n"] = _positive_int_setting(
+        "parameters.action_recognition.top_n",
+        action_recognition_config.get("top_n"),
+        DEFAULT_PARAMETERS["action_recognition"]["top_n"],
+    )
 
 
 def _select_device(requested_device: str) -> str:
@@ -280,6 +384,9 @@ def load_config() -> Dict[str, Any]:
 
     # ------- artifact filenames -------
     _normalize_filenames(cfg["filenames"])
+
+    # ------- extraction/runtime parameters -------
+    _normalize_parameters(cfg["parameters"])
 
     # ------- LLM provider overrides -------
     prov = _choice_setting(

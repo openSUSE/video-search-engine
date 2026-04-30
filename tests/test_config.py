@@ -197,6 +197,103 @@ llm_enrichment:
     )
 
 
+def test_runtime_parameter_defaults_are_populated(monkeypatch, tmp_path):
+    config_module = _load_config_module(monkeypatch, tmp_path, "{}")
+
+    assert config_module.CONFIG["parameters"] == {
+        "transcription": {"batch_size": 32},
+        "audio": {"sample_rate": 16000},
+        "audio_events": {"top_n": 3, "confidence_threshold": 0.1},
+        "visual_captioning": {"max_new_tokens": 50},
+        "action_recognition": {"num_frames": 16, "top_n": 3},
+    }
+
+
+def test_configured_runtime_parameters_are_preserved(monkeypatch, tmp_path):
+    config_module = _load_config_module(
+        monkeypatch,
+        tmp_path,
+        """
+parameters:
+  transcription:
+    batch_size: 8
+  audio:
+    sample_rate: 22050
+  audio_events:
+    top_n: 5
+    confidence_threshold: 0.25
+  visual_captioning:
+    max_new_tokens: 64
+  action_recognition:
+    num_frames: 12
+    top_n: 4
+""",
+    )
+
+    assert config_module.CONFIG["parameters"] == {
+        "transcription": {"batch_size": 8},
+        "audio": {"sample_rate": 22050},
+        "audio_events": {"top_n": 5, "confidence_threshold": 0.25},
+        "visual_captioning": {"max_new_tokens": 64},
+        "action_recognition": {"num_frames": 12, "top_n": 4},
+    }
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        (
+            "parameters:\n  transcription:\n    batch_size: 0\n",
+            "parameters.transcription.batch_size",
+        ),
+        (
+            "parameters:\n  transcription:\n    batch_size: '32'\n",
+            "parameters.transcription.batch_size",
+        ),
+        (
+            "parameters:\n  audio:\n    sample_rate: -16000\n",
+            "parameters.audio.sample_rate",
+        ),
+        (
+            "parameters:\n  audio_events:\n    top_n: true\n",
+            "parameters.audio_events.top_n",
+        ),
+        (
+            "parameters:\n  audio_events:\n    confidence_threshold: -0.1\n",
+            "parameters.audio_events.confidence_threshold",
+        ),
+        (
+            "parameters:\n  audio_events:\n    confidence_threshold: 1.1\n",
+            "parameters.audio_events.confidence_threshold",
+        ),
+        (
+            "parameters:\n  audio_events:\n    confidence_threshold: .nan\n",
+            "parameters.audio_events.confidence_threshold",
+        ),
+        (
+            "parameters:\n  visual_captioning:\n    max_new_tokens: []\n",
+            "parameters.visual_captioning.max_new_tokens",
+        ),
+        (
+            "parameters:\n  action_recognition:\n    num_frames: 0\n",
+            "parameters.action_recognition.num_frames",
+        ),
+        (
+            "parameters:\n  action_recognition:\n    top_n: 0\n",
+            "parameters.action_recognition.top_n",
+        ),
+    ],
+)
+def test_invalid_runtime_parameters_fail_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 @pytest.mark.parametrize("raw_provider", ["openai", "gemini-pro", "anthropic"])
 def test_invalid_llm_provider_environment_override_fails_fast(
     monkeypatch,
