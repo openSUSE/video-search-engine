@@ -591,6 +591,27 @@ def test_run_enrichment_rejects_unknown_provider_before_copying(tmp_path):
     assert not (tmp_path / "enriched.json").exists()
 
 
+def test_run_enrichment_rejects_empty_source_segments_before_copying_or_calling_provider(
+    tmp_path,
+):
+    segments_path = tmp_path / "final_segments.json"
+    segments_path.write_text("[]")
+    calls = []
+
+    result = run_enrichment(
+        str(segments_path),
+        {
+            "filenames": {"enriched_segments": "enriched.json"},
+            "llm_enrichment": {"provider": "ollama"},
+        },
+        llm_clients={"ollama": lambda _prompt, _config: calls.append("called")},
+    )
+
+    assert result is None
+    assert calls == []
+    assert not (tmp_path / "enriched.json").exists()
+
+
 @pytest.mark.parametrize(
     "segments",
     [

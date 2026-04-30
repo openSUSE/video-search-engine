@@ -390,6 +390,9 @@ def run_enrichment(
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         logger.error(f"Could not read or parse the segments file at {segments_path}: {e}")
         return None
+    if not source_segments:
+        logger.warning("No segments found in %s. Skipping enrichment.", segments_path)
+        return None
 
     # The enrichment file is resumable progress, but only while its structural
     # segment data still matches the current segmentation output.
