@@ -47,7 +47,14 @@ def _clean_env_value(value: str | None) -> str | None:
 
 
 def _speaker_ui_mode() -> str:
-    return (_clean_env_value(os.getenv("SPEAKER_UI_MODE")) or "external").lower()
+    mode = (_clean_env_value(os.getenv("SPEAKER_UI_MODE")) or "external").lower()
+    if mode in {"external", "local"}:
+        return mode
+    logger.warning(
+        "Invalid SPEAKER_UI_MODE=%r; using external speaker UI mode.",
+        mode,
+    )
+    return "external"
 
 
 def _speaker_map_timeout_seconds():

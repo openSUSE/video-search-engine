@@ -303,6 +303,19 @@ def test_speaker_ui_mode_strips_blank_environment_values(monkeypatch):
     assert run_pipeline._speaker_ui_mode() == "external"
 
 
+def test_speaker_ui_mode_warns_and_uses_external_for_unknown_values(
+    monkeypatch,
+    caplog,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_UI_MODE", " typo ")
+
+    with caplog.at_level(logging.WARNING):
+        assert run_pipeline._speaker_ui_mode() == "external"
+
+    assert "Invalid SPEAKER_UI_MODE" in caplog.text
+
+
 def test_blank_speaker_map_timeout_does_not_log_invalid_warning(monkeypatch, caplog):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     monkeypatch.setenv("SPEAKER_MAP_TIMEOUT_SECONDS", " ")
