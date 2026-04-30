@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+import os
 from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -143,9 +144,18 @@ def _delete_stale_video_documents(
 
 
 def _normalize_video_filename(video_filename: Any) -> str:
-    if not isinstance(video_filename, str) or not video_filename.strip():
-        raise ValueError("video_filename must be a non-empty string")
-    return video_filename.strip()
+    invalid_message = "video_filename must be a non-empty filename"
+    if not isinstance(video_filename, str):
+        raise ValueError(invalid_message)
+    video_filename = video_filename.strip()
+    if (
+        not video_filename
+        or video_filename in {".", ".."}
+        or os.path.basename(video_filename) != video_filename
+        or "\\" in video_filename
+    ):
+        raise ValueError(invalid_message)
+    return video_filename
 
 
 def _segment_time_value(segment: Dict[str, Any], field_name: str, index: int) -> float:

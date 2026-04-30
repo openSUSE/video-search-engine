@@ -637,7 +637,10 @@ def test_run_indexing_rejects_invalid_embedding_vector_containers_before_upsert(
     assert collection.upsert_call is None
 
 
-@pytest.mark.parametrize("video_filename", ["", "   ", None])
+@pytest.mark.parametrize(
+    "video_filename",
+    ["", "   ", None, ".", "..", "nested/demo", r"nested\demo"],
+)
 def test_run_indexing_rejects_invalid_video_filename_before_creating_dependencies(
     monkeypatch,
     tmp_path,
