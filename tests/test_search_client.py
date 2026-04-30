@@ -74,6 +74,15 @@ def test_search_api_url_uses_defaults_for_blank_environment_values(monkeypatch):
     assert search_client.search_api_url() == "http://localhost:1234/search"
 
 
+@pytest.mark.parametrize("port", ["abc", "0", "65536"])
+def test_search_api_url_rejects_invalid_environment_ports(monkeypatch, port):
+    monkeypatch.setenv("API_HOST", "api")
+    monkeypatch.setenv("API_PORT", port)
+
+    with pytest.raises(ValueError, match="TCP port"):
+        search_client.search_api_url()
+
+
 def test_search_payload_includes_query_limit_and_video_filter():
     payload = search_client.search_payload("opening scene", "demo", top_k=7)
 
