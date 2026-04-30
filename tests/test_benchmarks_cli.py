@@ -199,6 +199,14 @@ def test_runner_no_match_filter_exits_two():
     assert "No benchmarks selected" in result.stderr
 
 
+def test_runner_invalid_filter_regex_is_handled():
+    result = _run_runner("--filter", "[")
+
+    assert result.returncode == 2
+    assert "invalid --filter pattern" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 @pytest.mark.parametrize("flag", ["--scale=0", "--scale=-1", "--scale=nan"])
 def test_runner_invalid_scale_is_handled(flag: str):
     result = _run_runner(flag, "--quiet", "--filter", "^jobs\\.")

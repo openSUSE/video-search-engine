@@ -93,6 +93,7 @@ def _parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--filter",
         dest="patterns",
         action="append",
+        type=_regex_pattern,
         default=[],
         help=(
             "Regular expression matched against benchmark name and category. "
@@ -210,12 +211,21 @@ def _finite_non_negative_float(raw_value: str) -> float:
     return value
 
 
+def _regex_pattern(raw_value: str) -> re.Pattern[str]:
+    try:
+        return re.compile(raw_value)
+    except re.error as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid --filter pattern: {exc}"
+        ) from exc
+
+
 def main(argv: List[str] | None = None) -> int:
     args = _parse_args(argv)
 
     benchmarks = discover_benchmarks()
 
-    patterns = [re.compile(pattern) for pattern in args.patterns]
+    patterns = args.patterns
     selected = [b for b in benchmarks if _benchmark_matches(b, patterns)]
 
     if args.list:
