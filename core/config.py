@@ -164,6 +164,7 @@ def _http_origin_setting(env_name: str, config_value: Any, default: str) -> str:
         or parts.scheme.lower() not in {"http", "https"}
         or not parts.netloc
         or not parts.hostname
+        or parts.netloc.endswith(":")
         or parts.username
         or parts.password
         or embedded_port is not None

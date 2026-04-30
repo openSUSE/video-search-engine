@@ -404,6 +404,8 @@ def test_invalid_configured_llm_provider_fails_fast(
         "localhost",
         "ftp://localhost",
         "http://localhost:11434",
+        "http://localhost:",
+        "http://[::1]:",
         "http://user@localhost",
         "http://localhost/api",
         "http://localhost\\api",
