@@ -321,6 +321,41 @@ def test_run_indexing_deletes_stale_documents_for_reindexed_video(tmp_path):
     }
 
 
+def test_run_indexing_cleanup_skips_ids_scoped_to_other_videos(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                _enriched_segment(summary="person enters")
+            ]
+        )
+    )
+    collection = FakeCollection(
+        existing_ids=[
+            "demo-video::segment-1_text",
+            "demo-video::old-segment_text",
+            "other-video::segment-1_text",
+            "legacy-unscoped-segment_text",
+        ]
+    )
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=FakeEmbeddingModel(),
+        collection=collection,
+    )
+
+    assert collection.operations == ["upsert", "get", "delete"]
+    assert collection.delete_call == {
+        "ids": [
+            "demo-video::old-segment_text",
+            "legacy-unscoped-segment_text",
+        ],
+    }
+
+
 def test_run_indexing_does_not_delete_when_reindexed_video_has_no_stale_documents(
     tmp_path,
 ):

@@ -123,6 +123,13 @@ def _delete_stale_video_documents(
     for doc_id in ids:
         if not isinstance(doc_id, str):
             continue
+        if DOCUMENT_ID_SCOPE_DELIMITER in doc_id:
+            document_video_filename, _segment_id = doc_id.rsplit(
+                DOCUMENT_ID_SCOPE_DELIMITER,
+                1,
+            )
+            if document_video_filename != video_filename:
+                continue
         if doc_id in current_ids or doc_id in seen_stale_ids:
             continue
         stale_ids.append(doc_id)
