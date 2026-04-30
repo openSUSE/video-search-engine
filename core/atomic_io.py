@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from typing import Any
 
@@ -21,6 +22,11 @@ PathLike = str | os.PathLike[str]
 def atomic_write_json(path: PathLike, data: Any, indent: int = 2) -> None:
     target = os.fspath(path)
     directory = os.path.dirname(os.path.abspath(target))
+    try:
+        existing_mode = stat.S_IMODE(os.stat(target).st_mode)
+    except FileNotFoundError:
+        existing_mode = None
+
     fd, tmp_path = tempfile.mkstemp(
         prefix=os.path.basename(target) + ".",
         suffix=".tmp",
@@ -29,6 +35,8 @@ def atomic_write_json(path: PathLike, data: Any, indent: int = 2) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent, allow_nan=False)
+        if existing_mode is not None:
+            os.chmod(tmp_path, existing_mode)
         os.replace(tmp_path, target)
     except Exception:
         try:

@@ -1,4 +1,5 @@
 import json
+import stat
 
 import pytest
 
@@ -14,6 +15,17 @@ def test_atomic_write_json_replaces_existing_file_on_success(tmp_path):
     assert json.loads(output_path.read_text()) == [{"segment_id": "new"}]
     leftover = sorted(p.name for p in tmp_path.iterdir())
     assert leftover == ["data.json"]
+
+
+def test_atomic_write_json_preserves_existing_file_permissions(tmp_path):
+    output_path = tmp_path / "data.json"
+    output_path.write_text(json.dumps({"value": "old"}))
+    output_path.chmod(0o640)
+
+    atomic_write_json(output_path, {"value": "new"})
+
+    assert json.loads(output_path.read_text()) == {"value": "new"}
+    assert stat.S_IMODE(output_path.stat().st_mode) == 0o640
 
 
 def test_atomic_write_json_creates_file_when_missing(tmp_path):
