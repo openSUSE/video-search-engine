@@ -159,7 +159,6 @@ def consume_ingestion_jobs(
     rabbitmq_url = resolve_rabbitmq_url(rabbitmq_url)
     queue_name = resolve_ingestion_queue(queue_name)
     connection, channel = _open_channel(rabbitmq_url, queue_name)
-    channel.basic_qos(prefetch_count=1)
 
     def on_message(ch, method, _properties, body):
         try:
@@ -184,6 +183,7 @@ def consume_ingestion_jobs(
             logger.error("Rejected failed ingestion job for %s", job.video_path)
 
     try:
+        channel.basic_qos(prefetch_count=1)
         channel.basic_consume(queue=queue_name, on_message_callback=on_message, auto_ack=False)
         logger.info("Waiting for ingestion jobs on queue %s", queue_name)
         channel.start_consuming()

@@ -358,3 +358,36 @@ def test_consume_jobs_uses_environment_queue_when_queue_omitted(monkeypatch):
     assert calls["consume"]["auto_ack"] is False
     assert calls["started"] is True
     assert calls["closed"] is True
+
+
+def test_consume_jobs_closes_connection_when_consumer_setup_fails(monkeypatch):
+    calls = {}
+
+    class FakeConnection:
+        is_open = True
+
+        def close(self):
+            calls["closed"] = True
+
+    class FakeChannel:
+        def basic_qos(self, *, prefetch_count):
+            raise RuntimeError("broker refused qos")
+
+    def fake_open_channel(rabbitmq_url, queue_name):
+        calls["open"] = {"rabbitmq_url": rabbitmq_url, "queue_name": queue_name}
+        return FakeConnection(), FakeChannel()
+
+    monkeypatch.setattr(jobs, "_open_channel", fake_open_channel)
+
+    with pytest.raises(RuntimeError, match="broker refused qos"):
+        jobs.consume_ingestion_jobs(
+            lambda _job: True,
+            rabbitmq_url="amqp://broker",
+            queue_name="video.ingestion",
+        )
+
+    assert calls["open"] == {
+        "rabbitmq_url": "amqp://broker",
+        "queue_name": "video.ingestion",
+    }
+    assert calls["closed"] is True
