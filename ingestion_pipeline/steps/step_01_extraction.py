@@ -1,12 +1,14 @@
-import subprocess
+import argparse
 import json
 import logging
 import math
 import os
+import subprocess
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
 
 from core.atomic_io import atomic_write_json
+from core.logger import setup_logging
 from ingestion_pipeline.jobs import (
     normalize_optional_string,
     normalize_optional_year,
@@ -944,8 +946,7 @@ def run_extraction(
     return paths["final_analysis"]
 
 
-if __name__ == '__main__':
-    import argparse
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run the data extraction pipeline using settings from config.yaml.")
     parser.add_argument("--video", required=True, help="Path to the video file.")
     parser.add_argument("--output_dir", default="data/processed", help="Base directory to save processed subdirectories.")
@@ -954,5 +955,18 @@ if __name__ == '__main__':
     parser.add_argument("--year", type=int, help="Optional: The release year of the movie for a more accurate search.")
 
     args = parser.parse_args()
+
+    try:
+        video_path = normalize_required_string(args.video, "video")
+        output_dir = normalize_required_string(args.output_dir, "output_dir")
+        title = normalize_optional_string(args.title, "title")
+        year = normalize_optional_year(args.year)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    setup_logging()
+    run_extraction(video_path, output_dir, title, year)
     
-    run_extraction(args.video, args.output_dir, args.title, args.year)
+
+if __name__ == '__main__':
+    main()

@@ -34,6 +34,89 @@ def _extraction_config():
     }
 
 
+def test_extraction_main_rejects_blank_video_before_logging(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["step_01_extraction", "--video", " "])
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with a blank video path")
+
+    monkeypatch.setattr(
+        extraction_step,
+        "setup_logging",
+        fail_setup_logging,
+        raising=False,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        extraction_step.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_extraction_main_rejects_invalid_year_before_logging(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["step_01_extraction", "--video", "demo.mp4", "--year", "0"],
+    )
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with an invalid year")
+
+    monkeypatch.setattr(
+        extraction_step,
+        "setup_logging",
+        fail_setup_logging,
+        raising=False,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        extraction_step.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_extraction_main_normalizes_arguments_before_running(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "step_01_extraction",
+            "--video",
+            "  data/videos/demo.mp4  ",
+            "--output_dir",
+            "  data/processed  ",
+            "--title",
+            "  Demo Title  ",
+            "--year",
+            "2024",
+        ],
+    )
+    monkeypatch.setattr(extraction_step, "setup_logging", lambda: None, raising=False)
+    calls = {}
+
+    def fake_run_extraction(video_path, output_dir, title=None, year=None):
+        calls.update(
+            {
+                "video_path": video_path,
+                "output_dir": output_dir,
+                "title": title,
+                "year": year,
+            }
+        )
+
+    monkeypatch.setattr(extraction_step, "run_extraction", fake_run_extraction)
+
+    extraction_step.main()
+
+    assert calls == {
+        "video_path": "data/videos/demo.mp4",
+        "output_dir": "data/processed",
+        "title": "Demo Title",
+        "year": 2024,
+    }
+
+
 def test_get_paths_uses_configured_raw_transcript_name(tmp_path):
     paths = _get_paths(str(tmp_path), _extraction_config())
 
