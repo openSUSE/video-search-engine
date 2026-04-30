@@ -4,6 +4,7 @@ import os
 import colorlog
 
 _VALID_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+_PROJECT_LOG_HANDLER_ATTR = "_video_search_engine_handler"
 
 
 def _resolve_log_level() -> int:
@@ -23,10 +24,16 @@ def setup_logging():
     root_logger = logging.getLogger()
 
     # Avoid adding handlers multiple times if this function is called again.
-    if root_logger.hasHandlers():
+    if any(
+        getattr(handler, _PROJECT_LOG_HANDLER_ATTR, False)
+        for handler in root_logger.handlers
+    ):
         return
 
     root_logger.setLevel(_resolve_log_level())
+
+    if root_logger.hasHandlers():
+        return
 
     # Create a colored formatter
     formatter = colorlog.ColoredFormatter(
@@ -42,6 +49,7 @@ def setup_logging():
 
     # Create a console handler and set the formatter
     console_handler = colorlog.StreamHandler()
+    setattr(console_handler, _PROJECT_LOG_HANDLER_ATTR, True)
     console_handler.setFormatter(formatter)
 
     # Add the handler to the root logger

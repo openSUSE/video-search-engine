@@ -72,3 +72,17 @@ def test_setup_logging_is_idempotent(monkeypatch):
 
     assert logging.getLogger().handlers == handlers_after_first
     assert logging.getLogger().level == logging.DEBUG
+
+
+def test_setup_logging_honors_log_level_with_existing_handler(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    _clear_handlers()
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.WARNING)
+    external_handler = logging.StreamHandler()
+    root_logger.addHandler(external_handler)
+
+    core_logger.setup_logging()
+
+    assert root_logger.handlers == [external_handler]
+    assert root_logger.level == logging.DEBUG
