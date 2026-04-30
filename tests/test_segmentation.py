@@ -622,6 +622,52 @@ def test_run_segmentation_rejects_nonfinite_embeddings_before_scoring(tmp_path):
     assert not output_path.exists()
 
 
+@pytest.mark.parametrize("encoded_vector", ["12", b"12", bytearray(b"12")])
+def test_run_segmentation_rejects_string_like_embedding_vectors_before_scoring(
+    tmp_path,
+    encoded_vector,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    output_path = tmp_path / "segments.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "hello there",
+                            "speaker": "SPEAKER_00",
+                        }
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text(json.dumps({"SPEAKER_00": "Alice"}))
+
+    class StringLikeVectorEmbeddingModel:
+        def encode(self, texts, **kwargs):
+            return [encoded_vector for _text in texts]
+
+    with pytest.raises(ValueError, match="dialogue embeddings must be numeric vectors"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": output_path.name}},
+            embedding_model=StringLikeVectorEmbeddingModel(),
+        )
+
+    assert not output_path.exists()
+
+
 @pytest.mark.parametrize(
     ("analysis_data", "message"),
     [

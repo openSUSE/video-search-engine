@@ -368,6 +368,8 @@ def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
 def _vector_to_floats(vector: Any) -> List[float]:
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
+    if isinstance(vector, (str, bytes, bytearray)):
+        raise ValueError("embedding vector values must be numeric")
     raw_values = list(vector)
     if any(isinstance(value, bool) for value in raw_values):
         raise ValueError("embedding vector values must be numeric")
