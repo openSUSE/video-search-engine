@@ -329,6 +329,20 @@ def test_hybrid_search_service_omits_video_filter_when_not_requested():
     ]
 
 
+@pytest.mark.parametrize("top_k", [0, -1, 51, True, 1.5, "5"])
+def test_hybrid_search_service_rejects_invalid_top_k_before_embedding(top_k):
+    model = FakeEmbeddingModel()
+    collection = FakeCollection()
+    service = HybridSearchService(model, collection)
+
+    with pytest.raises(ValueError, match="top_k"):
+        service.search("find highlights", top_k=top_k)
+
+    assert model.queries == []
+    assert collection.query_calls == []
+    assert collection.get_call is None
+
+
 @pytest.mark.parametrize(
     "encoded_query",
     [

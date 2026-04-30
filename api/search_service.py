@@ -8,6 +8,7 @@ from api.search_utils import text_metadata_by_segment_id
 logger = logging.getLogger(__name__)
 
 RRF_K = 60
+MAX_SEARCH_LIMIT = 50
 
 
 class EmbeddingModel(Protocol):
@@ -56,6 +57,12 @@ def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
         float_vector.append(number)
 
     return float_vector
+
+
+def _search_limit(top_k: Any) -> int:
+    if type(top_k) is not int or not 1 <= top_k <= MAX_SEARCH_LIMIT:
+        raise ValueError(f"top_k must be an integer between 1 and {MAX_SEARCH_LIMIT}")
+    return top_k
 
 
 def _first_id_list(results: Dict[str, Any]) -> List[Any]:
@@ -166,6 +173,7 @@ class HybridSearchService:
         top_k: int,
         video_filename: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
+        top_k = _search_limit(top_k)
         query_vector = _query_vector(self.embedding_model, query)
 
         text_results = self.collection.query(
