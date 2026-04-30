@@ -223,6 +223,21 @@ def test_blank_speaker_map_timeout_does_not_log_invalid_warning(monkeypatch, cap
     assert "Invalid SPEAKER_MAP_TIMEOUT_SECONDS" not in caplog.text
 
 
+@pytest.mark.parametrize("raw_timeout", ["nan", "inf", "-inf"])
+def test_speaker_map_timeout_rejects_nonfinite_values(
+    monkeypatch,
+    caplog,
+    raw_timeout,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_MAP_TIMEOUT_SECONDS", raw_timeout)
+
+    with caplog.at_level(logging.WARNING):
+        assert run_pipeline._speaker_map_timeout_seconds() is None
+
+    assert "Invalid SPEAKER_MAP_TIMEOUT_SECONDS" in caplog.text
+
+
 def test_speaker_ui_client_url_uses_loopback_for_wildcard_host(monkeypatch):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
 

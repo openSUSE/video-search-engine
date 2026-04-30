@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -57,6 +58,10 @@ def _speaker_map_timeout_seconds():
     try:
         timeout_seconds = float(raw_value)
     except ValueError:
+        logger.warning("Invalid SPEAKER_MAP_TIMEOUT_SECONDS=%r; waiting without a timeout.", raw_value)
+        return None
+
+    if not math.isfinite(timeout_seconds):
         logger.warning("Invalid SPEAKER_MAP_TIMEOUT_SECONDS=%r; waiting without a timeout.", raw_value)
         return None
 
