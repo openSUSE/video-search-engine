@@ -433,7 +433,9 @@ def _prepare_rich_shots(analysis_data: List[Dict[str, Any]], speaker_map: Dict[s
         # Get unique, real speaker names for the shot
         shot_speakers = set()
         for seg in shot['transcript_segments']:
-            generic_speaker = (seg.get('speaker') or 'UNKNOWN').strip()
+            generic_speaker = (seg.get('speaker') or '').strip()
+            if not generic_speaker:
+                continue
             real_name = speaker_map.get(generic_speaker, "Unknown Speaker")
             shot_speakers.add(real_name)
 

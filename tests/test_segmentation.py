@@ -157,6 +157,52 @@ def test_run_segmentation_uses_injected_model_and_configured_output_name(tmp_pat
     ]
 
 
+def test_run_segmentation_preserves_empty_speakers_for_transcripts_without_ids(tmp_path):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [
+                        {
+                            "text": "ambient music",
+                        },
+                        {
+                            "text": "wind rises",
+                            "speaker": "  ",
+                        },
+                    ],
+                    "audio_events": [],
+                    "detected_actions": [],
+                }
+            ]
+        )
+    )
+    speaker_map_path.write_text("{}")
+
+    class AnyTextEmbeddingModel:
+        def encode(self, texts, **_kwargs):
+            return [[1.0, 0.0] for _text in texts]
+
+    output_path = run_segmentation(
+        video_path="unused.mp4",
+        analysis_path=str(analysis_path),
+        speaker_map_path=str(speaker_map_path),
+        config={"filenames": {"final_segments": "segments.json"}},
+        embedding_model=AnyTextEmbeddingModel(),
+    )
+
+    segments = json.loads((tmp_path / "segments.json").read_text())
+    assert output_path == str(tmp_path / "segments.json")
+    assert segments[0]["speakers"] == []
+    assert segments[0]["full_transcript"] == "ambient music wind rises"
+
+
 def test_run_segmentation_skips_when_cached_output_is_valid(tmp_path):
     output_path = tmp_path / "custom_segments.json"
     output_path.write_text(json.dumps([_cached_segment()]))
