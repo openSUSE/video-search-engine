@@ -135,6 +135,67 @@ def test_generate_visual_captions_rejects_unreadable_video_before_model_load(
     assert release_calls == ["bad-video.mp4"]
 
 
+def test_generate_visual_captions_keeps_shot_coverage_when_frame_read_fails(
+    monkeypatch,
+    tmp_path,
+):
+    output_path = tmp_path / "visual_details.json"
+    calls = {"released": False}
+
+    class FakeVideoCapture:
+        def __init__(self, path):
+            self.path = path
+
+        def isOpened(self):
+            return True
+
+        def set(self, _property, _value):
+            pass
+
+        def read(self):
+            return False, None
+
+        def release(self):
+            calls["released"] = True
+
+    class FakeLoader:
+        @classmethod
+        def from_pretrained(cls, _name):
+            return cls()
+
+        def to(self, _device):
+            return self
+
+    fake_cv2 = types.SimpleNamespace(
+        VideoCapture=FakeVideoCapture,
+        CAP_PROP_POS_FRAMES=1,
+    )
+    fake_pil = types.ModuleType("PIL")
+    fake_pil.Image = object()
+    fake_transformers = types.ModuleType("transformers")
+    fake_transformers.BlipProcessor = FakeLoader
+    fake_transformers.BlipForConditionalGeneration = FakeLoader
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "PIL", fake_pil)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    generate_visual_captions(
+        "demo.mp4",
+        [{"shot_id": "shot_0001", "start_frame": 0, "end_frame": 10}],
+        str(output_path),
+        {
+            "general": {"device": "cpu"},
+            "models": {"visual_captioning": {"name": "blip"}},
+            "parameters": {"visual_captioning": {"max_new_tokens": 50}},
+        },
+    )
+
+    assert json.loads(output_path.read_text()) == [
+        {"shot_id": "shot_0001", "caption": ""}
+    ]
+    assert calls["released"] is True
+
+
 def test_detect_actions_rejects_unreadable_video_before_model_load(
     monkeypatch,
     tmp_path,

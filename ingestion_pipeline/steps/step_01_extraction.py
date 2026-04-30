@@ -592,12 +592,18 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
             cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_idx)
             ret, frame = cap.read()
 
+            caption = ""
             if ret:
                 pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 inputs = processor(pil_image, return_tensors="pt").to(device)
                 out = model.generate(**inputs, max_new_tokens=params_cfg['max_new_tokens'])
                 caption = processor.decode(out[0], skip_special_tokens=True)
-                visual_details.append({"shot_id": shot["shot_id"], "caption": caption})
+            else:
+                logger.warning(
+                    "Could not read representative frame for shot %s; using empty caption.",
+                    shot["shot_id"],
+                )
+            visual_details.append({"shot_id": shot["shot_id"], "caption": caption})
     finally:
         cap.release()
 
