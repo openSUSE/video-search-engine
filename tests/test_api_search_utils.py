@@ -30,3 +30,16 @@ def test_text_metadata_lookup_skips_malformed_fetched_rows():
     )
 
     assert metadata == {"valid": {"title": "valid"}}
+
+
+def test_text_metadata_lookup_skips_blank_segment_ids():
+    metadata = text_metadata_by_segment_id(
+        ids=["_text", "   _text", "valid_text"],
+        metadatas=[
+            {"title": "empty"},
+            {"title": "blank"},
+            {"title": "valid"},
+        ],
+    )
+
+    assert metadata == {"valid": {"title": "valid"}}

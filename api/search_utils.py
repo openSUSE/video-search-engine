@@ -13,6 +13,9 @@ def text_metadata_by_segment_id(
             continue
         if not isinstance(metadata, dict):
             continue
-        metadata_by_segment_id[doc_id.removesuffix("_text")] = metadata
+        segment_id = doc_id.removesuffix("_text")
+        if not segment_id.strip():
+            continue
+        metadata_by_segment_id[segment_id] = metadata
 
     return metadata_by_segment_id
