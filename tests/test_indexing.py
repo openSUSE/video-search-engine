@@ -245,6 +245,38 @@ def test_run_indexing_normalizes_segment_ids_before_building_document_ids(tmp_pa
     ]
 
 
+def test_run_indexing_rejects_segment_ids_with_document_scope_delimiter(
+    monkeypatch,
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                _enriched_segment(
+                    segment_id="chapter::segment-1",
+                    summary="person enters",
+                )
+            ]
+        )
+    )
+
+    def fail_create_dependency(_config):
+        raise AssertionError(
+            "indexing dependencies should not load for unsearchable segment IDs"
+        )
+
+    monkeypatch.setattr(indexing_step, "create_embedding_model", fail_create_dependency)
+    monkeypatch.setattr(indexing_step, "create_vector_collection", fail_create_dependency)
+
+    with pytest.raises(ValueError, match="segment_id.*::"):
+        run_indexing(
+            str(enriched_segments_path),
+            "demo-video",
+            {"database": {"collection_name": "unused"}},
+        )
+
+
 def test_run_indexing_deletes_stale_documents_for_reindexed_video(tmp_path):
     enriched_segments_path = tmp_path / "segments.json"
     enriched_segments_path.write_text(

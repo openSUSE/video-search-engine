@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
+DOCUMENT_ID_SCOPE_DELIMITER = "::"
+
 
 class EmbeddingModel(Protocol):
     def encode(self, sentences: List[str], **kwargs: Any) -> Any:
@@ -93,7 +95,7 @@ def _encoded_vectors_to_lists(
 
 
 def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
-    return f"{video_filename}::{segment_id}{suffix}"
+    return f"{video_filename}{DOCUMENT_ID_SCOPE_DELIMITER}{segment_id}{suffix}"
 
 
 def _delete_stale_video_documents(
@@ -253,6 +255,11 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
         if not isinstance(segment_id, str) or not segment_id.strip():
             raise ValueError(f"enriched segment at index {index} must have a segment_id")
         normalized_segment_id = segment_id.strip()
+        if DOCUMENT_ID_SCOPE_DELIMITER in normalized_segment_id:
+            raise ValueError(
+                f"enriched segment at index {index} segment_id must not contain "
+                f"{DOCUMENT_ID_SCOPE_DELIMITER}"
+            )
         if normalized_segment_id in seen_segment_ids:
             raise ValueError(
                 f"enriched segment at index {index} has duplicate segment_id"
