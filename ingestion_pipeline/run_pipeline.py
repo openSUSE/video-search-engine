@@ -212,16 +212,20 @@ def wait_for_speaker_identification(video_path: str, output_dir: str, config=Non
         logger.info("Complete speaker map found; continuing.")
         return speaker_map_path
 
-    if os.path.exists(speaker_map_path):
-        is_ready, wait_reason = _speaker_map_readiness(speaker_map_path, raw_transcript_path)
-        if is_ready:
-            logger.info("Speaker map already exists at %s. Skipping UI.", speaker_map_path)
-            return speaker_map_path
-        logger.info("Existing speaker map is not complete; launching UI. Reason: %s", wait_reason)
-
     if not os.path.exists(raw_transcript_path):
         logger.error("Raw transcript not found at %s. Cannot start UI.", raw_transcript_path)
         return None
+
+    is_ready, wait_reason = _speaker_map_readiness(speaker_map_path, raw_transcript_path)
+    if is_ready:
+        logger.info("Speaker map already complete at %s. Skipping UI.", speaker_map_path)
+        return speaker_map_path
+    if _is_terminal_speaker_wait_reason(wait_reason):
+        logger.error("Cannot start speaker identification UI: %s", wait_reason)
+        return None
+
+    if os.path.exists(speaker_map_path):
+        logger.info("Existing speaker map is not complete; launching UI. Reason: %s", wait_reason)
 
     # Command to run the Flask server
     command = [

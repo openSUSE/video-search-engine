@@ -183,6 +183,70 @@ def test_speaker_map_wait_fails_fast_for_malformed_transcript(
     assert "malformed raw transcript" in caplog.text
 
 
+def test_local_speaker_mode_completes_no_speaker_transcript_without_launching_ui(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_UI_MODE", "local")
+
+    speaker_dir = tmp_path / "processed" / "demo"
+    speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps([{"start": 0, "end": 1, "text": "music"}])
+    )
+    speaker_map = speaker_dir / "speaker_map.json"
+    calls = {}
+
+    def fake_popen(_command):
+        calls["popen"] = True
+        raise AssertionError(
+            "local speaker UI should not start for no-speaker transcript"
+        )
+
+    monkeypatch.setattr(run_pipeline.subprocess, "Popen", fake_popen)
+
+    result = run_pipeline.wait_for_speaker_identification(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+    )
+
+    assert result == str(speaker_map)
+    assert speaker_map.read_text() == "{}"
+    assert "popen" not in calls
+
+
+def test_local_speaker_mode_fails_malformed_transcript_before_launching_ui(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setenv("SPEAKER_UI_MODE", "local")
+
+    speaker_dir = tmp_path / "processed" / "demo"
+    speaker_dir.mkdir(parents=True)
+    (speaker_dir / "transcript_raw.json").write_text(
+        json.dumps([{"speaker": "SPEAKER_00", "text": "hello"}])
+    )
+    calls = {}
+
+    def fake_popen(_command):
+        calls["popen"] = True
+        raise AssertionError(
+            "local speaker UI should not start for malformed transcript"
+        )
+
+    monkeypatch.setattr(run_pipeline.subprocess, "Popen", fake_popen)
+
+    result = run_pipeline.wait_for_speaker_identification(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+    )
+
+    assert result is None
+    assert "popen" not in calls
+
+
 def test_local_speaker_mode_does_not_skip_existing_partial_map(monkeypatch, tmp_path):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     monkeypatch.setenv("SPEAKER_UI_MODE", "local")
