@@ -229,6 +229,11 @@ def _validate_cached_string_list(
                 f"cached segment at index {segment_index} field {field_name} item "
                 f"at index {item_index} must be a string"
             )
+        if not item or item != item.strip():
+            raise ValueError(
+                f"cached segment at index {segment_index} field {field_name} item "
+                f"at index {item_index} must be a non-empty canonical string"
+            )
 
     return value
 
@@ -250,7 +255,10 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
             raise ValueError(
                 f"cached segment at index {segment_index} must have a segment_id"
             )
-        segment_id = segment_id.strip()
+        if not segment_id or segment_id != segment_id.strip():
+            raise ValueError(
+                f"cached segment at index {segment_index} must have a canonical segment_id"
+            )
         if segment_id in seen_segment_ids:
             raise ValueError(
                 f"cached segment at index {segment_index} has duplicate segment_id"

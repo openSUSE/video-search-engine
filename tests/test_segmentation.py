@@ -379,6 +379,7 @@ def test_run_segmentation_recomputes_cached_output_when_analysis_content_changed
         ({"segment_id": "segment_0001"}, "JSON array"),
         (["not a segment"], "index 0"),
         ([_cached_segment(segment_id=" ")], "segment_id"),
+        ([_cached_segment(segment_id=" segment_0001 ")], "segment_id"),
         ([_cached_segment(segment_id="custom-segment")], "segment_id"),
         ([_cached_segment(segment_index=2)], "segment_index"),
         ([_cached_segment(start_time=-1)], "start_time"),
@@ -387,7 +388,10 @@ def test_run_segmentation_recomputes_cached_output_when_analysis_content_changed
         ([_cached_segment(start_time=0, end_time=2, duration_sec=99)], "duration_sec"),
         ([_cached_segment(end_time=float("inf"))], "end_time"),
         ([_cached_segment(speakers="Alice")], "speakers"),
+        ([_cached_segment(speakers=[" Alice "])], "speakers"),
+        ([_cached_segment(consolidated_audio_events=[" "])], "consolidated_audio_events"),
         ([_cached_segment(shot_ids=[7])], "shot_ids"),
+        ([_cached_segment(shot_ids=[" shot_0001 "])], "shot_ids"),
     ],
 )
 def test_run_segmentation_rejects_malformed_cached_output_before_skipping(
@@ -416,7 +420,7 @@ def test_run_segmentation_rejects_duplicate_cached_segment_ids_before_skipping(
             [
                 _cached_segment(segment_id="segment_0001"),
                 _cached_segment(
-                    segment_id=" segment_0001 ",
+                    segment_id="segment_0001",
                     segment_index=2,
                     start_time=2.0,
                     end_time=3.0,
