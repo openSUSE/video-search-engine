@@ -22,14 +22,33 @@ class FakeEmbeddingModel:
 
 
 class FakeCollection:
-    def __init__(self):
+    def __init__(self, existing_ids=None):
+        self.existing_ids = [] if existing_ids is None else existing_ids
         self.upsert_call = None
+        self.get_call = None
+        self.delete_call = None
+        self.operations = []
 
     def upsert(self, *, ids, embeddings, metadatas):
+        self.operations.append("upsert")
         self.upsert_call = {
             "ids": ids,
             "embeddings": embeddings,
             "metadatas": metadatas,
+        }
+
+    def get(self, *, where, include):
+        self.operations.append("get")
+        self.get_call = {
+            "where": where,
+            "include": include,
+        }
+        return {"ids": self.existing_ids}
+
+    def delete(self, *, ids):
+        self.operations.append("delete")
+        self.delete_call = {
+            "ids": ids,
         }
 
 
@@ -215,6 +234,85 @@ def test_run_indexing_normalizes_segment_ids_before_building_document_ids(tmp_pa
         "demo-video::segment-1_text",
         "demo-video::segment-1_visual",
     ]
+
+
+def test_run_indexing_deletes_stale_documents_for_reindexed_video(tmp_path):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection(
+        existing_ids=[
+            "demo-video::segment-1_text",
+            "demo-video::old-segment_text",
+            "demo-video::segment-1_visual",
+            "demo-video::old-segment_visual",
+        ]
+    )
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=FakeEmbeddingModel(),
+        collection=collection,
+    )
+
+    assert collection.operations == ["upsert", "get", "delete"]
+    assert collection.get_call == {
+        "where": {"video_filename": "demo-video"},
+        "include": [],
+    }
+    assert collection.delete_call == {
+        "ids": [
+            "demo-video::old-segment_text",
+            "demo-video::old-segment_visual",
+        ],
+    }
+
+
+def test_run_indexing_does_not_delete_when_reindexed_video_has_no_stale_documents(
+    tmp_path,
+):
+    enriched_segments_path = tmp_path / "segments.json"
+    enriched_segments_path.write_text(
+        json.dumps(
+            [
+                {
+                    "segment_id": "segment-1",
+                    "summary": "person enters",
+                    "start_time": 1.5,
+                    "end_time": 4.0,
+                }
+            ]
+        )
+    )
+    collection = FakeCollection(
+        existing_ids=[
+            "demo-video::segment-1_text",
+            "demo-video::segment-1_visual",
+        ]
+    )
+
+    run_indexing(
+        str(enriched_segments_path),
+        "demo-video",
+        {"database": {"collection_name": "unused"}},
+        embedding_model=FakeEmbeddingModel(),
+        collection=collection,
+    )
+
+    assert collection.operations == ["upsert", "get"]
+    assert collection.delete_call is None
 
 
 @pytest.mark.parametrize(

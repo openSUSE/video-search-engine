@@ -17,6 +17,12 @@ class VectorCollection(Protocol):
     def upsert(self, **kwargs: Any) -> Any:
         ...
 
+    def get(self, **kwargs: Any) -> Dict[str, Any]:
+        ...
+
+    def delete(self, **kwargs: Any) -> Any:
+        ...
+
 
 def _join_metadata_values(values: Any) -> str:
     if not values:
@@ -83,6 +89,40 @@ def _encoded_vectors_to_lists(
 
 def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
     return f"{video_filename}::{segment_id}{suffix}"
+
+
+def _delete_stale_video_documents(
+    collection: VectorCollection,
+    video_filename: str,
+    current_ids: set[str],
+) -> int:
+    results = collection.get(
+        where={"video_filename": video_filename},
+        include=[],
+    )
+    ids = results.get("ids") if isinstance(results, dict) else None
+    if not isinstance(ids, list):
+        logger.warning(
+            "Skipping stale index cleanup for %s: Chroma get returned malformed ids.",
+            video_filename,
+        )
+        return 0
+
+    stale_ids = []
+    seen_stale_ids = set()
+    for doc_id in ids:
+        if not isinstance(doc_id, str):
+            continue
+        if doc_id in current_ids or doc_id in seen_stale_ids:
+            continue
+        stale_ids.append(doc_id)
+        seen_stale_ids.add(doc_id)
+
+    if not stale_ids:
+        return 0
+
+    collection.delete(ids=stale_ids)
+    return len(stale_ids)
 
 
 def _normalize_video_filename(video_filename: Any) -> str:
@@ -352,6 +392,17 @@ def run_indexing(
         embeddings=embeddings_to_add,
         metadatas=metadatas_to_add,
     )
+    deleted_count = _delete_stale_video_documents(
+        collection,
+        video_filename,
+        set(ids_to_add),
+    )
+    if deleted_count:
+        logger.info(
+            "Deleted %s stale ChromaDB documents for reindexed video %s.",
+            deleted_count,
+            video_filename,
+        )
 
     logger.info("--- Indexing Step Complete! ---")
     logger.info(f"Successfully indexed text and visual data for {len(segments)} segments.")
