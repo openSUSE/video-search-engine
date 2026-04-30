@@ -1,5 +1,27 @@
 from typing import Any, Dict
 
+DOCUMENT_ID_SCOPE_DELIMITER = "::"
+
+
+def is_usable_segment_id(segment_id: Any) -> bool:
+    if not isinstance(segment_id, str):
+        return False
+    if not segment_id or segment_id != segment_id.strip():
+        return False
+    if DOCUMENT_ID_SCOPE_DELIMITER not in segment_id:
+        return True
+
+    video_scope, local_segment_id = segment_id.rsplit(
+        DOCUMENT_ID_SCOPE_DELIMITER,
+        1,
+    )
+    return bool(
+        video_scope
+        and local_segment_id
+        and video_scope == video_scope.strip()
+        and local_segment_id == local_segment_id.strip()
+    )
+
 
 def text_metadata_by_segment_id(
     ids: Any, metadatas: Any
@@ -14,9 +36,7 @@ def text_metadata_by_segment_id(
         if not isinstance(metadata, dict):
             continue
         segment_id = doc_id.removesuffix("_text")
-        if not segment_id.strip():
-            continue
-        if segment_id != segment_id.strip():
+        if not is_usable_segment_id(segment_id):
             continue
         if segment_id in metadata_by_segment_id:
             continue

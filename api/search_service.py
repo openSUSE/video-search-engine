@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
-from api.search_utils import text_metadata_by_segment_id
+from api.search_utils import is_usable_segment_id, text_metadata_by_segment_id
 
 logger = logging.getLogger(__name__)
 
@@ -131,16 +131,10 @@ def _query_segment_ids(results: Dict[str, Any], suffix: str) -> List[str]:
             )
             continue
         segment_id = doc_id.removesuffix(suffix)
-        if not segment_id.strip():
+        if not is_usable_segment_id(segment_id):
             logger.warning(
-                "Skipping malformed search query result id %r; segment id is blank.",
-                doc_id,
-            )
-            continue
-        if segment_id != segment_id.strip():
-            logger.warning(
-                "Skipping malformed search query result id %r; segment id has "
-                "surrounding whitespace.",
+                "Skipping malformed search query result id %r; segment id is not "
+                "usable.",
                 doc_id,
             )
             continue
@@ -183,6 +177,8 @@ def _format_search_result(
     metadata: Any,
     requested_video_filename: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    if not is_usable_segment_id(segment_id):
+        return None
     if not isinstance(metadata, dict):
         return None
 

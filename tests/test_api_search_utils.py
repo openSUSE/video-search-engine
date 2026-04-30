@@ -62,6 +62,25 @@ def test_text_metadata_lookup_skips_whitespace_padded_segment_ids():
     assert metadata == {"valid": {"title": "valid"}}
 
 
+def test_text_metadata_lookup_skips_malformed_scoped_segment_ids():
+    metadata = text_metadata_by_segment_id(
+        ids=[
+            "demo.mp4::_text",
+            "::segment_text",
+            "demo.mp4:: segment_text",
+            "demo.mp4::valid_text",
+        ],
+        metadatas=[
+            {"title": "blank segment"},
+            {"title": "blank video"},
+            {"title": "padded segment"},
+            {"title": "valid"},
+        ],
+    )
+
+    assert metadata == {"demo.mp4::valid": {"title": "valid"}}
+
+
 def test_text_metadata_lookup_preserves_first_duplicate_segment_metadata():
     metadata = text_metadata_by_segment_id(
         ids=[

@@ -594,6 +594,53 @@ def test_hybrid_search_service_skips_whitespace_padded_segment_ids_before_fusion
     }
 
 
+def test_hybrid_search_service_skips_malformed_scoped_segment_ids_before_fusion():
+    class CollectionWithMalformedScopedSegmentIds(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {
+                    "ids": [
+                        [
+                            "demo.mp4::_text",
+                            "::blank-video_text",
+                            "demo.mp4:: padded_text",
+                            "demo.mp4::valid_text",
+                        ]
+                    ]
+                }
+            return {"ids": [["demo.mp4::valid_visual"]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ids,
+                "metadatas": [
+                    _metadata(title="Valid")
+                    for _ in ids
+                ],
+            }
+
+    collection = CollectionWithMalformedScopedSegmentIds()
+    service = HybridSearchService(FakeEmbeddingModel(), collection)
+
+    results = service.search("find highlights", top_k=3)
+
+    assert [result["id"] for result in results] == ["demo.mp4::valid"]
+    assert collection.get_call == {
+        "ids": ["demo.mp4::valid_text"],
+        "include": ["metadatas"],
+    }
+
+
 def test_hybrid_search_service_deduplicates_query_ids_before_fusion():
     class CollectionWithDuplicateQueryIds(FakeCollection):
         def query(self, *, query_embeddings, n_results, where, include):
