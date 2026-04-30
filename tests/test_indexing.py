@@ -74,9 +74,9 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
                     title="  Arrival  ",
                     full_transcript="spoken words",
                     summary="  person enters  ",
-                    speakers=["Alice", "Bob"],
+                    speakers=[" Alice ", "", "Bob"],
                     keywords=["arrival"],
-                    consolidated_actions=["walking"],
+                    consolidated_actions=[" walking ", ""],
                     consolidated_visual_captions=["a doorway"],
                 ),
                 _enriched_segment(
@@ -137,7 +137,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
         {
             "title": "Arrival",
             "summary": "person enters",
-            "speakers": "Alice,Bob",
+            "speakers": "Alice, Bob",
             "keywords": "arrival",
             "actions": "walking",
             "start_time": 1.5,
@@ -148,7 +148,7 @@ def test_run_indexing_builds_text_and_visual_entries_with_injected_dependencies(
         {
             "title": "Arrival",
             "summary": "person enters",
-            "speakers": "Alice,Bob",
+            "speakers": "Alice, Bob",
             "keywords": "arrival",
             "actions": "walking",
             "start_time": 1.5,

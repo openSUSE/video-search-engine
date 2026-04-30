@@ -28,8 +28,10 @@ def _join_metadata_values(values: Any) -> str:
     if not values:
         return ""
     if isinstance(values, str):
-        return values
-    return ",".join(str(value) for value in values)
+        return values.strip()
+
+    cleaned = [str(value).strip() for value in values]
+    return ", ".join(value for value in cleaned if value)
 
 
 def _join_embedding_parts(parts: List[str]) -> str:
