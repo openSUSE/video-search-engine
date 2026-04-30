@@ -58,15 +58,32 @@ def _median_by_name(report: Mapping[str, object]) -> Dict[str, Dict[str, object]
     if not isinstance(results, list):
         raise ValueError("report must contain a 'results' list")
     indexed: Dict[str, Dict[str, object]] = {}
-    for entry in results:
-        if not isinstance(entry, dict):
-            continue
+    for index, entry in enumerate(results):
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"report result at index {index} must be a JSON object")
+
         name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(
+                f"report result at index {index} must have non-empty string name"
+            )
+
+        category = entry.get("category", "misc")
+        if not isinstance(category, str) or not category.strip():
+            raise ValueError(
+                f"report result at index {index} must have non-empty string category"
+            )
+
         ns = entry.get("ns")
-        if not isinstance(name, str) or not isinstance(ns, dict):
-            continue
+        if not isinstance(ns, Mapping):
+            raise ValueError(f"report result at index {index} must have ns object")
+
+        name = name.strip()
+        if name in indexed:
+            raise ValueError(f"duplicate benchmark result name: {name}")
+
         indexed[name] = {
-            "category": entry.get("category", "misc"),
+            "category": category.strip(),
             "median": ns.get("median"),
         }
     return indexed

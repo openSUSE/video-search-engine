@@ -148,6 +148,28 @@ def test_compare_reports_rejects_invalid_payload():
         compare_reports({"results": "not-a-list"}, _report(), warn_ratio=0.1)
 
 
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        ("not-a-result", "result at index 0"),
+        ({"category": "api", "ns": {"median": 100.0}}, "name"),
+        ({"name": "", "category": "api", "ns": {"median": 100.0}}, "name"),
+        ({"name": "a", "category": 7, "ns": {"median": 100.0}}, "category"),
+        ({"name": "a", "category": "api", "ns": []}, "ns"),
+    ],
+)
+def test_compare_reports_rejects_malformed_result_entries(entry, message):
+    with pytest.raises(ValueError, match=message):
+        compare_reports({"results": [entry]}, _report(), warn_ratio=0.1)
+
+
+def test_compare_reports_rejects_duplicate_result_names():
+    report = _report(("a", "api", 100.0), ("a", "api", 110.0))
+
+    with pytest.raises(ValueError, match="duplicate benchmark result name"):
+        compare_reports(report, _report(), warn_ratio=0.1)
+
+
 def test_format_comparison_summary_counts_regressions():
     baseline = _report(
         ("regressed", "api", 100.0),

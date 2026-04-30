@@ -227,6 +227,38 @@ def test_runner_baseline_with_forced_regression_exits_one(tmp_path):
         ("{not-json", "valid JSON"),
         (json.dumps([]), "JSON object"),
         (json.dumps({"results": "not-a-list"}), "results"),
+        (
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "category": "jobs",
+                            "ns": {"median": 1.0},
+                        }
+                    ]
+                }
+            ),
+            "name",
+        ),
+        (
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "name": "jobs.encode_job_message(minimal)",
+                            "category": "jobs",
+                            "ns": {"median": 1.0},
+                        },
+                        {
+                            "name": "jobs.encode_job_message(minimal)",
+                            "category": "jobs",
+                            "ns": {"median": 1.0},
+                        },
+                    ]
+                }
+            ),
+            "duplicate benchmark result name",
+        ),
     ],
 )
 def test_runner_invalid_baseline_reports_usage_error(
