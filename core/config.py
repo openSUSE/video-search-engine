@@ -1,4 +1,5 @@
 # core/config.py
+import ipaddress
 import logging
 import math
 import os
@@ -122,6 +123,41 @@ def _string_setting(env_name: str, config_value: Any, default: str) -> str:
         raise ValueError(f"{env_name} must be a string")
 
     return _clean_string(config_value) or default
+
+
+def _host_setting(env_name: str, config_value: Any, default: str) -> str:
+    host = _string_setting(env_name, config_value, default)
+    invalid_message = (
+        f"{env_name} must be a hostname or IP address without scheme, path, or port"
+    )
+
+    if (
+        "://" in host
+        or any(character.isspace() for character in host)
+        or any(character in host for character in "/\\?#@")
+    ):
+        raise ValueError(invalid_message)
+
+    if host.startswith("[") or host.endswith("]"):
+        if not (host.startswith("[") and host.endswith("]")):
+            raise ValueError(invalid_message)
+        try:
+            ip_address = ipaddress.ip_address(host[1:-1])
+        except ValueError as exc:
+            raise ValueError(invalid_message) from exc
+        if ip_address.version != 6:
+            raise ValueError(invalid_message)
+        return host
+
+    if ":" in host:
+        try:
+            ip_address = ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise ValueError(invalid_message) from exc
+        if ip_address.version != 6:
+            raise ValueError(invalid_message)
+
+    return host
 
 
 def _plain_string_setting(dotted_name: str, config_value: Any, default: str) -> str:
@@ -456,7 +492,7 @@ def load_config() -> Dict[str, Any]:
     )
 
     # ------- database -------
-    cfg["database"]["host"] = _string_setting(
+    cfg["database"]["host"] = _host_setting(
         "CHROMA_HOST",
         cfg["database"].get("host"),
         "localhost",

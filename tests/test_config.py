@@ -424,6 +424,30 @@ def test_invalid_ollama_host_environment_overrides_fail_fast(
 
 
 @pytest.mark.parametrize(
+    "raw_host",
+    [
+        "http://localhost",
+        "localhost:8000",
+        "localhost:",
+        "localhost/api",
+        "localhost\\api",
+        "local host",
+        "user@localhost",
+        "localhost?tenant=demo",
+    ],
+)
+def test_invalid_chroma_host_environment_overrides_fail_fast(
+    monkeypatch,
+    tmp_path,
+    raw_host,
+):
+    monkeypatch.setenv("CHROMA_HOST", raw_host)
+
+    with pytest.raises(ValueError, match="CHROMA_HOST"):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize(
     "config_text",
     [
         "llm_enrichment:\n  ollama:\n    timeout_sec: 0\n",
