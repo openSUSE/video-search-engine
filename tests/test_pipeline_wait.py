@@ -2,6 +2,7 @@ import importlib
 import builtins
 import json
 import logging
+from pathlib import Path
 import sys
 import types
 
@@ -144,6 +145,34 @@ def test_speaker_map_readiness_reports_unreadable_raw_transcript(
         "load_transcript_speaker_ids",
         unreadable_transcript,
     )
+
+    is_ready, wait_reason = run_pipeline._speaker_map_readiness(
+        str(speaker_map_path),
+        str(transcript_path),
+    )
+
+    assert is_ready is False
+    assert "raw transcript is not readable" in wait_reason
+
+
+def test_speaker_map_readiness_reports_wrapped_unreadable_raw_transcript(
+    monkeypatch,
+    tmp_path,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    transcript_path = tmp_path / "transcript_raw.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    transcript_path.write_text(
+        json.dumps([{"start": 0, "end": 1, "speaker": "SPEAKER_00", "text": "hello"}])
+    )
+    real_open = Path.open
+
+    def unreadable_transcript(path, *args, **kwargs):
+        if path == transcript_path:
+            raise PermissionError("permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", unreadable_transcript)
 
     is_ready, wait_reason = run_pipeline._speaker_map_readiness(
         str(speaker_map_path),

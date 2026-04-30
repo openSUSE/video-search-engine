@@ -108,6 +108,8 @@ def _speaker_map_readiness(
     except json.JSONDecodeError as exc:
         return False, f"raw transcript is not valid JSON: {exc}"
     except ValueError as exc:
+        if isinstance(exc.__cause__, OSError):
+            return False, f"raw transcript is not readable: {exc}"
         return False, f"malformed raw transcript: {exc}"
 
     if not os.path.exists(speaker_map_path):
