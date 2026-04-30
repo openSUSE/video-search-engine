@@ -230,6 +230,23 @@ general: {section_value}
         )
 
 
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("llm_enrichment:\n  ollama: []\n", "llm_enrichment.ollama"),
+        ("llm_enrichment:\n  gemini: not-a-mapping\n", "llm_enrichment.gemini"),
+    ],
+)
+def test_nested_llm_config_sections_must_be_mappings(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 def test_null_config_sections_are_treated_as_empty_mappings(monkeypatch, tmp_path):
     config_module = _load_config_module(
         monkeypatch,

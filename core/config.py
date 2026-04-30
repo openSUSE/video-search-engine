@@ -44,6 +44,20 @@ def _ensure_config_sections(cfg: Dict[str, Any]) -> None:
             raise ValueError(f"config section '{section_name}' must be a mapping")
 
 
+def _ensure_nested_config_section(
+    parent: Dict[str, Any],
+    section_name: str,
+    dotted_name: str,
+) -> Dict[str, Any]:
+    section = parent.setdefault(section_name, {})
+    if section is None:
+        parent[section_name] = {}
+        return parent[section_name]
+    if not isinstance(section, dict):
+        raise ValueError(f"config section '{dotted_name}' must be a mapping")
+    return section
+
+
 def _clean_string(value: Any) -> str | None:
     if value is None:
         return None
@@ -155,26 +169,34 @@ def load_config() -> Dict[str, Any]:
         "gemini",
     )
     cfg["llm_enrichment"]["provider"] = prov
-    cfg["llm_enrichment"].setdefault("ollama", {})
-    cfg["llm_enrichment"]["ollama"]["host"] = _string_setting(
+    ollama_config = _ensure_nested_config_section(
+        cfg["llm_enrichment"],
+        "ollama",
+        "llm_enrichment.ollama",
+    )
+    ollama_config["host"] = _string_setting(
         "OLLAMA_HOST",
-        cfg["llm_enrichment"]["ollama"].get("host"),
+        ollama_config.get("host"),
         "http://localhost",
     )
-    cfg["llm_enrichment"]["ollama"]["port"] = _port_setting(
+    ollama_config["port"] = _port_setting(
         "OLLAMA_PORT",
-        cfg["llm_enrichment"]["ollama"].get("port"),
+        ollama_config.get("port"),
         11434,
     )
-    cfg["llm_enrichment"]["ollama"]["model"] = _string_setting(
+    ollama_config["model"] = _string_setting(
         "OLLAMA_MODEL",
-        cfg["llm_enrichment"]["ollama"].get("model"),
+        ollama_config.get("model"),
         "gemma:2b",
     )
-    cfg["llm_enrichment"].setdefault("gemini", {})
-    cfg["llm_enrichment"]["gemini"]["model"] = _string_setting(
+    gemini_config = _ensure_nested_config_section(
+        cfg["llm_enrichment"],
+        "gemini",
+        "llm_enrichment.gemini",
+    )
+    gemini_config["model"] = _string_setting(
         "GEMINI_MODEL",
-        cfg["llm_enrichment"]["gemini"].get("model"),
+        gemini_config.get("model"),
         "gemini-1.5-flash",
     )
 
