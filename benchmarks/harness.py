@@ -159,18 +159,24 @@ class BenchmarkResult:
             "description": self.description,
             "iterations": self.iterations,
             "inner_loops": self.inner_loops,
-            "ops_per_second": self.ops_per_second,
+            "ops_per_second": _finite_float_or_none(self.ops_per_second),
             "ns": {
-                "min": self.min_ns,
-                "median": self.median_ns,
-                "mean": self.mean_ns,
-                "p95": self.p95_ns,
-                "p99": self.p99_ns,
-                "max": self.max_ns,
-                "stdev": self.stdev_ns,
+                "min": _finite_float_or_none(self.min_ns),
+                "median": _finite_float_or_none(self.median_ns),
+                "mean": _finite_float_or_none(self.mean_ns),
+                "p95": _finite_float_or_none(self.p95_ns),
+                "p99": _finite_float_or_none(self.p99_ns),
+                "max": _finite_float_or_none(self.max_ns),
+                "stdev": _finite_float_or_none(self.stdev_ns),
                 "total": self.total_ns,
             },
         }
+
+
+def _finite_float_or_none(value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
+    return value
 
 
 def _scaled_iterations(benchmark: Benchmark, scale: float) -> int:

@@ -128,7 +128,7 @@ def format_json_report(
         "metadata": metadata.to_dict(),
         "results": [result.to_dict() for result in results],
     }
-    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    return json.dumps(payload, allow_nan=False, indent=2, sort_keys=True) + "\n"
 
 
 def format_markdown_report(

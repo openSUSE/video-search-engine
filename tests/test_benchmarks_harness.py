@@ -123,6 +123,39 @@ def test_benchmark_result_to_dict_round_trips_through_json():
     assert payload["ns"]["max"] == 300
 
 
+def test_benchmark_result_to_dict_uses_standard_json_for_zero_duration_sample():
+    result = BenchmarkResult(
+        name="zero",
+        category="test",
+        description="timer returned same tick",
+        iterations=1,
+        inner_loops=1,
+        samples_ns=[0],
+    )
+
+    payload = result.to_dict()
+
+    assert payload["ops_per_second"] is None
+    json.dumps(payload, allow_nan=False)
+
+
+def test_format_json_report_uses_standard_json_for_empty_samples():
+    metadata = RunMetadata.capture(scale=1.0)
+    result = BenchmarkResult(
+        name="empty",
+        category="test",
+        description="synthetic empty measurement",
+        iterations=0,
+        inner_loops=1,
+        samples_ns=[],
+    )
+
+    payload = json.loads(format_json_report([result], metadata=metadata))
+
+    assert payload["results"][0]["ops_per_second"] is None
+    assert payload["results"][0]["ns"]["median"] is None
+
+
 def test_format_text_report_groups_by_category():
     metadata = RunMetadata.capture(scale=1.0)
     results = [
