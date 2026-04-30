@@ -115,6 +115,7 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_analysis_data, list):
         raise ValueError("final analysis file must contain a JSON array")
 
+    seen_shot_ids = set()
     for shot_index, shot in enumerate(raw_analysis_data):
         if not isinstance(shot, dict):
             raise ValueError(f"shot at index {shot_index} must be a JSON object")
@@ -122,6 +123,11 @@ def _validate_analysis_data(raw_analysis_data: Any) -> List[Dict[str, Any]]:
         shot_id = shot.get("shot_id")
         if not isinstance(shot_id, str) or not shot_id.strip():
             raise ValueError(f"shot at index {shot_index} must have a shot_id")
+        shot_id = shot_id.strip()
+        if shot_id in seen_shot_ids:
+            raise ValueError(f"shot at index {shot_index} has duplicate shot_id")
+        seen_shot_ids.add(shot_id)
+        shot["shot_id"] = shot_id
 
         time_start_sec = _validate_shot_time(shot, shot_index, "time_start_sec")
         time_end_sec = _validate_shot_time(shot, shot_index, "time_end_sec")
@@ -220,6 +226,7 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_segments, list):
         raise ValueError("cached segments file must contain a JSON array")
 
+    seen_segment_ids = set()
     for segment_index, segment in enumerate(raw_segments):
         if not isinstance(segment, dict):
             raise ValueError(
@@ -231,6 +238,13 @@ def _validate_cached_segments(raw_segments: Any) -> List[Dict[str, Any]]:
             raise ValueError(
                 f"cached segment at index {segment_index} must have a segment_id"
             )
+        segment_id = segment_id.strip()
+        if segment_id in seen_segment_ids:
+            raise ValueError(
+                f"cached segment at index {segment_index} has duplicate segment_id"
+            )
+        seen_segment_ids.add(segment_id)
+        segment["segment_id"] = segment_id
 
         _validate_cached_positive_int(segment, segment_index, "segment_index")
         shot_count = _validate_cached_positive_int(segment, segment_index, "shot_count")

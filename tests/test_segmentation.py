@@ -246,6 +246,34 @@ def test_run_segmentation_rejects_malformed_cached_output_before_skipping(
         )
 
 
+def test_run_segmentation_rejects_duplicate_cached_segment_ids_before_skipping(
+    tmp_path,
+):
+    output_path = tmp_path / "custom_segments.json"
+    output_path.write_text(
+        json.dumps(
+            [
+                _cached_segment(segment_id="segment_0001"),
+                _cached_segment(
+                    segment_id=" segment_0001 ",
+                    segment_index=2,
+                    start_time=2.0,
+                    end_time=3.0,
+                    shot_ids=["shot_0002"],
+                ),
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="duplicate segment_id"):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(tmp_path / "missing_analysis.json"),
+            speaker_map_path=str(tmp_path / "missing_speaker_map.json"),
+            config={"filenames": {"final_segments": output_path.name}},
+        )
+
+
 @pytest.mark.parametrize(
     ("bad_call_index", "message"),
     [
@@ -540,9 +568,59 @@ def test_run_segmentation_rejects_invalid_analysis_before_embedding_setup(
     def fail_create_embedding_model(_config):
         raise AssertionError("embedding model should not load for invalid analysis data")
 
-    monkeypatch.setattr(segmentation_step, "create_embedding_model", fail_create_embedding_model)
+    monkeypatch.setattr(
+        segmentation_step,
+        "create_embedding_model",
+        fail_create_embedding_model,
+    )
 
     with pytest.raises(ValueError, match=message):
+        run_segmentation(
+            video_path="unused.mp4",
+            analysis_path=str(analysis_path),
+            speaker_map_path=str(speaker_map_path),
+            config={"filenames": {"final_segments": "segments.json"}},
+        )
+
+
+def test_run_segmentation_rejects_duplicate_shot_ids_before_embedding_setup(
+    monkeypatch,
+    tmp_path,
+):
+    analysis_path = tmp_path / "analysis.json"
+    speaker_map_path = tmp_path / "speaker_map.json"
+    analysis_path.write_text(
+        json.dumps(
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "time_start_sec": 0.0,
+                    "time_end_sec": 1.0,
+                    "visual_caption": "quiet room",
+                    "transcript_segments": [],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+                {
+                    "shot_id": " shot_0001 ",
+                    "time_start_sec": 1.0,
+                    "time_end_sec": 2.0,
+                    "visual_caption": "same room",
+                    "transcript_segments": [],
+                    "audio_events": [],
+                    "detected_actions": [],
+                },
+            ]
+        )
+    )
+    speaker_map_path.write_text("{}")
+
+    def fail_create_embedding_model(_config):
+        raise AssertionError("embedding model should not load for duplicate shot IDs")
+
+    monkeypatch.setattr(segmentation_step, "create_embedding_model", fail_create_embedding_model)
+
+    with pytest.raises(ValueError, match="duplicate shot_id"):
         run_segmentation(
             video_path="unused.mp4",
             analysis_path=str(analysis_path),
