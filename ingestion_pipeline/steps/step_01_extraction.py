@@ -513,6 +513,20 @@ def _write_empty_per_shot_output_if_needed(
     return True
 
 
+def _load_json_artifact(path: str, artifact_label: str) -> Any:
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{artifact_label} artifact at {path} must be valid JSON"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            f"{artifact_label} artifact at {path} could not be read"
+        ) from exc
+
+
 def _aligned_transcript_needs_refresh(paths: Dict[str, str]) -> bool:
     aligned_path = paths["transcript_aligned"]
     if not os.path.exists(aligned_path):
@@ -604,8 +618,9 @@ def detect_shot_boundaries(video_path: str, shots_path: str) -> List[Dict[str, A
 def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, Any]], aligned_transcript_path: str):
     """Aligns transcript segments to shots and saves the new transcript."""
     logger.info("    -> Aligning transcript to shots...")
-    with open(raw_transcript_path, 'r') as f:
-        transcript_segments = _validate_raw_transcript_segments(json.load(f))
+    transcript_segments = _validate_raw_transcript_segments(
+        _load_json_artifact(raw_transcript_path, "raw transcript")
+    )
 
     aligned_segments = []
     for segment in transcript_segments:
@@ -799,20 +814,6 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
     logger.info(f"    -> Detected actions saved to {output_path}")
 
 
-def _load_json_artifact(path: str, artifact_label: str) -> Any:
-    try:
-        with open(path, 'r') as f:
-            return json.load(f)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"{artifact_label} artifact at {path} must be valid JSON"
-        ) from exc
-    except OSError as exc:
-        raise ValueError(
-            f"{artifact_label} artifact at {path} could not be read"
-        ) from exc
-
-
 # NEW: Function to combine all metadata into a single file.
 def create_final_analysis_file(paths: Dict[str, str]):
     """Combines all intermediate JSON files into a single, unified analysis file."""
@@ -925,8 +926,9 @@ def run_extraction(
         scenes = detect_shot_boundaries(video_path, paths["shots"])
     else:
         logger.info(f"    -> Skipping shot detection, loading from {paths['shots']}.")
-        with open(paths["shots"], 'r') as f:
-            scenes = _validate_shot_boundaries(json.load(f))
+        scenes = _validate_shot_boundaries(
+            _load_json_artifact(paths["shots"], "shot boundaries")
+        )
 
     # 2. Extract audio
     if not os.path.exists(paths["audio"]):

@@ -1108,6 +1108,32 @@ def test_run_extraction_rejects_overlapping_cached_shots_before_downstream_work(
         )
 
 
+def test_run_extraction_wraps_malformed_cached_shots_before_downstream_work(
+    monkeypatch,
+    tmp_path,
+):
+    config = _extraction_config()
+    output_dir = tmp_path / "processed"
+    video_dir = output_dir / "demo"
+    video_dir.mkdir(parents=True)
+    paths = _get_paths(str(video_dir), config)
+    Path(paths["shots"]).write_text("{")
+
+    def fail_extract_audio(*_args, **_kwargs):
+        raise AssertionError(
+            "downstream extraction should not run for malformed cached shots"
+        )
+
+    monkeypatch.setattr(extraction_step, "extract_audio", fail_extract_audio)
+
+    with pytest.raises(ValueError, match="shot boundaries.*valid JSON"):
+        run_extraction(
+            video_path=str(tmp_path / "demo.mp4"),
+            base_output_dir=str(output_dir),
+            config=config,
+        )
+
+
 @pytest.mark.parametrize(
     ("shot_updates", "message"),
     [
@@ -1224,6 +1250,52 @@ def test_align_transcript_to_shots_assigns_final_end_boundary_to_last_shot(tmp_p
 
     [aligned_segment] = json.loads(aligned_transcript_path.read_text())
     assert aligned_segment["shot_id"] == "shot_0001"
+
+
+def test_align_transcript_to_shots_wraps_malformed_raw_transcript_before_writing(
+    tmp_path,
+):
+    raw_transcript_path = tmp_path / "transcript_raw.json"
+    aligned_transcript_path = tmp_path / "aligned.json"
+    raw_transcript_path.write_text("{")
+
+    with pytest.raises(ValueError, match="raw transcript.*valid JSON"):
+        align_transcript_to_shots(
+            str(raw_transcript_path),
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 1.0,
+                }
+            ],
+            str(aligned_transcript_path),
+        )
+
+    assert not aligned_transcript_path.exists()
+
+
+def test_align_transcript_to_shots_wraps_unreadable_raw_transcript_before_writing(
+    tmp_path,
+):
+    raw_transcript_path = tmp_path / "transcript_raw.json"
+    aligned_transcript_path = tmp_path / "aligned.json"
+    raw_transcript_path.mkdir()
+
+    with pytest.raises(ValueError, match="raw transcript.*could not be read"):
+        align_transcript_to_shots(
+            str(raw_transcript_path),
+            [
+                {
+                    "shot_id": "shot_0001",
+                    "start_time_sec": 0.0,
+                    "end_time_sec": 1.0,
+                }
+            ],
+            str(aligned_transcript_path),
+        )
+
+    assert not aligned_transcript_path.exists()
 
 
 @pytest.mark.parametrize(
