@@ -42,6 +42,24 @@ DEFAULT_PARAMETERS = {
     "visual_captioning": {"max_new_tokens": 50},
     "action_recognition": {"num_frames": 16, "top_n": 3},
 }
+DEFAULT_MODELS = {
+    "transcription": {
+        "name": "base",
+        "compute_type": "int8",
+    },
+    "audio_events": {
+        "name": "MIT/ast-finetuned-audioset-10-10-0.4593",
+    },
+    "visual_captioning": {
+        "name": "Salesforce/blip-image-captioning-base",
+    },
+    "embedding": {
+        "name": "all-MiniLM-L6-v2",
+    },
+    "action_recognition": {
+        "name": "MCG-NJU/videomae-base-finetuned-kinetics",
+    },
+}
 LLM_PROVIDERS = {"gemini", "ollama"}
 
 
@@ -102,6 +120,15 @@ def _string_setting(env_name: str, config_value: Any, default: str) -> str:
         return default
     if not isinstance(config_value, str):
         raise ValueError(f"{env_name} must be a string")
+
+    return _clean_string(config_value) or default
+
+
+def _plain_string_setting(dotted_name: str, config_value: Any, default: str) -> str:
+    if config_value is None:
+        return default
+    if not isinstance(config_value, str):
+        raise ValueError(f"{dotted_name} must be a string")
 
     return _clean_string(config_value) or default
 
@@ -236,6 +263,68 @@ def _normalize_filenames(filenames_config: Dict[str, Any]) -> None:
             filenames_config.get(key),
             default,
         )
+
+
+def _normalize_models(models_config: Dict[str, Any]) -> None:
+    transcription_config = _ensure_nested_config_section(
+        models_config,
+        "transcription",
+        "models.transcription",
+    )
+    transcription_config["name"] = _plain_string_setting(
+        "models.transcription.name",
+        transcription_config.get("name"),
+        DEFAULT_MODELS["transcription"]["name"],
+    )
+    transcription_config["compute_type"] = _plain_string_setting(
+        "models.transcription.compute_type",
+        transcription_config.get("compute_type"),
+        DEFAULT_MODELS["transcription"]["compute_type"],
+    )
+
+    audio_events_config = _ensure_nested_config_section(
+        models_config,
+        "audio_events",
+        "models.audio_events",
+    )
+    audio_events_config["name"] = _plain_string_setting(
+        "models.audio_events.name",
+        audio_events_config.get("name"),
+        DEFAULT_MODELS["audio_events"]["name"],
+    )
+
+    visual_captioning_config = _ensure_nested_config_section(
+        models_config,
+        "visual_captioning",
+        "models.visual_captioning",
+    )
+    visual_captioning_config["name"] = _plain_string_setting(
+        "models.visual_captioning.name",
+        visual_captioning_config.get("name"),
+        DEFAULT_MODELS["visual_captioning"]["name"],
+    )
+
+    embedding_config = _ensure_nested_config_section(
+        models_config,
+        "embedding",
+        "models.embedding",
+    )
+    embedding_config["name"] = _plain_string_setting(
+        "models.embedding.name",
+        embedding_config.get("name"),
+        DEFAULT_MODELS["embedding"]["name"],
+    )
+
+    action_recognition_config = _ensure_nested_config_section(
+        models_config,
+        "action_recognition",
+        "models.action_recognition",
+    )
+    action_recognition_config["name"] = _plain_string_setting(
+        "models.action_recognition.name",
+        action_recognition_config.get("name"),
+        DEFAULT_MODELS["action_recognition"]["name"],
+    )
 
 
 def _normalize_parameters(parameters_config: Dict[str, Any]) -> None:
@@ -384,6 +473,9 @@ def load_config() -> Dict[str, Any]:
 
     # ------- artifact filenames -------
     _normalize_filenames(cfg["filenames"])
+
+    # ------- model identifiers -------
+    _normalize_models(cfg["models"])
 
     # ------- extraction/runtime parameters -------
     _normalize_parameters(cfg["parameters"])

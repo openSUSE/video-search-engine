@@ -294,6 +294,84 @@ def test_invalid_runtime_parameters_fail_fast(
         _load_config_module(monkeypatch, tmp_path, config_text)
 
 
+def test_model_defaults_are_populated(monkeypatch, tmp_path):
+    config_module = _load_config_module(monkeypatch, tmp_path, "{}")
+
+    assert config_module.CONFIG["models"] == {
+        "transcription": {"name": "base", "compute_type": "int8"},
+        "audio_events": {"name": "MIT/ast-finetuned-audioset-10-10-0.4593"},
+        "visual_captioning": {"name": "Salesforce/blip-image-captioning-base"},
+        "embedding": {"name": "all-MiniLM-L6-v2"},
+        "action_recognition": {"name": "MCG-NJU/videomae-base-finetuned-kinetics"},
+    }
+
+
+def test_configured_model_settings_are_stripped_and_preserved(monkeypatch, tmp_path):
+    config_module = _load_config_module(
+        monkeypatch,
+        tmp_path,
+        """
+models:
+  transcription:
+    name: " small "
+    compute_type: " float16 "
+  audio_events:
+    name: " custom/audio "
+  visual_captioning:
+    name: " custom/blip "
+  embedding:
+    name: " custom-embed "
+  action_recognition:
+    name: " custom/action "
+""",
+    )
+
+    assert config_module.CONFIG["models"] == {
+        "transcription": {"name": "small", "compute_type": "float16"},
+        "audio_events": {"name": "custom/audio"},
+        "visual_captioning": {"name": "custom/blip"},
+        "embedding": {"name": "custom-embed"},
+        "action_recognition": {"name": "custom/action"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        ("models:\n  transcription: []\n", "models.transcription"),
+        (
+            "models:\n  transcription:\n    name: []\n",
+            "models.transcription.name",
+        ),
+        (
+            "models:\n  transcription:\n    compute_type: 123\n",
+            "models.transcription.compute_type",
+        ),
+        (
+            "models:\n  audio_events:\n    name: false\n",
+            "models.audio_events.name",
+        ),
+        (
+            "models:\n  visual_captioning:\n    name: []\n",
+            "models.visual_captioning.name",
+        ),
+        ("models:\n  embedding:\n    name: 123\n", "models.embedding.name"),
+        (
+            "models:\n  action_recognition:\n    name: []\n",
+            "models.action_recognition.name",
+        ),
+    ],
+)
+def test_invalid_model_settings_fail_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        _load_config_module(monkeypatch, tmp_path, config_text)
+
+
 @pytest.mark.parametrize("raw_provider", ["openai", "gemini-pro", "anthropic"])
 def test_invalid_llm_provider_environment_override_fails_fast(
     monkeypatch,
