@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 RRF_K = 60
 MAX_SEARCH_LIMIT = 50
+MAX_QUERY_LENGTH = 1000
+MAX_VIDEO_FILENAME_LENGTH = 512
 
 
 class EmbeddingModel(Protocol):
@@ -63,6 +65,33 @@ def _search_limit(top_k: Any) -> int:
     if type(top_k) is not int or not 1 <= top_k <= MAX_SEARCH_LIMIT:
         raise ValueError(f"top_k must be an integer between 1 and {MAX_SEARCH_LIMIT}")
     return top_k
+
+
+def _search_text(query: Any) -> str:
+    if not isinstance(query, str):
+        raise ValueError("query must be a non-empty string")
+
+    query = query.strip()
+    if not query or len(query) > MAX_QUERY_LENGTH:
+        raise ValueError(
+            f"query must be a non-empty string up to {MAX_QUERY_LENGTH} characters"
+        )
+    return query
+
+
+def _video_filename_filter(video_filename: Any) -> Optional[str]:
+    if video_filename is None:
+        return None
+    if not isinstance(video_filename, str):
+        raise ValueError("video_filename must be a non-empty string when provided")
+
+    video_filename = video_filename.strip()
+    if not video_filename or len(video_filename) > MAX_VIDEO_FILENAME_LENGTH:
+        raise ValueError(
+            "video_filename must be a non-empty string up to "
+            f"{MAX_VIDEO_FILENAME_LENGTH} characters"
+        )
+    return video_filename
 
 
 def _first_id_list(results: Dict[str, Any]) -> List[Any]:
@@ -174,6 +203,8 @@ class HybridSearchService:
         video_filename: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         top_k = _search_limit(top_k)
+        query = _search_text(query)
+        video_filename = _video_filename_filter(video_filename)
         query_vector = _query_vector(self.embedding_model, query)
 
         text_results = self.collection.query(

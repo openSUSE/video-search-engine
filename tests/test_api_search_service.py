@@ -96,6 +96,20 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
     }
 
 
+def test_hybrid_search_service_strips_query_and_video_filter_before_search():
+    model = FakeEmbeddingModel()
+    collection = FakeCollection()
+    service = HybridSearchService(model, collection)
+
+    service.search("  find highlights  ", top_k=1, video_filename="  demo.mp4  ")
+
+    assert model.queries == ["find highlights"]
+    assert [call["where"] for call in collection.query_calls] == [
+        {"$and": [{"type": "text"}, {"video_filename": "demo.mp4"}]},
+        {"$and": [{"type": "visual"}, {"video_filename": "demo.mp4"}]},
+    ]
+
+
 def test_hybrid_search_service_skips_malformed_text_metadata():
     class CollectionWithStaleMetadata(FakeCollection):
         def get(self, *, ids, include):
@@ -337,6 +351,36 @@ def test_hybrid_search_service_rejects_invalid_top_k_before_embedding(top_k):
 
     with pytest.raises(ValueError, match="top_k"):
         service.search("find highlights", top_k=top_k)
+
+    assert model.queries == []
+    assert collection.query_calls == []
+    assert collection.get_call is None
+
+
+@pytest.mark.parametrize("query", [None, "", "   ", 123, "x" * 1001])
+def test_hybrid_search_service_rejects_invalid_query_before_embedding(query):
+    model = FakeEmbeddingModel()
+    collection = FakeCollection()
+    service = HybridSearchService(model, collection)
+
+    with pytest.raises(ValueError, match="query"):
+        service.search(query, top_k=1)
+
+    assert model.queries == []
+    assert collection.query_calls == []
+    assert collection.get_call is None
+
+
+@pytest.mark.parametrize("video_filename", ["", "   ", 123, "v" * 513])
+def test_hybrid_search_service_rejects_invalid_video_filter_before_embedding(
+    video_filename,
+):
+    model = FakeEmbeddingModel()
+    collection = FakeCollection()
+    service = HybridSearchService(model, collection)
+
+    with pytest.raises(ValueError, match="video_filename"):
+        service.search("find highlights", top_k=1, video_filename=video_filename)
 
     assert model.queries == []
     assert collection.query_calls == []
