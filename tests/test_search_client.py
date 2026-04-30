@@ -126,7 +126,10 @@ def test_search_payload_rejects_unusable_limits(top_k):
         search_client.search_payload("opening scene", "demo", top_k=top_k)
 
 
-@pytest.mark.parametrize("video_filename", [123, "v" * 513])
+@pytest.mark.parametrize(
+    "video_filename",
+    [123, ".", "..", "nested/demo", "nested\\demo", "v" * 513],
+)
 def test_search_payload_rejects_unusable_video_filters(video_filename):
     with pytest.raises(ValueError, match="video_filename"):
         search_client.search_payload("opening scene", video_filename)

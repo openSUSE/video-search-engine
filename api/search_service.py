@@ -4,7 +4,11 @@ from collections.abc import Mapping
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Protocol
 
-from api.search_utils import is_usable_segment_id, text_metadata_by_segment_id
+from api.search_utils import (
+    is_usable_segment_id,
+    is_usable_video_filename_scope,
+    text_metadata_by_segment_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +99,8 @@ def _video_filename_filter(video_filename: Any) -> Optional[str]:
             "video_filename must be a non-empty string up to "
             f"{MAX_VIDEO_FILENAME_LENGTH} characters"
         )
+    if not is_usable_video_filename_scope(video_filename):
+        raise ValueError("video_filename must be a filename")
     return video_filename
 
 
@@ -197,6 +203,7 @@ def _format_search_result(
         not title
         or not summary
         or not video_filename
+        or not is_usable_video_filename_scope(video_filename)
         or speakers is None
         or start_time is None
         or end_time is None

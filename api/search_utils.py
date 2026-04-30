@@ -3,6 +3,16 @@ from typing import Any, Dict
 DOCUMENT_ID_SCOPE_DELIMITER = "::"
 
 
+def is_usable_video_filename_scope(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not value or value != value.strip():
+        return False
+    if value in {".", ".."}:
+        return False
+    return "/" not in value and "\\" not in value
+
+
 def is_usable_segment_id(segment_id: Any) -> bool:
     if not isinstance(segment_id, str):
         return False
@@ -17,8 +27,8 @@ def is_usable_segment_id(segment_id: Any) -> bool:
     )
     return bool(
         video_scope
+        and is_usable_video_filename_scope(video_scope)
         and local_segment_id
-        and video_scope == video_scope.strip()
         and local_segment_id == local_segment_id.strip()
     )
 

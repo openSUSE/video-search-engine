@@ -746,7 +746,10 @@ def test_hybrid_search_service_rejects_invalid_query_before_embedding(query):
     assert collection.get_call is None
 
 
-@pytest.mark.parametrize("video_filename", ["", "   ", 123, "v" * 513])
+@pytest.mark.parametrize(
+    "video_filename",
+    ["", "   ", 123, ".", "..", "nested/demo", "nested\\demo", "v" * 513],
+)
 def test_hybrid_search_service_rejects_invalid_video_filter_before_embedding(
     video_filename,
 ):
@@ -760,6 +763,43 @@ def test_hybrid_search_service_rejects_invalid_video_filter_before_embedding(
     assert model.queries == []
     assert collection.query_calls == []
     assert collection.get_call is None
+
+
+def test_hybrid_search_service_skips_results_with_path_shaped_video_metadata():
+    class CollectionWithPathShapedVideoMetadata(FakeCollection):
+        def query(self, *, query_embeddings, n_results, where, include):
+            self.query_calls.append(
+                {
+                    "query_embeddings": query_embeddings,
+                    "n_results": n_results,
+                    "where": where,
+                    "include": include,
+                }
+            )
+            doc_type = where["type"] if "type" in where else where["$and"][0]["type"]
+            if doc_type == "text":
+                return {"ids": [["path-shaped_text", "valid_text"]]}
+            return {"ids": [[]]}
+
+        def get(self, *, ids, include):
+            self.get_call = {"ids": ids, "include": include}
+            return {
+                "ids": ["path-shaped_text", "valid_text"],
+                "metadatas": [
+                    _metadata(title="Path shaped", video_filename="nested/demo"),
+                    _metadata(title="Valid", video_filename="demo"),
+                ],
+            }
+
+    service = HybridSearchService(
+        FakeEmbeddingModel(),
+        CollectionWithPathShapedVideoMetadata(),
+    )
+
+    results = service.search("find highlights", top_k=2)
+
+    assert [result["id"] for result in results] == ["valid"]
+    assert results[0]["video_filename"] == "demo"
 
 
 @pytest.mark.parametrize(

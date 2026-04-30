@@ -16,6 +16,12 @@ MAX_SEARCH_LIMIT = 50
 RequestException = requests.exceptions.RequestException
 
 
+def _is_usable_video_filename(value: str) -> bool:
+    if value in {".", ".."}:
+        return False
+    return "/" not in value and "\\" not in value
+
+
 def _response_string(
     result: Mapping[str, Any],
     field_name: str,
@@ -121,6 +127,17 @@ def _optional_payload_text(value: Any, field_name: str, max_length: int) -> str 
     return normalized_value or None
 
 
+def _optional_video_filename(value: Any) -> str | None:
+    video_filename = _optional_payload_text(
+        value,
+        "video_filename",
+        MAX_VIDEO_FILENAME_LENGTH,
+    )
+    if video_filename is not None and not _is_usable_video_filename(video_filename):
+        raise ValueError("search payload video_filename must be a filename")
+    return video_filename
+
+
 def _search_limit(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("search payload top_k must be an integer")
@@ -152,11 +169,7 @@ def search_payload(
     return {
         "query": _required_payload_text(query, "query", MAX_QUERY_LENGTH),
         "top_k": _search_limit(top_k),
-        "video_filename": _optional_payload_text(
-            video_filename,
-            "video_filename",
-            MAX_VIDEO_FILENAME_LENGTH,
-        ),
+        "video_filename": _optional_video_filename(video_filename),
     }
 
 
