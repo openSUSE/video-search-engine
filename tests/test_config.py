@@ -109,6 +109,7 @@ llm_enrichment:
         "host": "http://ollama",
         "port": 11435,
         "model": "gemma3",
+        "timeout_sec": 120,
     }
     assert config["llm_enrichment"]["gemini"]["model"] == "gemini-flash"
 
@@ -175,8 +176,66 @@ llm_enrichment:
         "host": "http://configured-ollama",
         "port": 11435,
         "model": "configured-ollama-model",
+        "timeout_sec": 120,
     }
     assert config["llm_enrichment"]["gemini"]["model"] == "configured-gemini-model"
+
+
+def test_ollama_host_trailing_slash_is_normalized(monkeypatch, tmp_path):
+    config_module = _load_config_module(
+        monkeypatch,
+        tmp_path,
+        """
+llm_enrichment:
+  ollama:
+    host: "https://ollama.local/"
+""",
+    )
+
+    assert config_module.CONFIG["llm_enrichment"]["ollama"]["host"] == (
+        "https://ollama.local"
+    )
+
+
+@pytest.mark.parametrize(
+    "raw_host",
+    [
+        "localhost",
+        "ftp://localhost",
+        "http://localhost:11434",
+        "http://user@localhost",
+        "http://localhost/api",
+        "http://local host",
+    ],
+)
+def test_invalid_ollama_host_environment_overrides_fail_fast(
+    monkeypatch,
+    tmp_path,
+    raw_host,
+):
+    monkeypatch.setenv("OLLAMA_HOST", raw_host)
+
+    with pytest.raises(ValueError, match="OLLAMA_HOST"):
+        _load_config_module(monkeypatch, tmp_path, "{}")
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        "llm_enrichment:\n  ollama:\n    timeout_sec: 0\n",
+        "llm_enrichment:\n  ollama:\n    timeout_sec: -1\n",
+        "llm_enrichment:\n  ollama:\n    timeout_sec: .inf\n",
+        "llm_enrichment:\n  ollama:\n    timeout_sec: '120'\n",
+        "llm_enrichment:\n  ollama:\n    timeout_sec: true\n",
+    ],
+)
+def test_invalid_ollama_timeout_config_fails_fast(
+    monkeypatch,
+    tmp_path,
+    config_text,
+):
+    with pytest.raises(ValueError, match="llm_enrichment.ollama.timeout_sec"):
+        _load_config_module(monkeypatch, tmp_path, config_text)
 
 
 @pytest.mark.parametrize(

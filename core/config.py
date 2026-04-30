@@ -1,7 +1,9 @@
 # core/config.py
 import logging
+import math
 import os
 from typing import Dict, Any
+from urllib.parse import urlsplit
 
 import yaml
 from dotenv import load_dotenv
@@ -94,6 +96,52 @@ def _string_setting(env_name: str, config_value: Any, default: str) -> str:
         raise ValueError(f"{env_name} must be a string")
 
     return _clean_string(config_value) or default
+
+
+def _http_origin_setting(env_name: str, config_value: Any, default: str) -> str:
+    origin = _string_setting(env_name, config_value, default)
+    invalid_message = (
+        f"{env_name} must be an http(s) URL origin without path, port, "
+        "credentials, query, or fragment"
+    )
+    try:
+        parts = urlsplit(origin)
+        embedded_port = parts.port
+    except ValueError as exc:
+        raise ValueError(invalid_message) from exc
+
+    if (
+        any(character.isspace() for character in origin)
+        or parts.scheme.lower() not in {"http", "https"}
+        or not parts.netloc
+        or not parts.hostname
+        or parts.username
+        or parts.password
+        or embedded_port is not None
+        or parts.path not in {"", "/"}
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError(invalid_message)
+
+    return f"{parts.scheme.lower()}://{parts.netloc}"
+
+
+def _positive_number_setting(
+    dotted_name: str,
+    config_value: Any,
+    default: float,
+) -> float | int:
+    invalid_message = f"{dotted_name} must be a finite positive number"
+    if config_value is None:
+        return default
+    if isinstance(config_value, bool) or not isinstance(config_value, (int, float)):
+        raise ValueError(invalid_message)
+
+    number = float(config_value)
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(invalid_message)
+    return config_value
 
 
 def _port_setting(env_name: str, config_value: Any, default: int) -> int:
@@ -230,7 +278,7 @@ def load_config() -> Dict[str, Any]:
         "ollama",
         "llm_enrichment.ollama",
     )
-    ollama_config["host"] = _string_setting(
+    ollama_config["host"] = _http_origin_setting(
         "OLLAMA_HOST",
         ollama_config.get("host"),
         "http://localhost",
@@ -244,6 +292,11 @@ def load_config() -> Dict[str, Any]:
         "OLLAMA_MODEL",
         ollama_config.get("model"),
         "gemma:2b",
+    )
+    ollama_config["timeout_sec"] = _positive_number_setting(
+        "llm_enrichment.ollama.timeout_sec",
+        ollama_config.get("timeout_sec"),
+        120,
     )
     gemini_config = _ensure_nested_config_section(
         cfg["llm_enrichment"],
