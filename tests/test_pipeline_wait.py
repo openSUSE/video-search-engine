@@ -441,6 +441,26 @@ def test_run_pipeline_rejects_blank_video_path_before_loading_runtime(monkeypatc
     assert not run_pipeline.run_pipeline(" ", str(tmp_path / "processed"))
 
 
+@pytest.mark.parametrize("year", [0, -1, True])
+def test_run_pipeline_rejects_invalid_year_before_loading_runtime(
+    monkeypatch,
+    tmp_path,
+    year,
+):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+
+    def fail_load_pipeline_steps():
+        raise AssertionError("runtime pipeline steps should not load for an invalid year")
+
+    monkeypatch.setattr(run_pipeline, "_load_pipeline_steps", fail_load_pipeline_steps)
+
+    assert not run_pipeline.run_pipeline(
+        str(tmp_path / "demo.mp4"),
+        str(tmp_path / "processed"),
+        year=year,
+    )
+
+
 def test_run_pipeline_main_rejects_blank_video_before_config_and_logging(monkeypatch):
     run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
     monkeypatch.setattr(sys, "argv", ["run_pipeline", "--video", " "])
@@ -450,6 +470,25 @@ def test_run_pipeline_main_rejects_blank_video_before_config_and_logging(monkeyp
 
     def fail_load_config():
         raise AssertionError("config should not load before validating required CLI args")
+
+    monkeypatch.setattr(run_pipeline, "setup_logging", fail_setup_logging)
+    monkeypatch.setattr(run_pipeline, "_load_config", fail_load_config)
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_pipeline.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_run_pipeline_main_rejects_invalid_year_before_config_and_logging(monkeypatch):
+    run_pipeline = _load_run_pipeline_with_stubbed_steps(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["run_pipeline", "--video", "demo.mp4", "--year", "0"])
+
+    def fail_setup_logging():
+        raise AssertionError("setup_logging should not run with an invalid year")
+
+    def fail_load_config():
+        raise AssertionError("config should not load before validating CLI args")
 
     monkeypatch.setattr(run_pipeline, "setup_logging", fail_setup_logging)
     monkeypatch.setattr(run_pipeline, "_load_config", fail_load_config)

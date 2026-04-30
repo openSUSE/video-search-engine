@@ -15,6 +15,7 @@ from app.ui.speaker_support import (
 from app.ui.url_settings import local_http_url
 from ingestion_pipeline.jobs import (
     normalize_optional_string,
+    normalize_optional_year,
     normalize_required_string,
 )
 
@@ -260,6 +261,7 @@ def run_pipeline(
         video_path = normalize_required_string(video_path, "video_path")
         output_dir = normalize_required_string(output_dir, "output_dir")
         title = normalize_optional_string(title, "title")
+        year = normalize_optional_year(year)
     except ValueError as e:
         logger.critical("Invalid pipeline input: %s", e)
         return False
@@ -337,6 +339,7 @@ def main():
         video_path = normalize_required_string(args.video, "video")
         output_dir = normalize_optional_string(args.output_dir, "output_dir")
         title = normalize_optional_string(args.title, "title")
+        year = normalize_optional_year(args.year)
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -346,7 +349,7 @@ def main():
         video_path,
         output_dir or config['general']['default_output_dir'],
         title,
-        args.year,
+        year,
         config=config,
     )
     if not succeeded:

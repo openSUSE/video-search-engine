@@ -378,6 +378,45 @@ def test_run_extraction_uses_injected_config_and_metadata_fetcher(tmp_path):
     assert "logline" not in metadata
 
 
+@pytest.mark.parametrize("video_year", [0, -1, True])
+def test_run_extraction_rejects_invalid_year_before_metadata_lookup(
+    tmp_path,
+    video_year,
+):
+    calls = []
+
+    def fake_metadata_fetcher(title, year):
+        calls.append({"title": title, "year": year})
+        return {"title": "Fetched Demo"}
+
+    with pytest.raises(ValueError, match="year"):
+        run_extraction(
+            video_path=str(tmp_path / "demo.mp4"),
+            base_output_dir=str(tmp_path / "processed"),
+            video_title="Demo",
+            video_year=video_year,
+            config=_extraction_config(),
+            metadata_fetcher=fake_metadata_fetcher,
+        )
+
+    assert calls == []
+
+
+def test_run_extraction_rejects_invalid_year_before_loading_config(monkeypatch, tmp_path):
+    def fail_load_config():
+        raise AssertionError("config should not load for an invalid year")
+
+    monkeypatch.setattr(extraction_step, "_load_config", fail_load_config)
+
+    with pytest.raises(ValueError, match="year"):
+        run_extraction(
+            video_path=str(tmp_path / "demo.mp4"),
+            base_output_dir=str(tmp_path / "processed"),
+            video_title="Demo",
+            video_year=0,
+        )
+
+
 def test_run_extraction_preserves_existing_metadata_when_no_title_is_provided(tmp_path):
     config = _extraction_config()
     output_dir = tmp_path / "processed"

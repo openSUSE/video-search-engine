@@ -88,6 +88,8 @@ def test_ingestion_job_rejects_missing_video_path():
         ({"video_path": "/data/videos/demo.mp4", "title": 42}, "title"),
         ({"video_path": "/data/videos/demo.mp4", "year": "2024"}, "year"),
         ({"video_path": "/data/videos/demo.mp4", "year": True}, "year"),
+        ({"video_path": "/data/videos/demo.mp4", "year": 0}, "year"),
+        ({"video_path": "/data/videos/demo.mp4", "year": -1}, "year"),
     ],
 )
 def test_decode_job_message_rejects_invalid_field_types(payload, error):

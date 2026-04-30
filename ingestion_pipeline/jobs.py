@@ -25,6 +25,14 @@ def normalize_optional_string(value: Optional[str], field_name: str) -> Optional
     return value or None
 
 
+def normalize_optional_year(value: Optional[int], field_name: str = "year") -> Optional[int]:
+    if value is None:
+        return None
+    if type(value) is not int or value <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return value
+
+
 def resolve_rabbitmq_url(rabbitmq_url: Optional[str] = None) -> str:
     resolved_url = os.getenv("RABBITMQ_URL") if rabbitmq_url is None else rabbitmq_url
     return normalize_required_string(resolved_url or "", "RabbitMQ URL")
@@ -60,8 +68,7 @@ class IngestionJob:
             "title",
             normalize_optional_string(self.title, "title"),
         )
-        if self.year is not None and type(self.year) is not int:
-            raise ValueError("year must be an integer")
+        object.__setattr__(self, "year", normalize_optional_year(self.year))
 
     def to_message(self) -> dict:
         return {key: value for key, value in asdict(self).items() if value is not None}
