@@ -46,7 +46,7 @@ def resolve_video_path(
     video_dir = Path(video_data_dir)
     for extension in extensions:
         candidate = video_dir / f"{video_stem}{extension}"
-        if candidate.exists():
+        if candidate.is_file():
             return candidate
         if not video_dir.is_dir():
             continue

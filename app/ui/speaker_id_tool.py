@@ -74,7 +74,7 @@ else:
         # --- MAIN LOGIC ---
         if not paths.transcript.exists():
             st.error(f"Transcript file not found: {paths.transcript}")
-        elif not paths.video.exists():
+        elif not paths.video.is_file():
             st.error(f"Original video file not found: {paths.video}")
         else:
             # Load transcript data

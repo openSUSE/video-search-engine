@@ -149,6 +149,13 @@ def test_speaker_streamlit_ui_uses_support_path_boundary():
     assert "speaker_map.json" not in literal_strings
 
 
+def test_speaker_streamlit_ui_requires_video_path_to_be_a_file():
+    tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
+    body_text = ast.unparse(tree)
+
+    assert "paths.video.is_file()" in body_text
+
+
 def test_speaker_flask_ui_defers_config_import():
     imported_modules = _top_level_import_modules("app/main.py")
 

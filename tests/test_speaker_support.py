@@ -72,6 +72,13 @@ def test_resolve_video_path_matches_existing_extension_case_insensitively(tmp_pa
     assert resolve_video_path(tmp_path, "demo") == tmp_path / "demo.MP4"
 
 
+def test_resolve_video_path_ignores_directories_named_like_videos(tmp_path):
+    (tmp_path / "demo.mp4").mkdir()
+    (tmp_path / "demo.mov").write_bytes(b"video")
+
+    assert resolve_video_path(tmp_path, "demo") == tmp_path / "demo.mov"
+
+
 def test_supported_video_filenames_returns_sorted_supported_files_only(tmp_path):
     (tmp_path / "zeta.MP4").write_bytes(b"video")
     (tmp_path / "alpha.mov").write_bytes(b"video")
