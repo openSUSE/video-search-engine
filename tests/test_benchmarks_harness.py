@@ -248,3 +248,27 @@ def test_runner_main_no_match_returns_two(capsys):
 
     assert exit_code == 2
     assert "No benchmarks selected" in captured.err
+
+
+def test_runner_main_rejects_invalid_baseline_before_running_benchmarks(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text("{not-json")
+    benchmark = Benchmark(name="example", fn=_noop, iterations=1)
+
+    monkeypatch.setattr(runner_module, "discover_benchmarks", lambda: [benchmark])
+
+    def fail_run_benchmark(*_args, **_kwargs):
+        raise AssertionError("baseline should be validated before benchmarks run")
+
+    monkeypatch.setattr(runner_module, "run_benchmark", fail_run_benchmark)
+
+    exit_code = runner_module.main(["--baseline", str(baseline), "--quiet"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "Invalid benchmark baseline" in captured.err
+    assert "valid JSON" in captured.err

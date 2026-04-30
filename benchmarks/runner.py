@@ -239,6 +239,14 @@ def _write_json_report(path: str, payload: str) -> None:
     report_path.write_text(payload, encoding="utf-8")
 
 
+def _load_baseline_for_comparison(path: str, warn_ratio: float):
+    baseline = load_report(path)
+    # Reuse the comparison parser to validate baseline report shape before
+    # benchmark execution. Bad operator input should fail before doing work.
+    compare_reports(baseline, {"results": []}, warn_ratio=warn_ratio)
+    return baseline
+
+
 def main(argv: List[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -254,6 +262,17 @@ def main(argv: List[str] | None = None) -> int:
     if not selected:
         print("No benchmarks selected. Use --list to see available names.", file=sys.stderr)
         return 2
+
+    baseline = None
+    if args.baseline_path:
+        try:
+            baseline = _load_baseline_for_comparison(
+                args.baseline_path,
+                args.warn_ratio,
+            )
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            print(_baseline_error(args.baseline_path, exc), file=sys.stderr)
+            return 2
 
     results: List[BenchmarkResult] = []
     for index, benchmark in enumerate(selected, start=1):
@@ -294,12 +313,7 @@ def main(argv: List[str] | None = None) -> int:
             print(f"Wrote JSON report to {args.json_path}", file=sys.stderr)
 
     if args.baseline_path:
-        try:
-            baseline = load_report(args.baseline_path)
-        except (OSError, json.JSONDecodeError) as exc:
-            print(_baseline_error(args.baseline_path, exc), file=sys.stderr)
-            return 2
-
+        assert baseline is not None
         current_payload = json.loads(format_json_report(results, metadata=metadata))
         try:
             rows = compare_reports(
