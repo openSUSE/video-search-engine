@@ -24,6 +24,11 @@ def processed_video_folders(base_dir: str | Path) -> list[str]:
     return sorted(path.name for path in base_path.iterdir() if path.is_dir())
 
 
+def is_supported_video_file(filename: str | Path) -> bool:
+    path = Path(filename)
+    return bool(path.suffix and path.stem and path.suffix.lower() in VIDEO_EXTENSIONS)
+
+
 def resolve_video_path(
     video_data_dir: str | Path,
     video_stem: str,
@@ -34,6 +39,12 @@ def resolve_video_path(
         candidate = video_dir / f"{video_stem}{extension}"
         if candidate.exists():
             return candidate
+        if not video_dir.is_dir():
+            continue
+        candidate_name = candidate.name.lower()
+        for existing_path in video_dir.iterdir():
+            if existing_path.is_file() and existing_path.name.lower() == candidate_name:
+                return existing_path
     return video_dir / f"{video_stem}{extensions[0]}"
 
 

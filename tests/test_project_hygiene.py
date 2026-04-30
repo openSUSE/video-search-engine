@@ -110,6 +110,20 @@ def test_search_streamlit_ui_defers_core_config_import():
     assert "core.config" not in imported_modules
 
 
+def test_search_streamlit_ui_uses_shared_video_file_filter():
+    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    imported_support_names = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.ui.speaker_support"
+        for alias in node.names
+    }
+    body_text = ast.unparse(tree)
+
+    assert "is_supported_video_file" in imported_support_names
+    assert "is_supported_video_file" in body_text
+
+
 def test_speaker_streamlit_ui_uses_support_path_boundary():
     tree = ast.parse(Path("app/ui/speaker_id_tool.py").read_text())
     imported_modules = _top_level_import_modules("app/ui/speaker_id_tool.py")

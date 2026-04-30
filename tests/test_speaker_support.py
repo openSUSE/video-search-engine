@@ -6,6 +6,7 @@ from app.ui.speaker_support import (
     load_transcript_segments,
     load_transcript_speaker_ids,
     load_speaker_map,
+    is_supported_video_file,
     normalize_speaker_map,
     processed_video_folders,
     reset_speaker_session_for_video,
@@ -52,6 +53,22 @@ def test_speaker_artifact_paths_use_configured_filenames_and_video_extension(tmp
 
 def test_resolve_video_path_defaults_to_mp4_when_no_candidate_exists(tmp_path):
     assert resolve_video_path(tmp_path, "missing") == tmp_path / "missing.mp4"
+
+
+@pytest.mark.parametrize("filename", ["demo.mp4", "demo.MP4", "clip.Mov", "scene.AVI"])
+def test_is_supported_video_file_matches_extensions_case_insensitively(filename):
+    assert is_supported_video_file(filename) is True
+
+
+@pytest.mark.parametrize("filename", ["demo.mkv", "demo.mp4.tmp", ".mp4"])
+def test_is_supported_video_file_rejects_unsupported_or_incomplete_names(filename):
+    assert is_supported_video_file(filename) is False
+
+
+def test_resolve_video_path_matches_existing_extension_case_insensitively(tmp_path):
+    (tmp_path / "demo.MP4").write_bytes(b"video")
+
+    assert resolve_video_path(tmp_path, "demo") == tmp_path / "demo.MP4"
 
 
 def test_reset_speaker_session_for_video_clears_previous_video_state():
