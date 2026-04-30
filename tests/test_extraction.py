@@ -515,6 +515,38 @@ def test_align_transcript_to_shots_writes_valid_aligned_segments(tmp_path):
     ]
 
 
+def test_align_transcript_to_shots_assigns_final_end_boundary_to_last_shot(tmp_path):
+    raw_transcript_path = tmp_path / "transcript_raw.json"
+    aligned_transcript_path = tmp_path / "aligned.json"
+    raw_transcript_path.write_text(
+        json.dumps(
+            [
+                {
+                    "start": 1.0,
+                    "end": 1.0,
+                    "text": "closing word",
+                    "speaker": "SPEAKER_00",
+                }
+            ]
+        )
+    )
+
+    align_transcript_to_shots(
+        str(raw_transcript_path),
+        [
+            {
+                "shot_id": "shot_0001",
+                "start_time_sec": 0.0,
+                "end_time_sec": 1.0,
+            }
+        ],
+        str(aligned_transcript_path),
+    )
+
+    [aligned_segment] = json.loads(aligned_transcript_path.read_text())
+    assert aligned_segment["shot_id"] == "shot_0001"
+
+
 @pytest.mark.parametrize(
     ("raw_transcript", "message"),
     [

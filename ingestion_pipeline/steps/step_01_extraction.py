@@ -505,8 +505,13 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
     for segment in transcript_segments:
         segment_midpoint = (segment['start'] + segment['end']) / 2
         assigned_shot_id = None
-        for shot in scenes:
-            if shot['start_time_sec'] <= segment_midpoint < shot['end_time_sec']:
+        for shot_index, shot in enumerate(scenes):
+            is_last_shot = shot_index == len(scenes) - 1
+            starts_in_shot = shot['start_time_sec'] <= segment_midpoint
+            ends_in_shot = segment_midpoint < shot['end_time_sec'] or (
+                is_last_shot and segment_midpoint == shot['end_time_sec']
+            )
+            if starts_in_shot and ends_in_shot:
                 assigned_shot_id = shot['shot_id']
                 break
         
