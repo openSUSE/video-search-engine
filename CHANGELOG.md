@@ -168,6 +168,45 @@ permissive behavior so existing deployments are unaffected.
   `dependency-audit` CI lane that runs on every push/PR. Today's
   baseline is clean (0 vulnerabilities) across all three sets.
 
+## Zero-config demo
+
+- **`api/demo_bootstrap.py`** runs in the FastAPI lifespan and, when
+  `DEMO_BOOTSTRAP=1` (default in the compose stack), auto-indexes a
+  bundled Sintel preview into an empty Chroma collection. A clean
+  `make compose-up` now produces working search results without
+  needing an HF token, Gemini key, or worker. Skipped automatically
+  when the collection already has rows for the demo video, so a real
+  catalog is never clobbered.
+- The demo asset `app/demo/sintel_trailer.enriched.json` ships in the
+  repo (~9 KB); the demo MP4 (`app/demo/sintel_trailer.mp4`, ~4 MB) is
+  copied into `VIDEO_DATA_PATH` on first boot so the search UI's
+  `<video>` player has a real file to render.
+- Compose `api` service now mounts `./data/videos:/data/videos`
+  read-write so the bootstrap can publish the demo MP4 there.
+
+## HuggingFace preflight
+
+- **`core.hf_preflight.check_huggingface_access()`** does one HEAD
+  request per gated model the worker depends on
+  (`pyannote/speaker-diarization-community-1`,
+  `pyannote/segmentation-3.0`) and turns the result into a clean
+  `PreflightReport` with per-model status (`ok` / `missing_token` /
+  `invalid_token` / `needs_terms` / `unreachable`).
+- Worker boot and `run_pipeline` CLI both call
+  `log_preflight_report(...)` at startup. The output is the
+  one-screen helper an operator can act on directly:
+
+  ```text
+  HuggingFace preflight: your HF_TOKEN does not have access to 1 gated
+  model(s) used by whisperx diarization. Diarization will be skipped
+  at runtime — accept the terms here:
+    - https://hf.co/pyannote/speaker-diarization-community-1
+  ```
+- The preflight is purely informational — the runtime
+  `transcribe_and_diarize` already gracefully degrades when the
+  diarization model is unreachable, so a missing-terms situation
+  surfaces both at startup and at runtime, not as a wedge.
+
 ## Demo UI
 
 - **Multi-page Streamlit app** at `:8501` replacing the previous

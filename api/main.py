@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
+from api import demo_bootstrap as api_demo_bootstrap
 from api import observability as api_observability
 from api import security as api_security
 from api.schemas import SearchQuery, SearchResponse
@@ -28,8 +29,9 @@ async def lifespan(app: FastAPI):
     # root handler.
     setup_logging()
     started_at = time.monotonic()
+    config = load_api_config()
     try:
-        app.state.search_service = create_search_service(load_api_config())
+        app.state.search_service = create_search_service(config)
     except Exception:
         duration_s = time.monotonic() - started_at
         logger.exception(
@@ -38,6 +40,16 @@ async def lifespan(app: FastAPI):
         raise
     duration_s = time.monotonic() - started_at
     logger.info("Search service initialized in %.1fs.", duration_s)
+
+    # Best-effort demo bootstrap — populates a tiny Sintel preview into
+    # an empty Chroma so a clean ``make compose-up`` shows working
+    # search without a worker / HF token / Gemini key. Disabled by
+    # setting DEMO_BOOTSTRAP=0.
+    try:
+        api_demo_bootstrap.bootstrap(config)
+    except Exception:
+        logger.exception("Demo bootstrap failed; continuing without demo data.")
+
     yield
 
 

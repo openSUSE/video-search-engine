@@ -67,6 +67,8 @@ Start ChromaDB, RabbitMQ, the API, and the search UI:
 make compose-up
 ```
 
+That alone gets you a working search demo — the API auto-indexes a tiny bundled Sintel preview into Chroma on first boot via `api/demo_bootstrap.py`, so opening `http://localhost:8501/` immediately shows the multi-page Streamlit UI with searchable results. No HF token, Gemini key, or worker needed for that path. Set `DEMO_BOOTSTRAP=0` in `.env` to disable.
+
 Default URLs:
 
 - Demo UI: `http://localhost:8501` — multi-page Streamlit (Home / Submit / Pipeline / Search). The Pipeline page animates per-step progress live as the worker advances. For the Submit page to actually queue jobs, also run `make compose-worker`.

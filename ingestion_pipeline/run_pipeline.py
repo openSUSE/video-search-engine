@@ -415,6 +415,12 @@ def main():
         parser.error(str(exc))
 
     setup_logging()
+    # Tell the operator about HF token / gated-model issues up front
+    # rather than letting whisperx surface them as a confusing 401 deep
+    # in the diarization step.
+    from core.hf_preflight import check_huggingface_access, log_preflight_report
+
+    log_preflight_report(check_huggingface_access())
     config = _load_config()
     succeeded = run_pipeline(
         video_path,

@@ -25,6 +25,11 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc))
     setup_logging()
+    # Surface HF token / gated-model issues up front so an operator
+    # sees one clean log line instead of debugging a wedge mid-run.
+    from core.hf_preflight import check_huggingface_access, log_preflight_report
+
+    log_preflight_report(check_huggingface_access())
     consume_ingestion_jobs(handle_job, rabbitmq_url=rabbitmq_url, queue_name=queue_name)
 
 

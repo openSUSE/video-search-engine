@@ -1,0 +1,252 @@
+[
+    {
+        "segment_id": "segment_0001",
+        "segment_index": 1,
+        "start_time": 0.0,
+        "end_time": 23.75,
+        "duration_sec": 23.75,
+        "speakers": [],
+        "full_transcript": "",
+        "consolidated_visual_captions": [
+            "a black and white image of a mountain",
+            "a woman in a brown outfit holding a gun",
+            "the black foundation logo",
+            "the elder in the elder ' s house",
+            "a woman with red hair and a black shirt",
+            "a man is standing in the snow with his hands up",
+            "a black background with a black background and a white background",
+            "the elder scrolls - the elder scrolls - episode 2",
+            "the elder scrolls - the elder scrolls - episode 1",
+            "a black background with a white and red flower",
+            "resident evil dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead dead"
+        ],
+        "consolidated_audio_events": [
+            "Bang",
+            "Choir",
+            "Eruption",
+            "Music",
+            "Ocean",
+            "Opera",
+            "Singing",
+            "Sound effect",
+            "Speech"
+        ],
+        "consolidated_actions": [
+            "air drumming",
+            "archery",
+            "beatboxing",
+            "belly dancing",
+            "blowing glass",
+            "blowing leaves",
+            "building shed",
+            "crying",
+            "digging",
+            "dying hair",
+            "headbanging",
+            "hitting baseball",
+            "ice climbing",
+            "paragliding",
+            "playing didgeridoo",
+            "playing paintball",
+            "rock climbing",
+            "shoveling snow",
+            "skiing (not slalom or crosscountry)",
+            "skydiving",
+            "smoking",
+            "snowboarding",
+            "throwing axe",
+            "tossing coin"
+        ],
+        "shot_count": 12,
+        "shot_ids": [
+            "shot_0001",
+            "shot_0002",
+            "shot_0003",
+            "shot_0004",
+            "shot_0005",
+            "shot_0006",
+            "shot_0007",
+            "shot_0008",
+            "shot_0009",
+            "shot_0010",
+            "shot_0011",
+            "shot_0012"
+        ],
+        "title": "Montage of Characters, Landscapes, and Game Titles with Dramatic Audio",
+        "summary": "The segment visually presents a varied sequence including a black and white mountain, a woman holding a gun, a black foundation logo, an elder in a house, and text overlays referencing 'The Elder Scrolls' and 'Resident Evil'. Audibly, the scene is accompanied by a dynamic mix of music, choir, singing, opera, and sound effects such as 'Bang' and 'Eruption', alongside discernible speech.",
+        "keywords": [
+            "Mountain",
+            "Woman with gun",
+            "Elder",
+            "Game titles",
+            "Music",
+            "Bang",
+            "Speech"
+        ]
+    },
+    {
+        "segment_id": "segment_0002",
+        "segment_index": 2,
+        "start_time": 23.792,
+        "end_time": 25.833,
+        "duration_sec": 2.041,
+        "speakers": [],
+        "full_transcript": "What brings you to the land of the gatekeepers? I'm searching for someone. A dangerous quest for unknown answers.",
+        "consolidated_visual_captions": [
+            "a scene from the lord ' s castle in the lord ' s castle"
+        ],
+        "consolidated_audio_events": [
+            "Music",
+            "Squeak"
+        ],
+        "consolidated_actions": [
+            "digging",
+            "planting trees",
+            "spinning poi"
+        ],
+        "shot_count": 1,
+        "shot_ids": [
+            "shot_0013"
+        ],
+        "title": "Quest for Someone in Gatekeepers' Land Amidst Varied Tasks",
+        "summary": "In a lord's castle, characters are seen digging, planting trees, and spinning poi, set against background music and a squeak. The dialogue reveals a perilous quest to find someone in the land of the gatekeepers, a search fraught with unknown answers.",
+        "keywords": [
+            "Gatekeepers' land",
+            "Dangerous quest",
+            "Searching",
+            "Lord's castle",
+            "Digging",
+            "Planting trees",
+            "Poi spinning"
+        ]
+    },
+    {
+        "segment_id": "segment_0003",
+        "segment_index": 3,
+        "start_time": 25.875,
+        "end_time": 40.708,
+        "duration_sec": 14.833,
+        "speakers": [],
+        "full_transcript": "",
+        "consolidated_visual_captions": [
+            "a dragon flying through the air with its wings",
+            "a woman in a dress is standing next to a dog",
+            "a black dragon with a large head and wings",
+            "a hand reaching a bat in the air",
+            "a person walking across a desert with sand dunes"
+        ],
+        "consolidated_audio_events": [
+            "Bellow",
+            "Music",
+            "Scary music",
+            "Speech"
+        ],
+        "consolidated_actions": [
+            "archery",
+            "capoeira",
+            "feeding birds",
+            "flying kite",
+            "getting a tattoo",
+            "kissing",
+            "paragliding",
+            "skydiving",
+            "snowboarding",
+            "snowkiting",
+            "sword fighting",
+            "washing feet",
+            "yoga"
+        ],
+        "shot_count": 5,
+        "shot_ids": [
+            "shot_0014",
+            "shot_0015",
+            "shot_0016",
+            "shot_0017",
+            "shot_0018"
+        ],
+        "title": "Diverse Scenes: Dragons, Desert Journey, and Human Activities",
+        "summary": "The video segment visually presents a blend of fantasy and reality, featuring dragons in flight, a woman with a dog, and a person journeying through a desert. Various human actions like archery, capoeira, and skydiving are implied within these visuals. The audio background consists of music, scary music, and distinct bellows, enhancing the dramatic and epic tone.",
+        "keywords": [
+            "Dragons",
+            "Desert journey",
+            "Human activities",
+            "Fantasy elements",
+            "Dramatic music",
+            "Bellowing sound"
+        ]
+    },
+    {
+        "segment_id": "segment_0004",
+        "segment_index": 4,
+        "start_time": 42.208,
+        "end_time": 48.417,
+        "duration_sec": 6.209,
+        "speakers": [],
+        "full_transcript": "I've been alone for as long as I can remember.",
+        "consolidated_visual_captions": [
+            "a black and white logo with the word ' snl '"
+        ],
+        "consolidated_audio_events": [
+            "Music",
+            "Scary music",
+            "Speech"
+        ],
+        "consolidated_actions": [
+            "dancing ballet",
+            "stretching arm",
+            "tai chi"
+        ],
+        "shot_count": 1,
+        "shot_ids": [
+            "shot_0019"
+        ],
+        "title": "SNL Logo and Solitary Movements with a Melancholy Monologue",
+        "summary": "The segment features a black and white 'SNL' logo transitioning into scenes of various physical activities including ballet, arm stretching, and tai chi. Amidst music and 'scary music,' a voiceover expresses a deep sense of enduring solitude.",
+        "keywords": [
+            "SNL logo",
+            "ballet",
+            "tai chi",
+            "loneliness",
+            "voiceover",
+            "scary music",
+            "physical expression"
+        ]
+    },
+    {
+        "segment_id": "segment_0005",
+        "segment_index": 5,
+        "start_time": 48.458,
+        "end_time": 52.167,
+        "duration_sec": 3.709,
+        "speakers": [],
+        "full_transcript": "",
+        "consolidated_visual_captions": [
+            "the dark project - snll"
+        ],
+        "consolidated_audio_events": [
+            "Bang",
+            "Music",
+            "Sound effect"
+        ],
+        "consolidated_actions": [
+            "front raises",
+            "sign language interpreting",
+            "stretching arm"
+        ],
+        "shot_count": 1,
+        "shot_ids": [
+            "shot_0020"
+        ],
+        "title": "Dark Project Activities: Exercises, Interpreting, and Arm Stretching",
+        "summary": "This segment visually depicts a series of actions including front raises, sign language interpreting, and arm stretching, set within the context of 'the dark project - snll'. The visual events are underscored by a dynamic audio environment featuring background music, various sound effects, and a prominent 'Bang' sound.",
+        "keywords": [
+            "the dark project",
+            "front raises",
+            "sign language interpreting",
+            "stretching arm",
+            "Bang sound",
+            "Music",
+            "Sound effect"
+        ]
+    }
+]

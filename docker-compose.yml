@@ -53,8 +53,17 @@ services:
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-}"
       MAX_REQUEST_BODY_BYTES: "${MAX_REQUEST_BODY_BYTES:-}"
       RATE_LIMIT_PER_MINUTE: "${RATE_LIMIT_PER_MINUTE:-}"
+      # Demo bootstrap: when enabled (default), the API auto-indexes a
+      # bundled Sintel preview into an empty Chroma on first boot so a
+      # clean `make compose-up` shows working search without a worker,
+      # HF token, or Gemini key. Set DEMO_BOOTSTRAP=0 to disable.
+      DEMO_BOOTSTRAP: "${DEMO_BOOTSTRAP:-1}"
+      VIDEO_DATA_PATH: /data/videos
     volumes:
       - model-cache:/models
+      # Writable so the demo bootstrap can publish the bundled MP4 into
+      # the same dir the search UI reads from, enabling in-page playback.
+      - ./data/videos:/data/videos
     depends_on:
       chroma:
         condition: service_healthy
