@@ -4,10 +4,6 @@
 
 An end-to-end video ingestion and semantic search system. The pipeline extracts transcript, speaker, visual, action, and audio-event metadata from videos, enriches segments with an LLM, indexes them in ChromaDB, and serves hybrid text/visual search through FastAPI and Streamlit.
 
-## About
-
-https://news.opensuse.org/2025/10/08/gsoc-semantic-video-search
-
 ## What Is Included
 
 - FastAPI search API backed by ChromaDB vector search.
