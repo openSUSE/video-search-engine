@@ -85,6 +85,75 @@ Do not add these to tracked YAML. Use `.env` locally, Docker/Kubernetes secrets 
 
 `core.logger.setup_logging` honors `LOG_LEVEL` (CRITICAL, ERROR, WARNING, INFO, DEBUG). Default is INFO; unknown values fall back to INFO. Set `LOG_LEVEL=DEBUG` in the API/worker env to surface deeper diagnostics without redeploying code. Every long-running entrypoint — the FastAPI service, the ingestion worker, the Flask speaker UI, and the publisher CLI — calls `setup_logging` at boot, so the variable applies uniformly; configure it via `LOG_LEVEL` in `.env` for Compose or via `video-se-config` in Kubernetes.
 
+`LOG_FORMAT` selects the output format:
+
+- `pretty` (default): colored text suited for local development. Each line includes `req=<id>` so you can grep for a specific request.
+- `json`: one JSON object per line with `timestamp`, `level`, `logger`, `message`, `request_id`, plus any caller-supplied `extra=` fields. Recommended for production deployments so a log shipper (Loki, ELK, Datadog) can parse and index without a regex.
+
+Every API request is bound to a request id via the contextvar in `core.observability`. Inbound `X-Request-ID` headers are honored; missing headers get a fresh 12-char hex id. The id is echoed in the response header and surfaces on every log line emitted during the request, so a failed `/search` can be traced from the access log to the search service to ChromaDB without grepping by timestamp.
+
+## Security
+
+The API ships open by default — appropriate for a development stack on a
+trusted network — and exposes three opt-in knobs. Each is independent;
+enable any combination by setting the corresponding env var.
+
+| Env var | Effect |
+|---|---|
+| `SEARCH_API_KEY` | When set, `/search` requires `X-API-Key: <value>`. Mismatch returns `401` with `WWW-Authenticate: X-API-Key`. `/healthz`, `/readyz`, `/metrics` stay open so probes and scrapers don't need the key. |
+| `CORS_ALLOW_ORIGINS` | Comma-separated origin allow-list (e.g. `https://app.example.com,https://staging.example.com`). When unset, no CORS middleware is attached at all (cross-origin browser calls are simply not possible). |
+| `MAX_REQUEST_BODY_BYTES` | Hard cap on `Content-Length` for state-changing requests. Default 32 KiB. Bodies larger than this are rejected with `413` before the handler allocates. |
+| `RATE_LIMIT_PER_MINUTE` | Per-client `/search` budget over a 60-second sliding window. `0` / unset disables. Bucketing prefers `X-API-Key` (one budget per credential), then `X-Forwarded-For` first hop, then peer IP. Exceeding the budget returns `429` with `Retry-After: <seconds>`. `/healthz`, `/readyz`, `/metrics` are exempt so probes/scrapers can't be locked out. |
+
+Compose users set these in `.env`; Kubernetes users put `SEARCH_API_KEY`
+in the `video-se-secrets` Secret and `CORS_ALLOW_ORIGINS` /
+`MAX_REQUEST_BODY_BYTES` in the `video-se-config` ConfigMap.
+
+The 401 response always includes the request id from the
+observability middleware — `kubectl logs` filtered on `req=<id>` shows
+exactly which auth attempt failed and why.
+
+Every auth attempt (granted *and* denied) emits a structured audit
+record on the `api.security.audit` logger:
+
+```json
+{
+  "audit": "search_api_auth",
+  "outcome": "denied",
+  "method": "POST",
+  "path": "/search",
+  "peer_ip": "10.42.0.7",
+  "forwarded_ip": "203.0.113.4",
+  "key_presented": true,
+  "key_prefix": "badk…",
+  "request_id": "ca9c07fa367e",
+  "level": "WARNING",
+  ...
+}
+```
+
+`key_prefix` is the first 4 characters of the presented key followed by
+an ellipsis — never the full credential. Pair it with the
+`request_id` and `peer_ip` to trace credential brute-forcing or post-leak
+abuse. Audit denials log at WARNING; grants at INFO so production
+deployments can dial down the volume by raising the level on
+`api.security.audit` while still capturing failures.
+
+## Metrics
+
+The API exposes Prometheus metrics at `GET /metrics`:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `video_se_http_requests_total` | counter | `route`, `method`, `status` (`2xx`/`4xx`/`5xx`) |
+| `video_se_http_request_duration_seconds` | histogram | `route`, `method` |
+| `video_se_search_requests_total` | counter | `outcome` (`success`/`error`) |
+| `video_se_search_results_count` | histogram | — |
+
+Routes that aren't recognized templates collapse to `/_other` to keep label cardinality bounded. The `/metrics` endpoint itself is excluded from the counters so a scraper doesn't dominate its own dashboards.
+
+`prometheus-client` is a runtime dep of `requirements-api.txt`. If it's missing (e.g. in a stripped-down image) the API still boots — `api.observability` logs a warning and the `/metrics` route 404s.
+
 ## Model And Data Volumes
 
 The Compose stack uses persistent volumes for ChromaDB, RabbitMQ, and model caches. In Kubernetes, the manifests expect PVCs for videos, processed data, and model caches.
@@ -130,3 +199,114 @@ RabbitMQ worker does nothing:
 - Check the queue name in `INGESTION_QUEUE`.
 - Confirm the published `video_path` is valid inside the worker container.
 - Check RabbitMQ management UI for ready/unacked messages.
+
+## Dead-Letter Queue
+
+Failed jobs are routed to `video.ingestion.dlq` via the
+`video.ingestion.dlx` direct exchange (routing key `video.ingestion.failed`).
+The worker `basic_nack(requeue=False)`s on any unhandled exception, so the
+broker moves the message to the DLQ instead of dropping it. Inspect with the
+RabbitMQ management UI at `http://localhost:15672` or via `rabbitmqadmin`:
+
+```bash
+rabbitmqadmin -u "$RABBITMQ_DEFAULT_USER" -p "$RABBITMQ_DEFAULT_PASS" \
+  list queues name messages_ready messages_unacknowledged
+rabbitmqadmin -u "$RABBITMQ_DEFAULT_USER" -p "$RABBITMQ_DEFAULT_PASS" \
+  get queue=video.ingestion.dlq count=5 ackmode=ack_requeue_false
+```
+
+Republish a fixed job after correcting the underlying problem; nothing
+auto-replays from the DLQ.
+
+If `_open_channel` raises with "queue exists with different arguments", an
+older queue declaration without the DLX argument is colliding with the new
+topology. Either delete the queue and let it be recreated, or set
+`INGESTION_QUEUE` to a versioned name (e.g. `video.ingestion.v2`) and
+redeploy.
+
+## Search API Filters
+
+`POST /search` accepts these optional fields beyond `query` and `top_k`:
+
+- `video_filename`: restrict results to one video stem (e.g. `videoplayback`).
+- `min_duration_sec` / `max_duration_sec`: drop segments outside the range
+  *after* hybrid fusion. Useful when very short cut-segments dominate the
+  top hits for noisy collections.
+
+Indexing-time metadata filters are now exposed on every Chroma row:
+
+- `speakers_tokens`, `keywords_tokens`, `actions_tokens`,
+  `audio_events_tokens` — pipe-delimited lowercase strings (`|alice|bob|`).
+  Use these for precise matching with Chroma's `$contains` operator, e.g.
+  `where: {"speakers_tokens": {"$contains": "|sintel|"}}`. The
+  comma-joined display fields (`speakers`, `keywords`, ...) match only the
+  whole joined string and shouldn't be used for filtering.
+- `duration_sec` — numeric, useful for `$gte` / `$lte` server-side filters
+  before fetching metadata.
+- `context_hash` — sha256 over `(embedding_model_name, indexed_text)`. The
+  indexer reads these on rerun and short-circuits when every segment's hash
+  matches what's stored, skipping the encode + upsert entirely.
+
+## Cache Freshness Sidecars
+
+Each model-bound extraction output (`transcript_raw.json`,
+`audio_events.json`, `visual_details.json`, `actions.json`) is paired with
+a `<output>.cache_meta.json` sidecar that records the model name and key
+parameters. On rerun the pipeline reuses the cached output only when the
+sidecar matches the current `config.yaml`. Switching models in
+`config.yaml` therefore invalidates just the affected step rather than
+silently reusing stale data.
+
+Legacy artifacts produced before the sidecar was added are accepted on
+first read (the sidecar is backfilled with the current expected meta);
+afterwards, normal mismatch invalidation applies.
+
+## Dependency Audits
+
+`make audit` runs `pip-audit` against the pinned requirement files
+(`requirements-api.txt`, `requirements-dev.txt`, `requirements-ui.txt`)
+and exits non-zero if any package version has a known CVE in the PyPI
+advisory database. The `dependency-audit` CI lane runs the same scan on
+every push and PR.
+
+The heavy ingestion deps (`torch`, `whisperx`, etc.) are intentionally
+excluded — their advisories are noisy and the worker is not directly
+internet-facing in our deployment shape. To audit them too, override the
+file list:
+
+```bash
+make audit AUDIT_FILES="requirements-api.txt requirements-dev.txt requirements-ui.txt requirements-ingestion.txt"
+```
+
+When a CVE fires, fix it by bumping the affected package in the
+requirements file, re-running `make audit` to confirm clean, and
+re-running `make bench-check` to confirm no perf regression.
+
+## Tests And Benchmarks
+
+Unit suite (no external services):
+
+```bash
+make test
+```
+
+Integration suite (requires a running compose stack — `make compose-up` first):
+
+```bash
+make test-integration
+# or override the host explicitly:
+CHROMA_HOST=127.0.0.1 CHROMA_PORT=8000 make test-integration
+```
+
+Integration tests in `tests/integration/` skip themselves when Chroma is
+unreachable, so the same files work locally and in the `compose-smoke` CI
+job.
+
+Benchmark suite (deterministic in-process; no external services):
+
+```bash
+make bench-smoke         # 10% iterations, fast sanity check
+make bench               # full suite
+make bench-baseline      # write benchmarks/reports/baseline.json
+make bench-check         # compare current code vs baseline; fails on >10% regression
+```

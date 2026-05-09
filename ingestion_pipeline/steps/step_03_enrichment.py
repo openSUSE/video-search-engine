@@ -4,8 +4,10 @@ import json
 import logging
 import math
 import os
+import random
 import re
-from typing import Any, Callable, Dict, Optional
+import time
+from typing import Any, Callable, Dict, List, Optional
 
 from core.atomic_io import atomic_write_json
 from ingestion_pipeline.jobs import normalize_required_string
@@ -13,6 +15,33 @@ from ingestion_pipeline.jobs import normalize_required_string
 logger = logging.getLogger(__name__)
 
 DOCUMENT_ID_SCOPE_DELIMITER = "::"
+
+# Retry policy for the LLM provider. Three attempts with jittered exponential
+# backoff handles transient 429/500s without blowing up an entire enrichment
+# run when one segment briefly trips a rate limit.
+LLM_MAX_ATTEMPTS = 3
+LLM_BACKOFF_BASE_SECONDS = 1.0
+LLM_BACKOFF_MAX_SECONDS = 8.0
+
+# Minimum fraction of segments that must enrich successfully for run_enrichment
+# to declare partial success and let indexing proceed. Conservative on
+# purpose: we'd rather fail loud than silently index a half-baked video.
+ENRICHMENT_PARTIAL_OK_RATIO = 0.8
+
+
+def _render_prompt(template: str, context: Dict[str, str]) -> str:
+    """Substitute {placeholders} without using str.format.
+
+    str.format raises on stray ``{`` or ``}`` in user content (very common in
+    code-tutorial videos, JSON quotes, math), and the prompts in this file
+    embed the segment transcript verbatim. Manual placeholder replacement
+    keeps the prompt template readable and makes the substitution oblivious
+    to braces in values.
+    """
+    rendered = template
+    for key, value in context.items():
+        rendered = rendered.replace("{" + key + "}", str(value))
+    return rendered
 
 LLMClient = Callable[[str, Dict[str, Any]], Optional[Dict[str, Any]]]
 ENRICHMENT_FIELDS = {"title", "summary", "keywords"}
@@ -109,6 +138,50 @@ def _call_gemini_api(prompt: str, config: Dict[str, Any]) -> Optional[Dict[str, 
     except (ValueError, google_exceptions.GoogleAPICallError, google_exceptions.RetryError) as e:
         logger.error("Gemini API request failed: %s", e)
         return None
+
+
+def _call_llm_with_retry(
+    llm_client: "LLMClient",
+    prompt: str,
+    config: Dict[str, Any],
+    segment_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Call the provider, returning the first non-None payload across attempts.
+
+    The provider callables themselves swallow exceptions and return None on
+    failure; this loop retries that None response with jittered backoff so a
+    transient 429/500 doesn't permanently mark the segment errored. We keep
+    the retry inside this function (not inside each provider) so test stubs
+    can still control failure semantics by returning None directly.
+    """
+    last_payload: Optional[Dict[str, Any]] = None
+    for attempt in range(1, LLM_MAX_ATTEMPTS + 1):
+        last_payload = llm_client(prompt, config)
+        if last_payload is not None:
+            if attempt > 1:
+                logger.info(
+                    "  -> LLM call for %s succeeded on attempt %d/%d.",
+                    segment_id,
+                    attempt,
+                    LLM_MAX_ATTEMPTS,
+                )
+            return last_payload
+        if attempt == LLM_MAX_ATTEMPTS:
+            break
+        backoff = min(
+            LLM_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
+            LLM_BACKOFF_MAX_SECONDS,
+        )
+        backoff += random.uniform(0, backoff * 0.25)
+        logger.warning(
+            "  -> LLM call for %s failed on attempt %d/%d; retrying in %.1fs.",
+            segment_id,
+            attempt,
+            LLM_MAX_ATTEMPTS,
+            backoff,
+        )
+        time.sleep(backoff)
+    return last_payload
 
 
 def _normalize_provider_name(provider: Any) -> str:
@@ -343,6 +416,14 @@ def _safe_llm_updates(llm_data: Any) -> Optional[Dict[str, Any]]:
 
 
 def _has_complete_enrichment(segment: Dict[str, Any]) -> bool:
+    """Title + summary are required; keywords are optional.
+
+    A legitimately silent or ambient shot (e.g. a transition with no
+    actions/audio) can produce 0 keywords from the LLM. The previous
+    completeness check rejected those forever, so the segment got
+    re-enriched on every rerun, wasting LLM budget and never settling.
+    Keywords are still validated to be a list of strings when present.
+    """
     if not isinstance(segment.get("title"), str):
         return False
     if not isinstance(segment.get("summary"), str):
@@ -356,13 +437,7 @@ def _has_complete_enrichment(segment: Dict[str, Any]) -> bool:
     ):
         return False
 
-    return bool(
-        title
-        and title != "Error"
-        and summary
-        and isinstance(keywords, list)
-        and _normalize_llm_keywords(keywords)
-    )
+    return bool(title and title != "Error" and summary)
 
 
 def _source_segment_snapshot(segment: Dict[str, Any]) -> Dict[str, Any]:
@@ -488,13 +563,12 @@ def run_enrichment(
         }
 
         if transcript:
-            prompt = PROMPT_WITH_TRANSCRIPT.format(**context)
+            prompt = _render_prompt(PROMPT_WITH_TRANSCRIPT, context)
         else:
             logger.warning(f"  -> Segment {segment['segment_id']} has no transcript. Using visual/audio prompt.")
-            prompt = PROMPT_NO_TRANSCRIPT.format(**context)
+            prompt = _render_prompt(PROMPT_NO_TRANSCRIPT, context)
 
-        # Call the appropriate API
-        llm_data = llm_client(prompt, config)
+        llm_data = _call_llm_with_retry(llm_client, prompt, config, segment["segment_id"])
         llm_updates = _safe_llm_updates(llm_data)
 
         # Update the segment in the list
@@ -522,6 +596,26 @@ def run_enrichment(
         if not _has_complete_enrichment(segment)
     ]
     if incomplete_segment_ids:
+        # Soft-fail tolerance: a transient LLM outage on a small number of
+        # segments shouldn't throw away the rest of the run. We let indexing
+        # proceed if a clear majority succeeded, after logging the bad ids
+        # so a follow-up rerun (which skips complete segments) can finish
+        # them. Hard-fail when nothing usable is left, since indexing would
+        # then have nothing to add.
+        complete_count = len(segments) - len(incomplete_segment_ids)
+        threshold = max(1, math.ceil(len(segments) * ENRICHMENT_PARTIAL_OK_RATIO))
+        if complete_count >= threshold:
+            logger.warning(
+                "Enrichment partially incomplete: %d/%d segments left errored "
+                "(saved progress at %s); proceeding with %d successful segments. "
+                "Failing IDs: %s",
+                len(incomplete_segment_ids),
+                len(segments),
+                output_path,
+                complete_count,
+                ", ".join(incomplete_segment_ids[:10]),
+            )
+            return output_path
         logger.error(
             "Enrichment incomplete for %s segment(s); saved progress remains at %s. "
             "Retry before indexing. Segment IDs: %s",

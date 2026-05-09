@@ -318,7 +318,19 @@ def test_open_channel_closes_connection_when_queue_declare_fails(monkeypatch):
     closes = []
 
     class FakeChannel:
-        def queue_declare(self, *, queue, durable):
+        def exchange_declare(self, *, exchange, exchange_type, durable):
+            return None
+
+        def queue_bind(self, *, queue, exchange, routing_key):
+            return None
+
+        def queue_declare(self, *args, **kwargs):
+            queue = kwargs.get("queue") or (args[0] if args else None)
+            # The dead-letter queue declare succeeds; the main queue declare
+            # is what fails, matching the production code path that wraps
+            # the main declare in a try/except.
+            if queue == jobs.DEAD_LETTER_QUEUE:
+                return None
             raise RuntimeError("queue exists with different config")
 
     class FakeConnection:
@@ -338,7 +350,18 @@ def test_open_channel_closes_connection_when_queue_declare_fails(monkeypatch):
     fake_pika = types.ModuleType("pika")
     fake_pika.BlockingConnection = fake_blocking_connection
     fake_pika.URLParameters = FakeURLParameters
+    fake_pika_exceptions = types.ModuleType("pika.exceptions")
+
+    class _FakeChannelClosedByBroker(Exception):
+        def __init__(self, reply_code, reply_text):
+            super().__init__(reply_text)
+            self.reply_code = reply_code
+            self.reply_text = reply_text
+
+    fake_pika_exceptions.ChannelClosedByBroker = _FakeChannelClosedByBroker
+    fake_pika.exceptions = fake_pika_exceptions
     monkeypatch.setitem(sys.modules, "pika", fake_pika)
+    monkeypatch.setitem(sys.modules, "pika.exceptions", fake_pika_exceptions)
 
     with pytest.raises(RuntimeError, match="queue exists"):
         jobs._open_channel("amqp://broker", "video.ingestion")

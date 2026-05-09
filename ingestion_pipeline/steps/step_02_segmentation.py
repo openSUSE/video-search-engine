@@ -687,8 +687,20 @@ def _perform_boundary_scoring(
 
         # --- 1. Textual Change Score ---
         # How much the topic of conversation has shifted.
-        text_sim = _cosine_similarity(dialogue_embeddings[i-1], dialogue_embeddings[i])
-        text_change = 1 - text_sim
+        # Embedding two empty strings yields the model's bias direction, so
+        # cosine of two empty-text vectors lands ~1.0 (no change) and an
+        # empty-vs-spoken pair lands somewhere noisy in between. Treat both
+        # cases explicitly: silent-vs-silent is "no topic change", and a
+        # transition between silent and talking is a clear topic shift.
+        prev_has_text = bool(prev_shot['dialogue_text'].strip())
+        curr_has_text = bool(current_shot['dialogue_text'].strip())
+        if not prev_has_text and not curr_has_text:
+            text_change = 0.0
+        elif prev_has_text != curr_has_text:
+            text_change = 1.0
+        else:
+            text_sim = _cosine_similarity(dialogue_embeddings[i-1], dialogue_embeddings[i])
+            text_change = 1 - text_sim
 
         # --- 2. Visual Change Score ---
         # How much the visual content has shifted, using captions as a proxy.

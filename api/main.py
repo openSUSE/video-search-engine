@@ -5,6 +5,8 @@ from typing import Any, Dict
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
+from api import observability as api_observability
+from api import security as api_security
 from api.schemas import SearchQuery, SearchResponse
 from api.search_service import HybridSearchService, create_search_service
 from core.logger import setup_logging
@@ -46,6 +48,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# FastAPI runs middleware in REVERSE order of registration: the last
+# middleware added is the outermost, runs first on the way in, and last
+# on the way out. We want observability outermost so the request id is
+# bound before any other middleware (auth, rate limit) logs anything,
+# and so the metrics middleware sees the final response status.
+api_security.register(app)
+api_observability.register(app)
+
 
 def get_search_service(request: Request) -> HybridSearchService:
     service = getattr(request.app.state, "search_service", None)
@@ -56,12 +66,14 @@ def get_search_service(request: Request) -> HybridSearchService:
 
 @app.post("/search", response_model=SearchResponse)
 def search(
+    request: Request,
     query: SearchQuery,
     search_service: HybridSearchService = Depends(get_search_service),
 ):
     """
     Accepts a search query and returns a ranked list of relevant video segments.
     """
+    metrics = getattr(request.app.state, "metrics", {})
     logger.info(
         "Received search query: %r (top_k=%d, video=%r)",
         query.query,
@@ -70,7 +82,13 @@ def search(
     )
     started_at = time.monotonic()
     try:
-        results = search_service.search(query.query, query.top_k, query.video_filename)
+        results = search_service.search(
+            query.query,
+            query.top_k,
+            query.video_filename,
+            min_duration_sec=query.min_duration_sec,
+            max_duration_sec=query.max_duration_sec,
+        )
     except Exception:
         duration_ms = (time.monotonic() - started_at) * 1000
         logger.exception(
@@ -79,6 +97,8 @@ def search(
             query.top_k,
             query.video_filename,
         )
+        if "search_outcomes" in metrics:
+            metrics["search_outcomes"].labels(outcome="error").inc()
         raise HTTPException(status_code=500, detail="Internal server error during search.")
     duration_ms = (time.monotonic() - started_at) * 1000
     logger.info(
@@ -88,6 +108,10 @@ def search(
         query.top_k,
         query.video_filename,
     )
+    if "search_outcomes" in metrics:
+        metrics["search_outcomes"].labels(outcome="success").inc()
+    if "search_results" in metrics:
+        metrics["search_results"].observe(len(results))
     return {"results": results}
 
 

@@ -100,8 +100,33 @@ def _setup_search_service() -> HybridSearchService:
     return HybridSearchService(_StaticEmbeddingModel(), _SyntheticCollection(30))
 
 
+def _setup_search_service_large() -> HybridSearchService:
+    """500-doc fake collection — the candidate-pool floor (50) actually
+    saturates the per-modality fetch here, so this benchmark reflects the
+    realistic cost of the post-tuning search path."""
+    return HybridSearchService(_StaticEmbeddingModel(), _SyntheticCollection(500))
+
+
 def _bench_search_service(service: HybridSearchService) -> None:
     service.search("a topic that matters", top_k=5, video_filename="demo.mp4")
+
+
+def _bench_search_service_large(service: HybridSearchService) -> None:
+    # top_k=10 drives candidate_pool = max(10*5, 50) = 50.
+    service.search("a topic that matters", top_k=10, video_filename="demo.mp4")
+
+
+def _bench_search_service_with_duration_filter(service: HybridSearchService) -> None:
+    # Exercises the post-fusion duration filter introduced in P2-22 to make
+    # sure it's not a hot-path bottleneck for callers that always pass
+    # min/max bounds.
+    service.search(
+        "a topic that matters",
+        top_k=5,
+        video_filename="demo.mp4",
+        min_duration_sec=2.0,
+        max_duration_sec=10.0,
+    )
 
 
 def _setup_text_metadata() -> Tuple[List[str], List[Dict[str, Any]]]:
@@ -161,6 +186,28 @@ BENCHMARKS = [
             "and metadata lookup, using deterministic fake collection."
         ),
         fn=_bench_search_service,
+        setup=_setup_search_service,
+        iterations=2_000,
+    ),
+    Benchmark(
+        name="api.HybridSearchService.search.large_collection",
+        category="api",
+        description=(
+            "Hybrid search against a 500-segment collection at top_k=10, "
+            "saturating the post-P1-7 candidate-pool floor of 50 per modality."
+        ),
+        fn=_bench_search_service_large,
+        setup=_setup_search_service_large,
+        iterations=1_000,
+    ),
+    Benchmark(
+        name="api.HybridSearchService.search.duration_filter",
+        category="api",
+        description=(
+            "Hybrid search with min/max duration_sec filter applied — checks "
+            "the P2-22 filter doesn't add measurable cost on the hot path."
+        ),
+        fn=_bench_search_service_with_duration_filter,
         setup=_setup_search_service,
         iterations=2_000,
     ),

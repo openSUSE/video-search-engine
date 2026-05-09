@@ -490,9 +490,20 @@ def _select_device(requested_device: str) -> str:
     if torch.cuda.is_available():
         return "cuda"
 
-    mps_backend = getattr(torch.backends, "mps", None)
-    if mps_backend and mps_backend.is_available():
-        return "mps"
+    # On Linux+nvidia builds without MPS, torch.backends.mps may exist but
+    # raise on either is_built() or is_available(); on torch CPU-only
+    # builds is_available() can return False with a deprecation warning.
+    # Guard both calls with try/except and require both signals.
+    try:
+        mps_backend = getattr(torch.backends, "mps", None)
+        if (
+            mps_backend is not None
+            and getattr(mps_backend, "is_built", lambda: False)()
+            and mps_backend.is_available()
+        ):
+            return "mps"
+    except Exception:
+        pass
 
     return "cpu"
 
@@ -611,9 +622,10 @@ def load_config() -> Dict[str, Any]:
         except Exception:
             return None
 
-    # If user set any of these, respect them.
+    # If user set any of these, respect them. TRANSFORMERS_CACHE was removed:
+    # transformers >=4.22 deprecates it in favor of HF_HOME, and reading both
+    # logged a noisy FutureWarning on every import.
     hf_home = _clean_string(os.getenv("HF_HOME"))
-    tf_cache = _clean_string(os.getenv("TRANSFORMERS_CACHE"))
     st_home = _clean_string(os.getenv("SENTENCE_TRANSFORMERS_HOME"))
     torch_home = _clean_string(os.getenv("TORCH_HOME"))
 
@@ -629,7 +641,6 @@ def load_config() -> Dict[str, Any]:
 
     defaults = {
         "HF_HOME": hf_home or os.path.join(default_root, "hf"),
-        "TRANSFORMERS_CACHE": tf_cache or os.path.join(default_root, "hf"),
         "SENTENCE_TRANSFORMERS_HOME": st_home or os.path.join(default_root, "hf"),
         "TORCH_HOME": torch_home or os.path.join(default_root, "torch"),
     }
@@ -638,9 +649,35 @@ def load_config() -> Dict[str, Any]:
             os.environ[k] = v
         else:
             os.environ[k] = os.environ[k].strip()
+    os.environ.pop("TRANSFORMERS_CACHE", None)
 
     logger.info("Using device: %s", cfg["general"]["device"])
     return cfg
 
 
-CONFIG = load_config()
+# Lazy-loaded module-level config. The previous `CONFIG = load_config()` ran
+# on every import, doing filesystem I/O and mutating os.environ — slow in
+# tests and prone to test pollution. Callers can either:
+#   from core.config import get_config; cfg = get_config()
+# or keep using `from core.config import CONFIG` thanks to the __getattr__
+# below, which materializes the value on first access.
+_CONFIG_CACHE: dict | None = None
+
+
+def get_config() -> dict:
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is None:
+        _CONFIG_CACHE = load_config()
+    return _CONFIG_CACHE
+
+
+def reset_config_cache() -> None:
+    """Clear the cache. Test-only escape hatch."""
+    global _CONFIG_CACHE
+    _CONFIG_CACHE = None
+
+
+def __getattr__(name: str):
+    if name == "CONFIG":
+        return get_config()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

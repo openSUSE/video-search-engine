@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 ENV HF_HOME=/models/hf \
-    TRANSFORMERS_CACHE=/models/hf \
     SENTENCE_TRANSFORMERS_HOME=/models/hf \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

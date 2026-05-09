@@ -63,9 +63,16 @@ def test_is_supported_video_file_matches_extensions_case_insensitively(filename)
     assert is_supported_video_file(filename) is True
 
 
-@pytest.mark.parametrize("filename", ["demo.mkv", "demo.mp4.tmp", ".mp4"])
+@pytest.mark.parametrize("filename", ["demo.txt", "demo.mp4.tmp", ".mp4"])
 def test_is_supported_video_file_rejects_unsupported_or_incomplete_names(filename):
+    # `.mkv` was originally in this list but is now a supported format —
+    # see app/ui/speaker_support.py VIDEO_EXTENSIONS.
     assert is_supported_video_file(filename) is False
+
+
+@pytest.mark.parametrize("filename", ["demo.mkv", "movie.WEBM", "clip.m4v"])
+def test_is_supported_video_file_accepts_modern_container_formats(filename):
+    assert is_supported_video_file(filename) is True
 
 
 def test_resolve_video_path_matches_existing_extension_case_insensitively(tmp_path):

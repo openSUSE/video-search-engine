@@ -1,5 +1,6 @@
 # ingestion_pipeline/steps/step_04_indexing.py
 
+import hashlib
 import json
 import logging
 import math
@@ -98,6 +99,68 @@ def _encoded_vectors_to_lists(
             )
 
     return vectors
+
+
+def _content_hash(text: str, model_name: str) -> str:
+    """SHA-256 hash that pins (model, content) so re-indexing skips stable rows."""
+    h = hashlib.sha256()
+    h.update(model_name.encode("utf-8"))
+    h.update(b"\0")
+    h.update(text.encode("utf-8"))
+    return h.hexdigest()
+
+
+def _existing_context_hashes(
+    collection: VectorCollection, doc_ids: List[str]
+) -> Dict[str, str]:
+    """Return a map of doc_id -> stored context_hash (when present).
+
+    Missing IDs and IDs without a recorded hash are simply absent from the
+    map. The caller treats absence as "needs (re)encode".
+    """
+    if not doc_ids:
+        return {}
+    try:
+        result = collection.get(ids=doc_ids, include=["metadatas"])
+    except Exception as exc:
+        logger.warning(
+            "Could not fetch existing context hashes (%s); proceeding as if "
+            "no rows exist.",
+            exc,
+        )
+        return {}
+    if not isinstance(result, dict):
+        return {}
+    ids = result.get("ids") or []
+    metas = result.get("metadatas") or []
+    out: Dict[str, str] = {}
+    for doc_id, meta in zip(ids, metas):
+        if not isinstance(doc_id, str) or not isinstance(meta, dict):
+            continue
+        stored_hash = meta.get("context_hash")
+        if isinstance(stored_hash, str) and stored_hash:
+            out[doc_id] = stored_hash
+    return out
+
+
+def _encode_normalized(embedding_model: EmbeddingModel, sentences: List[str]) -> Any:
+    """Encode with normalize_embeddings=True when the model supports it.
+
+    Falls back through progressively narrower signatures so test stubs that
+    only accept (texts, show_progress_bar) — or just (texts) — still work.
+    """
+    for kwargs in (
+        {"show_progress_bar": True, "normalize_embeddings": True},
+        {"show_progress_bar": True},
+        {"normalize_embeddings": True},
+        {},
+    ):
+        try:
+            return embedding_model.encode(sentences, **kwargs)
+        except TypeError:
+            continue
+    # Should not reach here unless the stub's signature is broken.
+    return embedding_model.encode(sentences)
 
 
 def _document_id(video_filename: str, segment_id: str, suffix: str) -> str:
@@ -321,13 +384,41 @@ def _validate_segments(segments: Any) -> List[Dict[str, Any]]:
     return segments
 
 
+def _tokenized_metadata_value(values: Any) -> str:
+    """Lowercase, space-padded list join for ChromaDB ``$contains`` queries.
+
+    ChromaDB metadata is scalar (string / int / float / bool); list fields
+    have to be flattened. The previous comma-join meant ``where: {"speakers":
+    "Sintel"}`` only matched the *whole joined string* — useless when
+    a segment has multiple speakers. By emitting tokens separated by ``" | "``
+    with leading/trailing pipes, callers can use ``$contains`` to match a
+    single token unambiguously, e.g.
+    ``where: {"speakers_tokens": {"$contains": "|sintel|"}}``.
+    """
+    if not values:
+        return ""
+    if isinstance(values, str):
+        token = values.strip().lower()
+        return f"|{token}|" if token else ""
+    cleaned = [str(value).strip().lower() for value in values]
+    cleaned = [value for value in cleaned if value]
+    if not cleaned:
+        return ""
+    return "|" + "|".join(cleaned) + "|"
+
+
 def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Dict[str, Any]:
     """
     Prepares a clean metadata dictionary for ChromaDB.
     ChromaDB metadata values must be strings, ints, floats, or bools.
     This metadata will be attached to BOTH the text and visual entries.
+
+    Two forms are emitted for list fields:
+    - the comma-joined human-readable string (e.g. ``speakers``) for display
+    - a pipe-delimited lowercase token string (e.g. ``speakers_tokens``) for
+      precise ``$contains`` filtering. The token form is the only metadata
+      shape that can answer "list me segments where speaker X appears".
     """
-    # Join lists into comma-separated strings for filtering
     speakers_str = _join_metadata_values(segment.get("speakers", []))
     keywords_str = _join_metadata_values(segment.get("keywords", []))
     actions_str = _join_metadata_values(segment.get("consolidated_actions", []))
@@ -338,12 +429,17 @@ def _prepare_metadata_for_db(segment: Dict[str, Any], video_filename: str) -> Di
         "title": str(segment.get("title", "")),
         "summary": str(segment.get("summary", "")),
         "speakers": speakers_str,
+        "speakers_tokens": _tokenized_metadata_value(segment.get("speakers", [])),
         "keywords": keywords_str,
+        "keywords_tokens": _tokenized_metadata_value(segment.get("keywords", [])),
         "actions": actions_str,
+        "actions_tokens": _tokenized_metadata_value(segment.get("consolidated_actions", [])),
         "audio_events": audio_events_str,
+        "audio_events_tokens": _tokenized_metadata_value(segment.get("consolidated_audio_events", [])),
         # Essential data for displaying results
         "start_time": segment["start_time"],
         "end_time": segment["end_time"],
+        "duration_sec": float(segment["end_time"]) - float(segment["start_time"]),
         "video_filename": video_filename,
     }
 
@@ -359,12 +455,11 @@ def create_embedding_model(config: Dict[str, Any]) -> EmbeddingModel:
 def create_vector_collection(config: Dict[str, Any]) -> VectorCollection:
     import chromadb
 
+    from core.chroma_setup import get_search_collection
+
     db_config = config["database"]
     client = chromadb.HttpClient(host=db_config["host"], port=db_config["port"])
-    return client.get_or_create_collection(
-        name=db_config["collection_name"],
-        metadata={"hnsw:space": "cosine"},
-    )
+    return get_search_collection(client, db_config["collection_name"])
 
 
 def run_indexing(
@@ -448,13 +543,57 @@ def run_indexing(
         visual_parts.extend(seg.get("consolidated_audio_events", []))
         all_visual_contexts.append(_join_embedding_parts(visual_parts))
 
+    # Hash the contexts under the embedding model name. If every doc id
+    # already exists in the collection with a matching hash, the work is
+    # idempotent and we skip the encode + upsert entirely. This dominates
+    # rerun cost on a stable catalog: re-running indexing after fixing a
+    # typo in one segment shouldn't force a re-encode of every other one.
+    embedding_model_name = (
+        config.get("models", {}).get("embedding", {}).get("name") or "unknown"
+    )
+    text_hashes = [_content_hash(ctx, embedding_model_name) for ctx in all_text_contexts]
+    visual_hashes = [_content_hash(ctx, embedding_model_name) for ctx in all_visual_contexts]
+
+    text_doc_ids = [
+        _document_id(video_filename, seg["segment_id"], "_text")
+        for seg in segments
+    ]
+    visual_doc_ids = [
+        _document_id(video_filename, seg["segment_id"], "_visual")
+        for seg in segments
+    ]
+    existing_hashes = _existing_context_hashes(
+        collection,
+        text_doc_ids + visual_doc_ids,
+    )
+    all_text_unchanged = all(
+        existing_hashes.get(text_doc_ids[i]) == text_hashes[i]
+        for i in range(len(segments))
+    )
+    all_visual_unchanged = all(
+        existing_hashes.get(visual_doc_ids[i]) == visual_hashes[i]
+        for i in range(len(segments))
+    )
+    if all_text_unchanged and all_visual_unchanged:
+        logger.info(
+            "All %d segments already indexed with matching context hashes; "
+            "skipping re-encode and upsert.",
+            len(segments),
+        )
+        return True
+
+    # normalize_embeddings=True keeps both index and query vectors on the
+    # unit sphere; the collection uses hnsw:space:cosine and the search
+    # service normalizes its query vector, so consistent normalization here
+    # makes recall stable across reindex runs and removes a small amount of
+    # internal recomputation Chroma does on un-normalized inputs.
     text_embeddings = _encoded_vectors_to_lists(
-        embedding_model.encode(all_text_contexts, show_progress_bar=True),
+        _encode_normalized(embedding_model, all_text_contexts),
         len(segments),
         "text",
     )
     visual_embeddings = _encoded_vectors_to_lists(
-        embedding_model.encode(all_visual_contexts, show_progress_bar=True),
+        _encode_normalized(embedding_model, all_visual_contexts),
         len(segments),
         "visual",
     )
@@ -465,20 +604,22 @@ def run_indexing(
 
         # --- Create the TEXT entry ---
         # We create a unique ID for the text embedding of this segment.
-        ids_to_add.append(_document_id(video_filename, segment_id, "_text"))
+        ids_to_add.append(text_doc_ids[i])
         embeddings_to_add.append(text_embeddings[i])
         # Add a type identifier to the metadata for filtering
         text_metadata = common_metadata.copy()
         text_metadata["type"] = "text"
+        text_metadata["context_hash"] = text_hashes[i]
         metadatas_to_add.append(text_metadata)
 
         # --- Create the VISUAL entry ---
         # We create a unique ID for the visual embedding of this segment.
-        ids_to_add.append(_document_id(video_filename, segment_id, "_visual"))
+        ids_to_add.append(visual_doc_ids[i])
         embeddings_to_add.append(visual_embeddings[i])
         # Add a type identifier to the metadata for filtering
         visual_metadata = common_metadata.copy()
         visual_metadata["type"] = "visual"
+        visual_metadata["context_hash"] = visual_hashes[i]
         metadatas_to_add.append(visual_metadata)
 
     # 4. Add the data to ChromaDB in a single batch operation

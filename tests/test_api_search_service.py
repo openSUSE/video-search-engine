@@ -72,16 +72,19 @@ def test_hybrid_search_service_reranks_and_fetches_text_metadata():
     assert results[0]["title"] == "B"
     assert results[1]["summary"] == "text-only match"
 
+    # The candidate pool is max(top_k * CANDIDATE_POOL_MULTIPLIER, CANDIDATE_POOL_FLOOR);
+    # for the default floor of 50 this dominates at small top_k.
+    expected_pool = max(2 * 5, 50)
     assert collection.query_calls == [
         {
             "query_embeddings": [[0.25, 0.75]],
-            "n_results": 6,
+            "n_results": expected_pool,
             "where": {"$and": [{"type": "text"}, {"video_filename": "demo.mp4"}]},
             "include": [],
         },
         {
             "query_embeddings": [[0.25, 0.75]],
-            "n_results": 6,
+            "n_results": expected_pool,
             "where": {"$and": [{"type": "visual"}, {"video_filename": "demo.mp4"}]},
             "include": [],
         },

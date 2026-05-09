@@ -1,3 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: tests that require running services (Chroma, RabbitMQ).",
+]
+# The default `testpaths = ["tests"]` would still recurse into
+# `tests/integration`, so unit-only invocations should pass `-m 'not integration'`
+# (or the integration tests will skip themselves when Chroma is unreachable).

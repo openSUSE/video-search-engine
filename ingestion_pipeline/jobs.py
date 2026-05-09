@@ -11,6 +11,9 @@ DEFAULT_QUEUE = "video.ingestion"
 MIN_TCP_PORT = 1
 MAX_TCP_PORT = 65535
 RABBITMQ_URL_SCHEMES = {"amqp", "amqps"}
+DEAD_LETTER_EXCHANGE = "video.ingestion.dlx"
+DEAD_LETTER_QUEUE = "video.ingestion.dlq"
+DEAD_LETTER_ROUTING_KEY = "video.ingestion.failed"
 
 
 def normalize_required_string(value: str, field_name: str) -> str:
@@ -130,13 +133,59 @@ def decode_job_message(body: bytes) -> IngestionJob:
     return IngestionJob(**payload)
 
 
+def _declare_dead_letter_topology(channel) -> None:
+    """Declare the DLX/DLQ pair so nacked messages survive for inspection.
+
+    Without this, ``basic_nack(requeue=False)`` silently drops failed jobs:
+    the broker has nowhere to route them. We declare the exchange first,
+    bind a durable queue, and only then declare the main queue with the
+    DLX argument so it routes via this exchange.
+    """
+    channel.exchange_declare(
+        exchange=DEAD_LETTER_EXCHANGE,
+        exchange_type="direct",
+        durable=True,
+    )
+    channel.queue_declare(queue=DEAD_LETTER_QUEUE, durable=True)
+    channel.queue_bind(
+        queue=DEAD_LETTER_QUEUE,
+        exchange=DEAD_LETTER_EXCHANGE,
+        routing_key=DEAD_LETTER_ROUTING_KEY,
+    )
+
+
 def _open_channel(rabbitmq_url: str, queue_name: str):
     import pika
+    from pika.exceptions import ChannelClosedByBroker
 
     connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
     try:
         channel = connection.channel()
-        channel.queue_declare(queue=queue_name, durable=True)
+        _declare_dead_letter_topology(channel)
+        try:
+            channel.queue_declare(
+                queue=queue_name,
+                durable=True,
+                arguments={
+                    "x-dead-letter-exchange": DEAD_LETTER_EXCHANGE,
+                    "x-dead-letter-routing-key": DEAD_LETTER_ROUTING_KEY,
+                },
+            )
+        except ChannelClosedByBroker as exc:
+            # PRECONDITION_FAILED means the queue exists with different
+            # arguments (typically: declared before we added the DLX).
+            # Surface a concrete remediation so a deploy that rolled the
+            # queue config doesn't get blamed on application code.
+            if exc.reply_code == 406:
+                raise RuntimeError(
+                    "RabbitMQ queue %r already exists with different arguments "
+                    "(reply: %r). Either delete the queue (e.g. "
+                    "`rabbitmqadmin delete queue name=%s`) and let this "
+                    "process recreate it, or bump INGESTION_QUEUE to a new "
+                    "name in your environment."
+                    % (queue_name, exc.reply_text, queue_name)
+                ) from exc
+            raise
     except Exception:
         # If queue_declare conflicts with an existing queue or the channel
         # setup fails, the BlockingConnection would otherwise leak until the

@@ -20,3 +20,76 @@ jobs:
         run: make validate
       - name: Smoke-run benchmarks
         run: make bench-smoke
+
+  compose-smoke:
+    # Brings up the lighter half of the compose stack (chroma + rabbitmq +
+    # api + ui-search) and asserts the API actually responds. The chroma
+    # healthcheck regression that broke the API container's `depends_on`
+    # gate would not have been caught by `docker compose config`; this job
+    # would have caught it.
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render env
+        run: cp .env.example .env
+      - name: Build and start services
+        run: |
+          docker compose --env-file .env up -d --build chroma rabbitmq api ui-search
+      - name: Wait for healthy api
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' video-seach-engine-api-1 2>/dev/null || echo "starting")
+            echo "api health (attempt $i): $status"
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose --env-file .env logs api chroma rabbitmq
+          exit 1
+      - name: Probe API endpoints
+        run: |
+          curl -fsS http://127.0.0.1:1234/healthz
+          echo
+          curl -fsS http://127.0.0.1:1234/readyz
+          echo
+          # Empty collection should return an empty list, not a 500.
+          curl -fsS -X POST http://127.0.0.1:1234/search \
+               -H 'Content-Type: application/json' \
+               -d '{"query":"smoke test","top_k":3}'
+      - name: Run real-Chroma integration tests
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements-dev.txt -r requirements-api.txt
+          .venv/bin/python -m pytest tests/integration -v
+        env:
+          CHROMA_HOST: 127.0.0.1
+          CHROMA_PORT: "8000"
+      - name: Tear down
+        if: always()
+        run: docker compose --env-file .env down -v
+
+  dependency-audit:
+    # Catches known CVEs in our pinned dependencies before they ship in
+    # an image. Independent of the validate / compose-smoke jobs so a
+    # transient PyPI advisory mirror outage doesn't fail the unrelated
+    # validation lanes. We audit the api / dev / ui requirement sets
+    # because those are what the deployed images install; the heavy
+    # ingestion deps (torch, whisperx) are intentionally out of scope —
+    # their advisories are noisy and the worker isn't internet-facing.
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit==2.7.3
+      - name: Audit api requirements
+        run: pip-audit -r requirements-api.txt --strict
+      - name: Audit dev requirements
+        run: pip-audit -r requirements-dev.txt --strict
+      - name: Audit ui requirements
+        run: pip-audit -r requirements-ui.txt --strict

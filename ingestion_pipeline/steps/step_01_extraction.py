@@ -19,6 +19,102 @@ logger = logging.getLogger(__name__)
 
 MetadataFetcher = Callable[[str, Optional[int]], Optional[Dict[str, Any]]]
 
+# Hard ceiling on ffmpeg audio extraction. A pathological/corrupt input can
+# otherwise hang the worker forever and starve the queue of acks.
+FFMPEG_TIMEOUT_SECONDS = 1800
+
+# AST was fine-tuned on roughly 10 s clips at 16 kHz. Long shots silently
+# truncate inside the processor, degrading event labels; chunking explicitly
+# preserves coverage.
+AST_WINDOW_SECONDS = 10.0
+
+
+def _cache_meta_path(output_path: str) -> str:
+    """Sidecar path that records what config produced output_path."""
+    return output_path + ".cache_meta.json"
+
+
+def _read_cache_meta(output_path: str) -> Optional[Dict[str, Any]]:
+    meta_path = _cache_meta_path(output_path)
+    if not os.path.exists(meta_path):
+        return None
+    try:
+        with open(meta_path, "r") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read cache meta at %s: %s", meta_path, exc)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_cache_meta(output_path: str, meta: Dict[str, Any]) -> None:
+    try:
+        atomic_write_json(_cache_meta_path(output_path), meta)
+    except OSError as exc:
+        # Sidecar failures should never block pipeline progress; the worst
+        # case is the next run does the work again.
+        logger.warning(
+            "Could not write cache meta at %s: %s",
+            _cache_meta_path(output_path),
+            exc,
+        )
+
+
+def _step_output_fresh(output_path: str, expected_meta: Dict[str, Any]) -> bool:
+    """Return True iff output_path exists and was produced by expected_meta.
+
+    Lenient compatibility for legacy artifacts: when output_path exists but
+    no sidecar is present (e.g. from before this freshness check was added),
+    we backfill the sidecar and accept the output as fresh. After the
+    sidecar exists, future config drift correctly invalidates the output.
+    """
+    if not os.path.exists(output_path):
+        return False
+    existing_meta = _read_cache_meta(output_path)
+    if existing_meta is None:
+        _write_cache_meta(output_path, expected_meta)
+        return True
+    return existing_meta == expected_meta
+
+
+def _video_has_audio_stream(video_path: str) -> bool:
+    """Return True iff ffprobe reports at least one audio stream.
+
+    Falls back to True (assume audio) if ffprobe is missing or errors, so we
+    don't silently drop transcription on a healthy file just because probing
+    misbehaved.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a",
+                "-show_entries",
+                "stream=index",
+                "-of",
+                "csv=p=0",
+                video_path,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        logger.warning("ffprobe not on PATH; assuming video %s has audio.", video_path)
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        logger.warning(
+            "ffprobe failed on %s (%s); assuming audio is present.",
+            video_path,
+            exc,
+        )
+        return True
+    return bool(result.stdout.strip())
+
 
 def _load_config() -> Dict[str, Any]:
     from core.config import CONFIG
@@ -558,26 +654,50 @@ def extract_audio(video_path: str, audio_path: str):
     logger.info("    -> Extracting and normalizing audio...")
     command = ['ffmpeg', '-y', '-i', video_path, '-vn', '-acodec', 'libmp3lame', audio_path]
     try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
         logger.info(f"    -> Audio saved to {audio_path}")
+    except subprocess.TimeoutExpired:
+        logger.error(
+            "FFmpeg audio extraction timed out after %ds for %s.",
+            FFMPEG_TIMEOUT_SECONDS,
+            video_path,
+        )
+        raise
     except subprocess.CalledProcessError as e:
         logger.error(f"FFmpeg failed to process the audio.\nFFmpeg stderr:\n{e.stderr}")
         raise
 
-def transcribe_and_diarize(audio_path: str, raw_transcript_path: str, config: Dict[str, Any]):
-    """Transcribes audio and performs speaker diarization, saving the raw output."""
+def transcribe_and_diarize(
+    audio_path: str,
+    raw_transcript_path: str,
+    config: Dict[str, Any],
+    audio_array: Optional[Any] = None,
+):
+    """Transcribes audio and performs speaker diarization, saving the raw output.
+
+    When audio_array is provided (already decoded float32 mono 16 kHz),
+    transcribe with that array instead of asking whisperx to ffmpeg-decode
+    the same file again.
+    """
     logger.info("    -> Transcribing and identifying speakers (raw output)...")
     import whisperx
 
     device = config['general']['device']
     model_cfg = config['models']['transcription']
     params_cfg = config['parameters']['transcription']
-    
-    audio = whisperx.load_audio(audio_path)
+
+    audio = audio_array if audio_array is not None else whisperx.load_audio(audio_path)
     model = whisperx.load_model(model_cfg['name'], device, compute_type=model_cfg['compute_type'])
     result_transcript = model.transcribe(audio, batch_size=params_cfg['batch_size'])
 
-    diarize_model = whisperx.diarize.DiarizationPipeline(use_auth_token=config['general']['hf_token'], device=device)
+    from whisperx.diarize import DiarizationPipeline
+    diarize_model = DiarizationPipeline(token=config['general']['hf_token'], device=device)
     diarize_segments = diarize_model(audio)
     result_transcript = whisperx.assign_word_speakers(diarize_segments, result_transcript)
 
@@ -654,8 +774,20 @@ def align_transcript_to_shots(raw_transcript_path: str, scenes: List[Dict[str, A
     atomic_write_json(aligned_transcript_path, aligned_segments)
     logger.info(f"    -> Aligned transcript saved to {aligned_transcript_path}")
 
-def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], output_path: str, config: Dict[str, Any]):
-    """Detects audio events for each shot."""
+def detect_audio_events_per_shot(
+    audio_path: str,
+    scenes: List[Dict[str, Any]],
+    output_path: str,
+    config: Dict[str, Any],
+    audio_array: Optional[Any] = None,
+):
+    """Detects audio events for each shot using AST.
+
+    Long shots are sliding-windowed into ~10 s chunks (AST's training
+    context) and the per-window logits are mean-aggregated before top-N
+    filtering. Without windowing, AST silently truncates, which produces
+    skewed labels on shots > 10 s.
+    """
     logger.info("    -> Detecting audio events per shot...")
     if _write_empty_per_shot_output_if_needed(scenes, output_path, "audio events"):
         return
@@ -666,16 +798,26 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
     event_params = config['parameters']['audio_events']
     sr = audio_params['sample_rate']
 
-    import librosa
+    # Audio decode runs first so an unreadable file raises before we pay
+    # the model load cost (the test stubs assert this ordering).
+    if audio_array is not None:
+        y = audio_array
+    else:
+        import librosa
 
-    y, _ = librosa.load(audio_path, sr=sr, mono=True)
+        y, _ = librosa.load(audio_path, sr=sr, mono=True)
 
+    import numpy as np
     import torch
     from transformers import AutoProcessor, AutoModelForAudioClassification
 
     processor = AutoProcessor.from_pretrained(model_cfg['name'])
     model = AutoModelForAudioClassification.from_pretrained(model_cfg['name']).to(device)
-    
+    if hasattr(model, "eval"):
+        model.eval()
+
+    window_samples = int(AST_WINDOW_SECONDS * sr)
+
     all_shot_events = []
     for shot in scenes:
         start_time, end_time = shot['start_time_sec'], shot['end_time_sec']
@@ -683,15 +825,24 @@ def detect_audio_events_per_shot(audio_path: str, scenes: List[Dict[str, Any]], 
         shot_events_info = {"shot_id": shot["shot_id"], "events": []}
 
         if audio_chunk.shape[0] > 0:
-            inputs = processor(audio_chunk, sampling_rate=sr, return_tensors="pt").to(device)
-            with torch.no_grad():
-                logits = model(**inputs).logits
-            
-            scores = torch.sigmoid(logits[0]).cpu().numpy()
-            top_indices = scores.argsort()[-event_params['top_n']:][::-1]
-            detected_events = [{"event": model.config.id2label[j], "score": round(float(scores[j]), 3)} 
-                               for j in top_indices if scores[j] > event_params['confidence_threshold']]
-            shot_events_info["events"] = detected_events
+            window_scores: List[Any] = []
+            for window_start in range(0, audio_chunk.shape[0], window_samples):
+                window = audio_chunk[window_start:window_start + window_samples]
+                if window.shape[0] == 0:
+                    continue
+                inputs = processor(window, sampling_rate=sr, return_tensors="pt").to(device)
+                with torch.inference_mode():
+                    logits = model(**inputs).logits
+                window_scores.append(torch.sigmoid(logits[0]).cpu().numpy())
+
+            if window_scores:
+                scores = np.mean(np.stack(window_scores, axis=0), axis=0)
+                top_indices = scores.argsort()[-event_params['top_n']:][::-1]
+                detected_events = [
+                    {"event": model.config.id2label[j], "score": round(float(scores[j]), 3)}
+                    for j in top_indices if scores[j] > event_params['confidence_threshold']
+                ]
+                shot_events_info["events"] = detected_events
         all_shot_events.append(shot_events_info)
 
     atomic_write_json(output_path, all_shot_events)
@@ -719,6 +870,8 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
 
         processor = BlipProcessor.from_pretrained(model_cfg['name'])
         model = BlipForConditionalGeneration.from_pretrained(model_cfg['name']).to(device)
+        if hasattr(model, "eval"):
+            model.eval()
 
         visual_details = []
         for shot in scenes:
@@ -728,9 +881,18 @@ def generate_visual_captions(video_path: str, scenes: List[Dict[str, Any]], outp
 
             caption = ""
             if ret:
+                # Imported lazily so test stubs that only patch
+                # transformers + PIL don't have to also stub torch when
+                # the read path returns no frame.
+                import torch
+
                 pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 inputs = processor(pil_image, return_tensors="pt").to(device)
-                out = model.generate(**inputs, max_new_tokens=params_cfg['max_new_tokens'])
+                # inference_mode disables autograd entirely; without it BLIP
+                # accumulated grad state per shot, ~doubling memory and CPU
+                # cost at scale.
+                with torch.inference_mode():
+                    out = model.generate(**inputs, max_new_tokens=params_cfg['max_new_tokens'])
                 caption = processor.decode(out[0], skip_special_tokens=True)
             else:
                 logger.warning(
@@ -770,18 +932,29 @@ def detect_actions_per_shot(video_path: str, scenes: List[Dict[str, Any]], outpu
 
         processor = VideoMAEImageProcessor.from_pretrained(model_cfg['name'])
         model = VideoMAEForVideoClassification.from_pretrained(model_cfg['name']).to(device)
+        if hasattr(model, "eval"):
+            model.eval()
 
         all_shot_actions = []
         for shot in scenes:
             start_frame, end_frame = shot['start_frame'], shot['end_frame']
-            
-            # Ensure the shot is long enough to sample from
-            if end_frame - start_frame < num_frames_to_sample:
-                all_shot_actions.append({"shot_id": shot["shot_id"], "actions": []})
-                continue
 
-            # Generate evenly spaced frame indices to sample from the shot
-            frame_indices = np.linspace(start_frame, end_frame, num_frames_to_sample, dtype=int)
+            # Cinematic cuts can be shorter than num_frames_to_sample (16)
+            # frames; the previous behavior dropped them entirely with
+            # actions: []. Sample with replacement instead so even sub-second
+            # shots produce a top-N prediction.
+            if end_frame - start_frame < num_frames_to_sample:
+                if end_frame <= start_frame:
+                    all_shot_actions.append({"shot_id": shot["shot_id"], "actions": []})
+                    continue
+                frame_indices = np.linspace(
+                    start_frame,
+                    max(start_frame, end_frame - 1),
+                    num_frames_to_sample,
+                ).round().astype(int)
+            else:
+                # Generate evenly spaced frame indices to sample from the shot
+                frame_indices = np.linspace(start_frame, end_frame, num_frames_to_sample, dtype=int)
             
             shot_frames = []
             for frame_idx in frame_indices:
@@ -928,6 +1101,33 @@ def run_extraction(
         metadata_fetcher=metadata_fetcher,
     )
 
+    # Per-step expected meta for the cache freshness sidecars. When the
+    # config changes (different AST/BLIP/VideoMAE/whisperx model) the
+    # sidecar mismatch invalidates the cached output and the step reruns.
+    transcript_meta = {
+        "step": "transcript_raw",
+        "model": config.get("models", {}).get("transcription", {}).get("name"),
+        "compute_type": config.get("models", {}).get("transcription", {}).get("compute_type"),
+        "diarization": True,
+    }
+    audio_events_meta = {
+        "step": "audio_events",
+        "model": config.get("models", {}).get("audio_events", {}).get("name"),
+        "window_seconds": AST_WINDOW_SECONDS,
+        "top_n": config.get("parameters", {}).get("audio_events", {}).get("top_n"),
+    }
+    visual_meta = {
+        "step": "visual_details",
+        "model": config.get("models", {}).get("visual_captioning", {}).get("name"),
+        "max_new_tokens": config.get("parameters", {}).get("visual_captioning", {}).get("max_new_tokens"),
+    }
+    actions_meta = {
+        "step": "actions",
+        "model": config.get("models", {}).get("action_recognition", {}).get("name"),
+        "num_frames": config.get("parameters", {}).get("action_recognition", {}).get("num_frames"),
+        "top_n": config.get("parameters", {}).get("action_recognition", {}).get("top_n"),
+    }
+
     # 1. Detect shots first to create the data "skeleton"
     scenes = []
     if not os.path.exists(paths["shots"]):
@@ -938,33 +1138,99 @@ def run_extraction(
             _load_json_artifact(paths["shots"], "shot boundaries")
         )
 
-    # 2. Extract audio
-    if not os.path.exists(paths["audio"]):
+    # 2. Detect whether the video has any audio at all. Silent-video clips
+    # (e.g. animation reels with the audio stripped, GoPro b-roll) used to
+    # crash ffmpeg with a confusing "Output file does not contain any
+    # stream" error and abort the whole pipeline; we now skip the audio
+    # branches and write empty sidecar files so downstream steps can run.
+    has_audio = _video_has_audio_stream(video_path)
+    if not has_audio:
+        logger.warning(
+            "Video %s has no audio stream; skipping audio extraction, "
+            "transcription, and audio-event detection.",
+            video_path,
+        )
+        if not os.path.exists(paths["transcript_raw"]):
+            atomic_write_json(paths["transcript_raw"], [])
+            _write_cache_meta(
+                paths["transcript_raw"],
+                {**transcript_meta, "skipped_reason": "no_audio_stream"},
+            )
+        if not os.path.exists(paths["audio_events"]):
+            atomic_write_json(paths["audio_events"], {})
+            _write_cache_meta(
+                paths["audio_events"],
+                {**audio_events_meta, "skipped_reason": "no_audio_stream"},
+            )
+
+    # 3. Extract audio (only if present)
+    if has_audio and not os.path.exists(paths["audio"]):
         extract_audio(video_path, paths["audio"])
 
-    # 3. Create raw transcript
-    if not os.path.exists(paths["transcript_raw"]):
-        transcribe_and_diarize(paths["audio"], paths["transcript_raw"], config)
+    # Decode the audio array once when both transcription and audio-event
+    # detection still need to run. Both consumers used to ffmpeg/librosa-decode
+    # the same MP3 independently; on long videos this was a meaningful share
+    # of wall-clock. Skipped silently when the test or caller passes a config
+    # without `parameters.audio.sample_rate`.
+    audio_array = None
+    audio_sample_rate = (
+        config.get("parameters", {}).get("audio", {}).get("sample_rate")
+    )
+    needs_transcribe = has_audio and not _step_output_fresh(paths["transcript_raw"], transcript_meta)
+    needs_audio_events = has_audio and not _step_output_fresh(paths["audio_events"], audio_events_meta)
+    if (
+        audio_sample_rate
+        and (needs_transcribe or needs_audio_events)
+        and os.path.exists(paths["audio"])
+    ):
+        try:
+            import librosa
 
-    # 4. Align the transcript to the shots
+            audio_array, _ = librosa.load(
+                paths["audio"], sr=audio_sample_rate, mono=True
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not pre-decode audio array (%s); each consumer will "
+                "decode independently.",
+                exc,
+            )
+            audio_array = None
+
+    # 4. Create raw transcript
+    if needs_transcribe:
+        transcribe_and_diarize(
+            paths["audio"], paths["transcript_raw"], config,
+            audio_array=audio_array,
+        )
+        _write_cache_meta(paths["transcript_raw"], transcript_meta)
+
+    # 5. Align the transcript to the shots
     if _aligned_transcript_needs_refresh(paths):
         align_transcript_to_shots(paths["transcript_raw"], scenes, paths["transcript_aligned"])
     else:
         logger.info(
             f"    -> Skipping transcript alignment, loading from {paths['transcript_aligned']}."
         )
-    
-    # 5. Run per-shot analysis for audio events
-    if not os.path.exists(paths["audio_events"]):
-        detect_audio_events_per_shot(paths["audio"], scenes, paths["audio_events"], config)
 
-    # 6. Run per-shot analysis for visual captions
-    if not os.path.exists(paths["visual_details"]):
+    # 6. Run per-shot analysis for audio events
+    if needs_audio_events:
+        detect_audio_events_per_shot(
+            paths["audio"], scenes, paths["audio_events"], config,
+            audio_array=audio_array,
+        )
+        _write_cache_meta(paths["audio_events"], audio_events_meta)
+
+    # 7. Run per-shot analysis for visual captions
+    if not _step_output_fresh(paths["visual_details"], visual_meta):
         generate_visual_captions(video_path, scenes, paths["visual_details"], config)
+        _write_cache_meta(paths["visual_details"], visual_meta)
 
-    if not os.path.exists(paths["actions"]):
+    # 8. Run per-shot action recognition
+    if not _step_output_fresh(paths["actions"], actions_meta):
         detect_actions_per_shot(video_path, scenes, paths["actions"], config)
-    
+        _write_cache_meta(paths["actions"], actions_meta)
+
     create_final_analysis_file(paths)
 
     logger.info(f"--- Extraction Complete for '{video_filename}'! ---")

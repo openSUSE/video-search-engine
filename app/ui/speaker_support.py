@@ -8,7 +8,11 @@ from core.atomic_io import atomic_write_json
 
 DEFAULT_TRANSCRIPT_FILENAME = "transcript_generic.json"
 DEFAULT_SPEAKER_MAP_FILENAME = "speaker_map.json"
-VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi")
+# Extensions surfaced in the search UI's video dropdown. The previous
+# tuple silently filtered out .mkv / .webm / .m4v files that the worker
+# is fully capable of ingesting, so users could index a video and never
+# see it in the UI.
+VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".mpg", ".mpeg")
 
 
 @dataclass(frozen=True)

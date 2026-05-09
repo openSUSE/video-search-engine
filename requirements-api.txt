@@ -1,8 +1,14 @@
-fastapi
-uvicorn[standard]
-chromadb
-sentence-transformers
-pydantic>=2,<2.10
-PyYAML
-python-dotenv
-colorlog
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+chromadb==1.5.9
+sentence-transformers==5.4.1
+# chromadb 1.5.9 requires pydantic >= 2.10, so the previous <2.10 cap
+# would mismatch on a fresh build. Match the pin used in ingestion.
+pydantic>=2.10,<3
+PyYAML==6.0.3
+python-dotenv==1.2.2
+colorlog==6.10.1
+# /metrics endpoint + per-app registry. Optional at runtime: api/observability.py
+# falls back to a warning + no metrics endpoint when unavailable, so dev/test
+# environments without the wheel still boot.
+prometheus-client==0.23.1

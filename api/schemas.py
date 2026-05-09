@@ -16,6 +16,12 @@ class SearchQuery(BaseModel):
     query: QueryString
     top_k: SearchLimit = 5
     video_filename: Optional[VideoFilenameString] = None
+    # Optional duration window (seconds). When set, segments whose
+    # end_time - start_time falls outside the range are filtered out
+    # before the response is built. Useful when very short or very long
+    # segments dominate top hits for noisy collections.
+    min_duration_sec: Optional[NonNegativeFiniteFloat] = None
+    max_duration_sec: Optional[NonNegativeFiniteFloat] = None
 
     @field_validator("video_filename")
     @classmethod
@@ -23,6 +29,16 @@ class SearchQuery(BaseModel):
         if value is not None and not is_usable_video_filename_scope(value):
             raise ValueError("video_filename must be a filename")
         return value
+
+    @model_validator(mode="after")
+    def validate_duration_range(self):
+        if (
+            self.min_duration_sec is not None
+            and self.max_duration_sec is not None
+            and self.max_duration_sec < self.min_duration_sec
+        ):
+            raise ValueError("max_duration_sec must be >= min_duration_sec")
+        return self
 
 
 class SearchResult(BaseModel):

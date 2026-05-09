@@ -16,6 +16,12 @@ RRF_K = 60
 MAX_SEARCH_LIMIT = 50
 MAX_QUERY_LENGTH = 1000
 MAX_VIDEO_FILENAME_LENGTH = 512
+# Per-modality candidate pool before reciprocal-rank fusion. The previous
+# top_k*3 (=15 for default top_k=5) dropped many co-occurring text+visual
+# hits before reranking; widening the pool meaningfully improves recall on
+# multi-modal queries without changing top_k semantics.
+CANDIDATE_POOL_FLOOR = 50
+CANDIDATE_POOL_MULTIPLIER = 5
 
 
 class EmbeddingModel(Protocol):
@@ -38,7 +44,13 @@ def _where_clause(doc_type: str, video_filename: Optional[str]) -> Dict[str, Any
 
 
 def _query_vector(embedding_model: EmbeddingModel, query: str) -> List[float]:
-    encoded = embedding_model.encode(query)
+    # normalize_embeddings=True so query vectors live on the unit sphere,
+    # matching the indexing-side encode and giving cosine its cleanest form.
+    try:
+        encoded = embedding_model.encode(query, normalize_embeddings=True)
+    except TypeError:
+        # Allow Protocol-conforming stubs in tests that don't accept the kwarg.
+        encoded = embedding_model.encode(query)
     if hasattr(encoded, "tolist"):
         encoded = encoded.tolist()
 
@@ -85,6 +97,17 @@ def _search_text(query: Any) -> str:
             f"query must be a non-empty string up to {MAX_QUERY_LENGTH} characters"
         )
     return query
+
+
+def _duration_bound(value: Any, field_name: str) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a non-negative number")
+    bound = float(value)
+    if not math.isfinite(bound) or bound < 0:
+        raise ValueError(f"{field_name} must be a finite, non-negative number")
+    return bound
 
 
 def _video_filename_filter(video_filename: Any) -> Optional[str]:
@@ -252,21 +275,26 @@ class HybridSearchService:
         query: str,
         top_k: int,
         video_filename: Optional[str] = None,
+        min_duration_sec: Optional[float] = None,
+        max_duration_sec: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         top_k = _search_limit(top_k)
         query = _search_text(query)
         video_filename = _video_filename_filter(video_filename)
+        min_duration_sec = _duration_bound(min_duration_sec, "min_duration_sec")
+        max_duration_sec = _duration_bound(max_duration_sec, "max_duration_sec")
         query_vector = _query_vector(self.embedding_model, query)
 
+        candidate_pool = max(top_k * CANDIDATE_POOL_MULTIPLIER, CANDIDATE_POOL_FLOOR)
         text_results = self.collection.query(
             query_embeddings=[query_vector],
-            n_results=top_k * 3,
+            n_results=candidate_pool,
             where=_where_clause("text", video_filename),
             include=[],
         )
         visual_results = self.collection.query(
             query_embeddings=[query_vector],
-            n_results=top_k * 3,
+            n_results=candidate_pool,
             where=_where_clause("visual", video_filename),
             include=[],
         )
@@ -303,6 +331,11 @@ class HybridSearchService:
                     segment_id,
                 )
                 continue
+            duration = result["end_time"] - result["start_time"]
+            if min_duration_sec is not None and duration < min_duration_sec:
+                continue
+            if max_duration_sec is not None and duration > max_duration_sec:
+                continue
             formatted_results.append(result)
             if len(formatted_results) == top_k:
                 break
@@ -310,7 +343,22 @@ class HybridSearchService:
         return formatted_results
 
 
+CHROMA_CONNECT_MAX_ATTEMPTS = 6
+CHROMA_CONNECT_BACKOFF_BASE_SECONDS = 1.0
+CHROMA_CONNECT_BACKOFF_MAX_SECONDS = 8.0
+
+
 def create_search_service(config: Dict[str, Any]) -> HybridSearchService:
+    """Build the hybrid search service.
+
+    The embedding model loads first and unconditionally; if Chroma is slow
+    to come up we still want the API process alive so /readyz can return a
+    503 instead of the pod crashlooping. The Chroma connect attempts have a
+    bounded retry rather than the unbounded blocking call SentenceTransformer
+    + chromadb.HttpClient previously combined for.
+    """
+    import time
+
     import chromadb
     from sentence_transformers import SentenceTransformer
 
@@ -321,13 +369,47 @@ def create_search_service(config: Dict[str, Any]) -> HybridSearchService:
     )
     logger.info("Embedding model loaded successfully.")
 
-    logger.info("Connecting to ChromaDB...")
-    db_config = config["database"]
-    chroma_client = chromadb.HttpClient(host=db_config["host"], port=db_config["port"])
-    collection = chroma_client.get_or_create_collection(
-        name=db_config["collection_name"],
-        metadata={"hnsw:space": "cosine"},
-    )
-    logger.info("Connected to ChromaDB collection '%s'.", db_config["collection_name"])
+    from core.chroma_setup import get_search_collection
 
-    return HybridSearchService(embedding_model, collection)
+    db_config = config["database"]
+    last_error: Optional[BaseException] = None
+    for attempt in range(1, CHROMA_CONNECT_MAX_ATTEMPTS + 1):
+        try:
+            logger.info(
+                "Connecting to ChromaDB (attempt %d/%d)...",
+                attempt,
+                CHROMA_CONNECT_MAX_ATTEMPTS,
+            )
+            chroma_client = chromadb.HttpClient(
+                host=db_config["host"],
+                port=db_config["port"],
+            )
+            # Chroma's HttpClient is lazy; force a real round-trip so a
+            # broken connect surfaces here, not on the first request.
+            chroma_client.heartbeat()
+            collection = get_search_collection(
+                chroma_client, db_config["collection_name"]
+            )
+            logger.info(
+                "Connected to ChromaDB collection '%s'.",
+                db_config["collection_name"],
+            )
+            return HybridSearchService(embedding_model, collection)
+        except Exception as exc:
+            last_error = exc
+            if attempt == CHROMA_CONNECT_MAX_ATTEMPTS:
+                break
+            backoff = min(
+                CHROMA_CONNECT_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)),
+                CHROMA_CONNECT_BACKOFF_MAX_SECONDS,
+            )
+            logger.warning(
+                "Chroma connect failed (%s); retrying in %.1fs.",
+                exc,
+                backoff,
+            )
+            time.sleep(backoff)
+
+    raise RuntimeError(
+        f"Chroma connect failed after {CHROMA_CONNECT_MAX_ATTEMPTS} attempts: {last_error}"
+    )

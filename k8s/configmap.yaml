@@ -39,12 +39,25 @@ data:
   # Queue settings. RABBITMQ_URL belongs in video-se-secrets because it contains credentials.
   INGESTION_QUEUE: "video.ingestion"
 
-  # Model caches (mount a small PVC here for warm starts)
+  # Model caches (mount a small PVC here for warm starts).
+  # TRANSFORMERS_CACHE was removed in favor of HF_HOME — both transformers
+  # and sentence-transformers honor HF_HOME, and emitting both produced
+  # a FutureWarning on every import.
   HF_HOME: "/models/hf"
-  TRANSFORMERS_CACHE: "/models/hf"
   SENTENCE_TRANSFORMERS_HOME: "/models/hf"
   TORCH_HOME: "/models/torch"
 
   # Runtime log verbosity for setup_logging-aware entrypoints
   # (CRITICAL/ERROR/WARNING/INFO/DEBUG). Defaults to INFO if unset/unknown.
   LOG_LEVEL: "INFO"
+
+  # Log output format. `pretty` is colorized human-readable; `json` emits
+  # one JSON object per line for log shippers (Loki, ELK, Datadog).
+  # Production deployments should set this to `json`.
+  LOG_FORMAT: "pretty"
+
+  # Optional security knobs — uncomment and populate to enable.
+  # SEARCH_API_KEY belongs in video-se-secrets (never the ConfigMap).
+  # CORS_ALLOW_ORIGINS: "https://app.example.com"
+  # MAX_REQUEST_BODY_BYTES: "32768"
+  # RATE_LIMIT_PER_MINUTE: "120"

@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Model caches on a writable path (mount a PVC here in k8s)
 ENV HF_HOME=/models/hf \
-    TRANSFORMERS_CACHE=/models/hf \
     SENTENCE_TRANSFORMERS_HOME=/models/hf \
     TORCH_HOME=/models/torch \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -1,5 +1,5 @@
-streamlit
-requests
-PyYAML
-python-dotenv
-colorlog
+streamlit==1.57.0
+requests==2.33.1
+PyYAML==6.0.3
+python-dotenv==1.2.2
+colorlog==6.10.1

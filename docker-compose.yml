@@ -9,7 +9,7 @@ services:
     volumes:
       - chroma-data:/chroma/chroma
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 8000), 2).close()\""]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8000'"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -46,6 +46,13 @@ services:
       ML_DEVICE: "${ML_DEVICE:-cpu}"
       MODEL_CACHE_DIR: /models
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      LOG_FORMAT: "${LOG_FORMAT:-pretty}"
+      # Optional API key auth and CORS allow-list. Unset = open API + no
+      # CORS middleware (compatible with the existing UI).
+      SEARCH_API_KEY: "${SEARCH_API_KEY:-}"
+      CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-}"
+      MAX_REQUEST_BODY_BYTES: "${MAX_REQUEST_BODY_BYTES:-}"
+      RATE_LIMIT_PER_MINUTE: "${RATE_LIMIT_PER_MINUTE:-}"
     volumes:
       - model-cache:/models
     depends_on:

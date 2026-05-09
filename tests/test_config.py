@@ -23,7 +23,19 @@ def _load_config_module(monkeypatch, tmp_path, config_text, ml_device="cpu"):
     else:
         monkeypatch.setenv("ML_DEVICE", ml_device)
     sys.modules.pop("core.config", None)
-    return importlib.import_module("core.config")
+    # Stop load_dotenv from re-injecting the repo's real .env contents
+    # over the monkeypatched env. Without this, a developer with a real
+    # HF_TOKEN in their .env would see these tests "randomly" fail.
+    import dotenv
+
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **kw: False)
+    module = importlib.import_module("core.config")
+    # CONFIG is now lazy (load on first attribute access) to keep import
+    # side-effect-free, but these tests want the load — and any validation
+    # error it raises — to happen during _load_config_module so the
+    # pytest.raises blocks still capture them.
+    _ = module.CONFIG
+    return module
 
 
 def test_hf_token_comes_from_environment(monkeypatch, tmp_path):
@@ -655,8 +667,10 @@ def test_config_path_must_be_readable_yaml_file(monkeypatch, tmp_path):
     monkeypatch.setenv("ML_DEVICE", "cpu")
     sys.modules.pop("core.config", None)
 
+    # CONFIG is lazy: load happens on first attribute access, not on import.
+    module = importlib.import_module("core.config")
     with pytest.raises(ValueError, match="readable YAML file"):
-        importlib.import_module("core.config")
+        _ = module.CONFIG
 
 
 @pytest.mark.parametrize("section_value", ["[]", "not-a-mapping"])

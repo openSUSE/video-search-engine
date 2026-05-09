@@ -47,6 +47,12 @@ def test_runtime_requirements_do_not_include_unused_pandas_dependency():
 
 
 def test_pydantic_requirement_matches_schema_validator_floor():
+    """Pydantic must be pinned to a major-2 line that chromadb supports.
+
+    chromadb 1.5.x imports pydantic ≥ 2.10; the previous <2.10 cap shipped
+    a fresh build whose pydantic and chromadb pins disagreed. We pin to a
+    range that satisfies both: 2.10 ≤ pydantic < 3.
+    """
     for requirements_file in ["requirements-api.txt", "requirements-dev.txt"]:
         direct_requirements = {
             Requirement(line).name.lower(): Requirement(line)
@@ -56,8 +62,13 @@ def test_pydantic_requirement_matches_schema_validator_floor():
         }
 
         pydantic_requirement = direct_requirements["pydantic"]
-        assert ">=2" in str(pydantic_requirement.specifier)
-        assert "<2.10" in str(pydantic_requirement.specifier)
+        specifier = pydantic_requirement.specifier
+        assert pydantic_requirement.specifier.contains("2.10"), (
+            f"{requirements_file} pydantic spec {specifier} must allow >=2.10 (chromadb 1.5.x requires it)"
+        )
+        assert not pydantic_requirement.specifier.contains("3.0.0"), (
+            f"{requirements_file} pydantic spec {specifier} must cap below 3.0"
+        )
 
 
 def test_logging_dependency_is_available_to_setup_logging_entrypoints():

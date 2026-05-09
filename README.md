@@ -154,6 +154,33 @@ Important variables:
 
 Use `config.example.yaml` and `.env.example` as references. Do not put secrets in tracked YAML.
 
+## Search API
+
+`POST http://localhost:1234/search` with a JSON body:
+
+| Field | Required | Description |
+|---|---|---|
+| `query` | yes | Free-text query, ≤ 1000 chars. |
+| `top_k` | no (default 5) | 1–50. |
+| `video_filename` | no | Restrict to one video's segments by filename stem. |
+| `min_duration_sec` | no | Drop segments shorter than this. |
+| `max_duration_sec` | no | Drop segments longer than this. |
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:1234/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"explosion fire","top_k":3,"min_duration_sec":5}'
+```
+
+Each indexed segment also carries pipe-delimited token fields
+(`speakers_tokens`, `keywords_tokens`, `actions_tokens`,
+`audio_events_tokens`) usable with Chroma's `$contains` operator for
+precise server-side filtering, plus a `duration_sec` numeric metadata
+field. See [docs/operations.md](docs/operations.md#search-api-filters)
+for filter recipes.
+
 ## Development
 
 Run the lightweight validation suite:
@@ -164,11 +191,22 @@ make validate
 
 This runs unit tests, validates Compose config with and without the worker profile, and compiles lightweight Python entrypoints. CI runs the same target.
 
+For an integration test that talks to a real Chroma:
+
+```bash
+make compose-up           # in another terminal
+make test-integration
+```
+
+The `tests/integration/` suite skips itself when Chroma is unreachable, so the same files work locally and in the `compose-smoke` CI lane.
+
 Run the benchmark suite when working on a hot path (search service, ingestion validators, segmentation loop, ...):
 
 ```bash
 make bench           # full suite, text report
 make bench-smoke     # 10% iterations, suitable for a quick sanity check
+make bench-baseline  # capture benchmarks/reports/baseline.json
+make bench-check     # gate on regression vs baseline
 ```
 
 See [benchmarks/README.md](benchmarks/README.md) for what is measured, how to add a new benchmark, and how to read the report.
