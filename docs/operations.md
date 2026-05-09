@@ -30,10 +30,18 @@ Useful endpoints:
 
 - API liveness: `http://localhost:1234/healthz` — returns 200 once the FastAPI process is up.
 - API readiness: `http://localhost:1234/readyz` — returns 503 until the embedding model and ChromaDB connection are initialized; use this for load-balancer or Kubernetes readiness probes.
-- Search UI: `http://localhost:8501`
+- Demo UI: `http://localhost:8501` — multi-page Streamlit (Home / Submit / Pipeline / Search). The Pipeline page polls `data/processed/<video>/` every 1.5 s for live step-by-step progress.
 - Speaker identification UI: `http://localhost:5050`
 - RabbitMQ management: `http://localhost:15672`
 - ChromaDB: `http://localhost:8000`
+
+For a full end-to-end demo, also start the worker so the Submit page has somewhere to send the job:
+
+```bash
+make compose-worker
+```
+
+Then on the Submit page, pick a video already staged under `data/videos/`, optionally set title/year, and click **Publish ingestion job**. The Pipeline page picks up the job automatically and animates the per-step progress (shot detection → audio → transcription → audio events → visual captions → actions → speaker map → segmentation → enrichment → indexing).
 
 When `.env` is copied from `.env.example`, RabbitMQ uses `RABBITMQ_DEFAULT_USER` and `RABBITMQ_DEFAULT_PASS` from that file. The host publisher should use a `localhost` `RABBITMQ_URL`; the Compose worker is wired to the `rabbitmq` service DNS name.
 

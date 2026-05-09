@@ -1,6 +1,12 @@
 # Semantic Video Search Engine
 
+📰 https://news.opensuse.org/2025/10/08/gsoc-semantic-video-search
+
 An end-to-end video ingestion and semantic search system. The pipeline extracts transcript, speaker, visual, action, and audio-event metadata from videos, enriches segments with an LLM, indexes them in ChromaDB, and serves hybrid text/visual search through FastAPI and Streamlit.
+
+## About
+
+https://news.opensuse.org/2025/10/08/gsoc-semantic-video-search
 
 ## What Is Included
 
@@ -67,7 +73,7 @@ make compose-up
 
 Default URLs:
 
-- Search UI: `http://localhost:8501`
+- Demo UI: `http://localhost:8501` — multi-page Streamlit (Home / Submit / Pipeline / Search). The Pipeline page animates per-step progress live as the worker advances. For the Submit page to actually queue jobs, also run `make compose-worker`.
 - Speaker identification UI: `http://localhost:5050` when started with `make compose-speaker`
 - Search API: `http://localhost:1234`
 - API liveness: `http://localhost:1234/healthz`

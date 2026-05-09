@@ -3,3 +3,7 @@ requests==2.33.1
 PyYAML==6.0.3
 python-dotenv==1.2.2
 colorlog==6.10.1
+# Submit-page → RabbitMQ publisher needs pika; the demo Pipeline tab also
+# probes ChromaDB to count indexed docs, so the UI image now ships both.
+pika==1.4.0
+chromadb==1.5.9

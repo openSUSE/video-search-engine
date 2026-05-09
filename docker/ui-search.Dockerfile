@@ -15,4 +15,8 @@ RUN pip install --no-cache-dir -r requirements-ui.txt
 COPY . .
 
 EXPOSE 8501
-CMD ["streamlit","run","app/ui/search_app.py","--server.address","0.0.0.0","--server.port","8501"]
+# --server.fileWatcherType=none avoids Streamlit hitting the inotify
+# instance limit on container startup (the default 'auto' walks every
+# imported module + chromadb/transformers ship a lot of them). Hot-
+# reload isn't useful in a deployed image anyway.
+CMD ["streamlit","run","app/ui/search_app.py","--server.address","0.0.0.0","--server.port","8501","--server.fileWatcherType","none","--server.headless","true"]

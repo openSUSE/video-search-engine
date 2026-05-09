@@ -696,10 +696,38 @@ def transcribe_and_diarize(
     model = whisperx.load_model(model_cfg['name'], device, compute_type=model_cfg['compute_type'])
     result_transcript = model.transcribe(audio, batch_size=params_cfg['batch_size'])
 
-    from whisperx.diarize import DiarizationPipeline
-    diarize_model = DiarizationPipeline(token=config['general']['hf_token'], device=device)
-    diarize_segments = diarize_model(audio)
-    result_transcript = whisperx.assign_word_speakers(diarize_segments, result_transcript)
+    # Pyannote's diarization model is gated on HuggingFace and requires the
+    # token holder to accept the user conditions. If we can't reach it
+    # (GatedRepoError, missing/invalid token, network), fall back to a
+    # transcript without speaker labels instead of failing the whole
+    # pipeline — segmentation and enrichment both tolerate empty
+    # `speaker` fields.
+    try:
+        from huggingface_hub.errors import GatedRepoError
+    except ImportError:
+        GatedRepoError = Exception  # type: ignore[assignment]
+
+    try:
+        from whisperx.diarize import DiarizationPipeline
+        diarize_model = DiarizationPipeline(token=config['general']['hf_token'], device=device)
+        diarize_segments = diarize_model(audio)
+        result_transcript = whisperx.assign_word_speakers(diarize_segments, result_transcript)
+    except GatedRepoError as exc:
+        logger.warning(
+            "Pyannote diarization model is gated and unreachable for this "
+            "HF token (%s). Saving transcript without speaker labels. "
+            "Visit https://hf.co/pyannote/speaker-diarization-community-1 "
+            "and accept the user conditions to enable diarization.",
+            exc,
+        )
+    except Exception as exc:
+        # Network blip / other transient — still degrade rather than crash.
+        # We log full traceback so an operator can distinguish a token
+        # rotation from an outage.
+        logger.exception(
+            "Diarization failed (%s); saving transcript without speaker labels.",
+            exc,
+        )
 
     atomic_write_json(raw_transcript_path, result_transcript['segments'])
     logger.info(f"    -> Raw transcript saved to {raw_transcript_path}")

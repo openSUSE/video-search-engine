@@ -62,8 +62,10 @@ llm_enrichment:
 
   # Settings for Google Gemini API
   gemini:
-    # Model name from Google (gemini-1.5-flash is fast and cost-effective)
-    model: "gemini-1.5-flash"
+    # Model name from Google. gemini-1.5-flash and gemini-2.0-flash were
+    # retired by Google; the current fast/cost-effective generation is
+    # 2.5-flash.
+    model: "gemini-2.5-flash"
     # The API key will be read from the GEMINI_API_KEY environment variable
 
 # --- Model identifiers and settings ---

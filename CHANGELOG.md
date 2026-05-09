@@ -168,6 +168,43 @@ permissive behavior so existing deployments are unaffected.
   `dependency-audit` CI lane that runs on every push/PR. Today's
   baseline is clean (0 vulnerabilities) across all three sets.
 
+## Demo UI
+
+- **Multi-page Streamlit app** at `:8501` replacing the previous
+  search-only single page:
+  - **Home** — one-screen orientation for first-time viewers.
+  - **1 · Submit** — pick a video already in `data/videos/`, optionally
+    set title/year/reset-cache, click publish; jobs go to RabbitMQ
+    `video.ingestion`. The page also shows a masked `RABBITMQ_URL` so
+    a screen-share doesn't leak credentials.
+  - **2 · Pipeline** — animated step checklist (10 steps from shot
+    detection through indexing) that polls `data/processed/<video>/`
+    every 1.5 s. Each step shows its state (⏳/🔵/✅/❌), wall-clock
+    elapsed, and a one-line detail (e.g. "3/5 enriched, 2 pending"
+    during enrichment). Auto-refresh stops when the pipeline finishes
+    or fails.
+  - **3 · Search** — existing search plus clickable sample-query chips
+    per video, embedded video player with "jump to start" buttons,
+    duration-filter inputs, the request-id from the API response (so
+    the demo can grep for it across logs), and a "Reset Chroma
+    collection" button for clean demo replays.
+- New helpers:
+  - `app/ui/pipeline_state.py` — pure stdlib state walker that takes a
+    processed-dir path + Chroma probe and returns a `PipelineStatus`
+    dataclass. 9 unit tests.
+  - `app/ui/pipeline_publish.py` — UI-side publish wrapper that
+    translates host paths to the worker-mount path and turns pika
+    exceptions into a `PublishResult` the page can show without
+    crashing. 5 unit tests.
+- The `ui-search` compose service now mounts `data/processed/` as
+  read-only and wires `RABBITMQ_URL`, `CHROMA_HOST`, and
+  `CHROMA_COLLECTION` so the new pages have everything they need.
+- `requirements-ui.txt` adds `pika` (for the Submit page) and
+  `chromadb` (for the indexing-step probe on the Pipeline page).
+- The Streamlit container CMD now sets `--server.fileWatcherType=none`
+  to avoid the inotify instance limit that fires when watchdog walks
+  the entire installed-package tree on container start.
+
 ## Documentation
 
 - **`README.md`** — new "Search API" section listing all query fields,

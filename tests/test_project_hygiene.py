@@ -84,8 +84,14 @@ def test_search_ui_timeout_is_configured_for_deployments():
     assert configmap["data"]["SEARCH_API_TIMEOUT_SECONDS"] == "10"
 
 
+# The search UI logic was moved out of search_app.py (which is now the
+# multipage navigation entrypoint) into pages/search.py. The hygiene
+# guarantees still apply — they just target the new location.
+SEARCH_PAGE_PATH = "app/ui/pages/search.py"
+
+
 def test_search_app_handles_request_failures_through_client_boundary():
-    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    tree = ast.parse(Path(SEARCH_PAGE_PATH).read_text())
     imported_client_names = {
         alias.name
         for node in tree.body
@@ -104,14 +110,18 @@ def test_search_app_handles_request_failures_through_client_boundary():
 
 
 def test_search_streamlit_ui_defers_core_config_import():
-    imported_modules = _top_level_import_modules("app/ui/search_app.py")
+    # The multipage entry sets up logging and navigation only; core.config
+    # (which loads YAML at first access) must not be pulled in eagerly.
+    entry_modules = _top_level_import_modules("app/ui/search_app.py")
+    page_modules = _top_level_import_modules(SEARCH_PAGE_PATH)
 
-    assert "app.ui.path_settings" in imported_modules
-    assert "core.config" not in imported_modules
+    assert "core.config" not in entry_modules
+    assert "core.config" not in page_modules
+    assert "app.ui.path_settings" in page_modules
 
 
 def test_search_streamlit_ui_uses_shared_video_file_filter():
-    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    tree = ast.parse(Path(SEARCH_PAGE_PATH).read_text())
     imported_support_names = {
         alias.name
         for node in tree.body
@@ -125,7 +135,7 @@ def test_search_streamlit_ui_uses_shared_video_file_filter():
 
 
 def test_search_streamlit_ui_handles_ambiguous_video_discovery():
-    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    tree = ast.parse(Path(SEARCH_PAGE_PATH).read_text())
     handled_exceptions = {
         _qualified_name(node.type)
         for node in ast.walk(tree)
@@ -138,7 +148,7 @@ def test_search_streamlit_ui_handles_ambiguous_video_discovery():
 
 
 def test_search_streamlit_ui_uses_positioned_result_button_keys():
-    tree = ast.parse(Path("app/ui/search_app.py").read_text())
+    tree = ast.parse(Path(SEARCH_PAGE_PATH).read_text())
     imported_client_names = {
         alias.name
         for node in tree.body

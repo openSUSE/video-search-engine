@@ -76,12 +76,25 @@ services:
       API_PORT: "1234"
       SEARCH_API_TIMEOUT_SECONDS: "${SEARCH_API_TIMEOUT_SECONDS:-10}"
       VIDEO_DATA_PATH: /data/videos
+      OUTPUT_DIR: /data/processed
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: "${CHROMA_COLLECTION:-video_search_engine}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER:-video_se}:${RABBITMQ_DEFAULT_PASS:-video_se_dev}@rabbitmq:5672/%2F"
+      INGESTION_QUEUE: "${INGESTION_QUEUE:-video.ingestion}"
       ML_DEVICE: "${ML_DEVICE:-cpu}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - ./data/videos:/data/videos:ro
+      # The Pipeline page reads the worker's processed/ artifacts. Mounted
+      # read-only so a buggy UI can't corrupt pipeline state.
+      - ./data/processed:/data/processed:ro
     depends_on:
       api:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      chroma:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 8501), 2).close()\""]
