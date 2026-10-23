@@ -1,7 +1,7 @@
 fastapi==0.136.1
 uvicorn[standard]==0.46.0
 chromadb==1.5.9
-sentence-transformers==5.4.1
+sentence-transformers==5.6.0
 # chromadb 1.5.9 requires pydantic >= 2.10, so the previous <2.10 cap
 # would mismatch on a fresh build. Match the pin used in ingestion.
 pydantic>=2.10,<3
