@@ -13,7 +13,7 @@ whisperx @ git+https://github.com/m-bain/whisperx.git@1c4b23e13d79280a076e98644a
 
 transnetv2-pytorch==1.0.5
 opencv-python-headless==4.13.0.92
-pillow==12.2.0
+pillow==13.0.0
 librosa==0.11.0
 transformers==4.57.6
 sentence-transformers==5.6.0
