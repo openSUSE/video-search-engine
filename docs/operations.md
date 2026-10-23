@@ -236,7 +236,7 @@ redeploy.
 
 `POST /search` accepts these optional fields beyond `query` and `top_k`:
 
-- `video_filename`: restrict results to one video stem (e.g. `videoplayback`).
+- `video_filename`: restrict results to one video stem (e.g. `sintel_trailer`).
 - `min_duration_sec` / `max_duration_sec`: drop segments outside the range
   *after* hybrid fusion. Useful when very short cut-segments dominate the
   top hits for noisy collections.

@@ -113,12 +113,6 @@ SAMPLE_QUERIES_BY_VIDEO = {
         "dangerous quest",
         "desert travel",
     ],
-    "videoplayback": [
-        "explosion and fire",
-        "a man building a machine",
-        "a man in a workshop",
-        "crashing motorcycle",
-    ],
 }
 
 stem = st.session_state.video_filename_clean or ""
