@@ -1,0 +1,16 @@
+Semantic Video Search Engine
+Copyright 2025-2026 Akash Kumar
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party content (not covered by the Apache License)
+-------------------------------------------------------
+
+app/demo/sintel_trailer.mp4
+app/demo/sintel_trailer.enriched.json (derived from the trailer)
+
+  (c) copyright Blender Foundation | durian.blender.org
+
+  Licensed under the Creative Commons Attribution 3.0 license:
+  https://creativecommons.org/licenses/by/3.0/
+  Source and terms: https://durian.blender.org/sharing/

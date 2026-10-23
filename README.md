@@ -243,3 +243,9 @@ Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your reg
 ## Operations
 
 See [docs/operations.md](docs/operations.md) for local runbook commands, environment notes, queue behavior, and troubleshooting.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.
+
+The bundled demo clip `app/demo/sintel_trailer.mp4` and the data derived from it, `app/demo/sintel_trailer.enriched.json`, are © Blender Foundation | durian.blender.org, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). They are not covered by the Apache License.
