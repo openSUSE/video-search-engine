@@ -1,4 +1,6 @@
-streamlit==1.57.0
+# 1.66.1 is the first release that allows pillow 13, which fixes the
+# pillow 12.x advisories reported by pip-audit.
+streamlit==1.66.1
 requests==2.33.1
 PyYAML==6.0.3
 python-dotenv==1.2.2
