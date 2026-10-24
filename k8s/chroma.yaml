@@ -17,7 +17,7 @@ spec:
         fsGroup: 10001
       containers:
       - name: chroma
-        image: chromadb/chroma:1.5.6
+        image: chromadb/chroma:1.5.9
         ports:
         - containerPort: 8000
         env:

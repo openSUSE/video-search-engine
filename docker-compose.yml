@@ -1,6 +1,6 @@
 services:
   chroma:
-    image: "${CHROMA_IMAGE:-chromadb/chroma:1.5.6}"
+    image: "${CHROMA_IMAGE:-chromadb/chroma:1.5.9}"
     ports:
       - "${CHROMA_PORT:-8000}:8000"
     environment:
