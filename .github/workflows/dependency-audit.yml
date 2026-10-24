@@ -1,0 +1,46 @@
+name: dependency-audit
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Tuesdays, the day after Dependabot's Monday run. Finds new advisories
+    # and new releases without anyone pushing a commit.
+    - cron: "23 6 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    # Catches known CVEs in our pinned dependencies before they ship in
+    # an image. Kept out of ci.yml so a transient PyPI advisory mirror
+    # outage doesn't fail the validation lanes, and so the weekly run
+    # starts nothing else. We audit the api / dev / ui requirement sets
+    # because those are what the deployed images install; the heavy
+    # ingestion deps (torch, whisperx) are intentionally out of scope —
+    # their advisories are noisy and the worker isn't internet-facing.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit==2.7.3 packaging==26.1
+      - name: Audit api, dev and ui requirements against the allowlist
+        # Accepted advisories are in .github/pip-audit-allowlist.toml. One
+        # run covers every file, because an entry only counts as unused
+        # once all of them have been read.
+        run: >-
+          python scripts/audit_gate.py
+          --allowlist .github/pip-audit-allowlist.toml
+          -r requirements-api.txt
+          -r requirements-dev.txt
+          -r requirements-ui.txt
+      - name: Check PyPI for releases newer than the allowlist
+        # Weekly and on demand only, so a new release does not turn
+        # unrelated pushes and PRs red.
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        run: python scripts/audit_gate.py --allowlist .github/pip-audit-allowlist.toml --check-releases

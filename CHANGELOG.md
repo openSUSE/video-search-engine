@@ -164,9 +164,10 @@ permissive behavior so existing deployments are unaffected.
   to suppress sub-microsecond CPU jitter while still catching real
   regressions.
 - **`make audit`** runs `pip-audit` against the pinned api/dev/ui
-  requirement sets and fails on any known CVE. Mirrored as a
-  `dependency-audit` CI lane that runs on every push/PR. Today's
-  baseline is clean (0 vulnerabilities) across all three sets.
+  requirement sets and fails on any known CVE that
+  `.github/pip-audit-allowlist.toml` does not accept for that exact
+  version. Mirrored as a `dependency-audit` workflow that runs on every
+  push/PR and weekly.
 
 ## Zero-config demo
 

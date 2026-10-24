@@ -273,9 +273,16 @@ afterwards, normal mismatch invalidation applies.
 
 `make audit` runs `pip-audit` against the pinned requirement files
 (`requirements-api.txt`, `requirements-dev.txt`, `requirements-ui.txt`)
-and exits non-zero if any package version has a known CVE in the PyPI
-advisory database. The `dependency-audit` CI lane runs the same scan on
-every push and PR.
+through `scripts/audit_gate.py`. It exits non-zero if any package version
+has a known CVE in the PyPI advisory database that
+`.github/pip-audit-allowlist.toml` does not accept. The `dependency-audit`
+workflow runs the same gate on every push and PR, and every Tuesday. The
+weekly run also fails when PyPI has a release newer than the version an
+allowlist entry covers. GitHub tells whoever last changed the `cron`
+line about a failed scheduled run (or whoever re-enabled the workflow,
+if that happened later), and only if that person has GitHub Actions
+notifications turned on. It also turns the schedule off after 60 days
+without repository activity; turn it back on from the Actions tab.
 
 The heavy ingestion deps (`torch`, `whisperx`, etc.) are intentionally
 excluded — their advisories are noisy and the worker is not directly
@@ -288,7 +295,13 @@ make audit AUDIT_FILES="requirements-api.txt requirements-dev.txt requirements-u
 
 When a CVE fires, fix it by bumping the affected package in the
 requirements file, re-running `make audit` to confirm clean, and
-re-running `make bench-check` to confirm no perf regression.
+re-running `make bench-check` to confirm no perf regression. If no
+release fixes it yet, add an allowlist entry with the advisory id, its
+aliases, the exact package version and a reason. An entry covers only
+that version, so the gate fails again after a bump and asks for the entry
+to be deleted or moved. When OSV records no fix for the new version, the
+message starts with `UNCONFIRMED`: check the release notes before
+deleting the entry.
 
 ## Tests And Benchmarks
 

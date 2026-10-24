@@ -1,0 +1,44 @@
+# Advisories CI accepts for now. Read by scripts/audit_gate.py, which runs
+# pip-audit with no --ignore-vuln flags.
+#
+# An entry accepts a finding only when the package is `package`, the audited
+# version is exactly `version`, and the advisory id or one of its aliases is
+# `id` or in `aliases`.
+#
+# When ChromaDB ships a new release, the Dependabot "chroma" PR fails here on
+# purpose. The CI message says what to do with each entry:
+#   - "Delete the entry": OSV records the fix. Delete it in a commit on the
+#     Dependabot branch.
+#   - "UNCONFIRMED": OSV records no fix. These advisories end at
+#     last_affected = 1.5.9, so pip-audit stops reporting them for any later
+#     release, fixed or not. Read the release notes for the CVE. If it is
+#     fixed, delete the entry and cite the release note in the commit message.
+#     If not, set `version` to the new release to keep tracking it.
+
+[[vuln]]
+id = "PYSEC-2026-311"
+aliases = ["CVE-2026-45829", "GHSA-f4j7-r4q5-qw2c"]
+package = "chromadb"
+version = "1.5.9"
+reason = "Pre-auth code injection in the Chroma server. No release has the fix yet."
+
+[[vuln]]
+id = "PYSEC-2026-3813"
+aliases = ["CVE-2026-45830", "GHSA-2wm9-hf6c-p5cr"]
+package = "chromadb"
+version = "1.5.9"
+reason = "Cross-tenant data access in the Chroma server. No release has the fix yet."
+
+[[vuln]]
+id = "PYSEC-2026-3814"
+aliases = ["CVE-2026-45833", "GHSA-36p7-vc44-83pf"]
+package = "chromadb"
+version = "1.5.9"
+reason = "Code injection in the Chroma server. No release has the fix yet."
+
+[[vuln]]
+id = "PYSEC-2026-3815"
+aliases = ["CVE-2026-45831", "GHSA-xph7-9rjv-w5fr"]
+package = "chromadb"
+version = "1.5.9"
+reason = "RBAC permission scope not checked in the Chroma server. No release has the fix yet."

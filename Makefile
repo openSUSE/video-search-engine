@@ -16,17 +16,16 @@ test:
 test-integration:
 	$(VENV)/bin/python -m pytest tests/integration -v
 
-# Scan pinned api/dev/ui requirements for known CVEs. Heavy ingestion
-# deps (torch, whisperx) are excluded — their advisories are noisy and
-# the worker is internet-isolated in our deployment shape. Override
-# AUDIT_FILES if you want to include them.
+# Scan pinned api/dev/ui requirements for known CVEs, through the same
+# allowlist gate as CI. Heavy ingestion deps (torch, whisperx) are
+# excluded — their advisories are noisy and the worker is
+# internet-isolated in our deployment shape. Override AUDIT_FILES if you
+# want to include them.
 AUDIT_FILES ?= requirements-api.txt requirements-dev.txt requirements-ui.txt
 audit:
 	@command -v $(VENV)/bin/pip-audit >/dev/null 2>&1 || $(VENV)/bin/pip install pip-audit==2.7.3
-	@for f in $(AUDIT_FILES); do \
-		echo "==> auditing $$f"; \
-		$(VENV)/bin/pip-audit -r $$f --strict || exit 1; \
-	done
+	$(VENV)/bin/python scripts/audit_gate.py --allowlist .github/pip-audit-allowlist.toml \
+		--pip-audit $(VENV)/bin/pip-audit $(foreach f,$(AUDIT_FILES),-r $(f))
 
 validate: test
 	$(COMPOSE) config
