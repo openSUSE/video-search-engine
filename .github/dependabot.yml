@@ -1,0 +1,39 @@
+# One weekly "chroma" PR bumps the chromadb client and the chromadb/chroma
+# server image together, so compose-smoke tests the new pair. The
+# dependency-audit check on that PR fails until the chromadb entries in
+# .github/pip-audit-allowlist.toml are dealt with; see the top of that file.
+#
+# There is no `allow` list: in a multi-ecosystem group Dependabot only
+# updates what `patterns` matches, and `allow` would also stop security
+# updates for every other package in these directories.
+version: 2
+
+multi-ecosystem-groups:
+  chroma:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    labels: ["dependencies"]
+    assignees: ["AkashKumar7902"]
+
+updates:
+  # chromadb pins in requirements-api.txt, requirements-ui.txt and
+  # requirements-ingestion.txt.
+  - package-ecosystem: "pip"
+    directory: "/"
+    patterns: ["chromadb"]
+    multi-ecosystem-group: "chroma"
+
+  # Server image default in docker-compose.yml.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    patterns: ["chromadb/chroma"]
+    multi-ecosystem-group: "chroma"
+
+  # Server image in k8s/chroma.yaml.
+  - package-ecosystem: "docker"
+    directory: "/k8s"
+    patterns: ["chromadb/chroma"]
+    multi-ecosystem-group: "chroma"

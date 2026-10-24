@@ -303,6 +303,17 @@ to be deleted or moved. When OSV records no fix for the new version, the
 message starts with `UNCONFIRMED`: check the release notes before
 deleting the entry.
 
+### ChromaDB Updates
+
+Every Monday Dependabot (`.github/dependabot.yml`) opens one "chroma" PR
+when there is something to bump. It updates the `chromadb` client in the
+requirements files and the `chromadb/chroma` server image in
+`docker-compose.yml` and `k8s/chroma.yaml`, so compose-smoke runs the
+new client and server together. When the PR moves the client, its
+dependency-audit check fails until the chromadb allowlist entries are
+deleted or moved. Follow the CI message, push that change to the
+Dependabot branch, and merge once every check is green.
+
 ## Tests And Benchmarks
 
 Unit suite (no external services):
