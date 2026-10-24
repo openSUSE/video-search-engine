@@ -457,10 +457,24 @@ def test_chroma_runtime_images_are_pinned():
     compose_image = compose["services"]["chroma"]["image"]
     k8s_image = k8s_chroma["spec"]["template"]["spec"]["containers"][0]["image"]
 
-    assert compose_image.startswith("chromadb/chroma:${CHROMA_IMAGE_TAG:-")
-    assert k8s_image.startswith("chromadb/chroma:")
+    # The variable holds the whole image so Dependabot can read and bump the
+    # default. It skips an image whose tag alone is a variable.
+    compose_image_match = re.fullmatch(r"\$\{CHROMA_IMAGE:-(.+)\}", compose_image)
+    assert compose_image_match is not None
+
+    compose_default_image = compose_image_match.group(1)
+
+    assert re.match(r"^chromadb/chroma:\d+\.\d+\.\d+$", compose_default_image)
+    assert compose_default_image == k8s_image
     assert ":latest" not in compose_image
     assert ":latest" not in k8s_image
+
+
+def test_env_example_leaves_chroma_image_to_compose_default():
+    # compose-smoke copies .env.example, so a pin here would keep CI on the
+    # old server image after docker-compose.yml is bumped.
+    env_example = Path(".env.example").read_text().splitlines()
+    assert not any(line.startswith("CHROMA_IMAGE") for line in env_example)
 
 
 def test_rabbitmq_runtime_images_are_pinned():

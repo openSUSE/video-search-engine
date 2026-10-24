@@ -150,7 +150,7 @@ Important variables:
 - `ML_DEVICE`, `OUTPUT_DIR`, `VIDEO_DATA_PATH`, `MODEL_CACHE_DIR`
 - `SPEAKER_UI_MODE`, `SPEAKER_MAP_TIMEOUT_SECONDS`
 - `API_HOST`, `API_PORT`, `SEARCH_API_TIMEOUT_SECONDS`, `UI_HOST`, `UI_PORT`
-- `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`, `CHROMA_IMAGE_TAG`
+- `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`, `CHROMA_IMAGE`
 - `RABBITMQ_URL`, `INGESTION_QUEUE`
 - `RABBITMQ_IMAGE_TAG`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` for local Compose or the bundled Kubernetes RabbitMQ
 - `LLM_PROVIDER`, `GEMINI_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT`, `OLLAMA_MODEL`
@@ -238,7 +238,7 @@ kubectl -n video-se create secret generic video-se-secrets \
 kubectl apply -k k8s/
 ```
 
-Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Service Dockerfiles use `python:3.12.13-slim`; Chroma is pinned to `chromadb/chroma:1.5.6`; bundled RabbitMQ is pinned to `rabbitmq:4.1.4-management`. Update them intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
+Replace `<REG>/video-se-*:TAG` image placeholders in the manifests with your registry and immutable image tags. Service Dockerfiles use `python:3.12.13-slim`; Chroma is pinned in `k8s/chroma.yaml` to the same tag as the `docker-compose.yml` default; bundled RabbitMQ is pinned to `rabbitmq:4.1.4-management`. Update them intentionally after validation. The bundled kustomization includes RabbitMQ and an `ingestion-worker` deployment; set `RABBITMQ_URL` to a managed broker endpoint instead if you do not want to run RabbitMQ in-cluster. `k8s/ingestion-job.yaml` and `k8s/toolbox.yaml` are manual operational helpers and are intentionally excluded from the default kustomization.
 
 ## Operations
 
