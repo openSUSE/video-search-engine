@@ -2,7 +2,7 @@
 --extra-index-url https://pypi.org/simple
 
 # CPU torch wheels
-torch==2.8.0
+torch==2.12.1+cpu
 torchvision==0.23.0
 torchaudio==2.8.0
 
